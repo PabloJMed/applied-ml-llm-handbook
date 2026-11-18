@@ -1,8 +1,10 @@
 # Applied ML & LLM Handbook
 
+**Pablo Medina** · written with the guidance of Claude Opus 5.5 (Anthropic)
+
 A self-study guide for data scientists and ML engineers preparing for senior applied ML and LLM roles: the theory, the code, the system design and the interview, in one place. Examples come from food delivery and marketplaces, but every chapter applies to any product company.
 
-**Read it as a book:** [Applied-ML-and-LLM-Handbook.pdf](Applied-ML-and-LLM-Handbook.pdf) (472 pages, A4, with bookmarks and a linked contents page). Or browse the chapters below as Markdown.
+**Read it as a book:** [Applied-ML-and-LLM-Handbook.pdf](Applied-ML-and-LLM-Handbook.pdf) (249 pages, A4, with bookmarks and a linked contents page). Or browse the chapters below as Markdown.
 
 ## What is inside
 
@@ -105,7 +107,7 @@ python code/ch04_check.py
 
 ## About
 
-Written with AI assistance (Claude) and reviewed and edited by the author. Corrections and suggestions are welcome: open an issue.
+Written by Pablo Medina with the guidance of Claude Opus 5.5 (Anthropic), and reviewed and edited by the author. Corrections and suggestions are welcome: open an issue.
 
 ## Licence
 
@@ -113,4 +115,11 @@ Text, diagrams and the PDF: [CC BY-NC-SA 4.0](https://creativecommons.org/licens
 
 ## Edition
 
-November 2026. The Markdown and the PDF are generated from the same source, so they match.
+November 2026. The Markdown in `chapters/` is the single source: the PDF is built from it with [`tools/build_pdf.py`](tools/build_pdf.py), so they match.
+
+```bash
+pip install -r tools/requirements.txt
+python tools/build_pdf.py
+```
+
+Fonts: Inter, Source Serif 4 and JetBrains Mono, all under the SIL Open Font License (licences in [`tools/fonts/`](tools/fonts/)).
