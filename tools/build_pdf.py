@@ -114,6 +114,11 @@ hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {s(0.8)} 0; }}
 .chapter {{ page-break-before: always; }}
 .brk {{ page-break-before: always; }}
 p.spacer {{ margin: 0; font-size: 1pt; line-height: 1; }}
+.tight p, .tight li {{ line-height: 1.36; }}
+.tight p {{ margin-bottom: {s(0.45)}; }}
+.tighter p, .tighter li {{ line-height: 1.31; }}
+.tighter p {{ margin-bottom: {s(0.38)}; }}
+.tighter h2 {{ margin-top: {s(1.2)}; }}
 .partlabel {{ font-family: sans; font-weight: bold; font-size: {s(0.72)}; color: #b8623f; margin: {s(1.0)} 0 {s(1.6)} 0; }}
 .chapnum {{ font-family: sans; font-size: {s(0.95)}; color: #b8623f; margin: 0 0 {s(0.25)} 0; }}
 h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bottom: {s(0.9)};
@@ -172,6 +177,8 @@ def prepare_fonts() -> Path:
 
 BREAKS: set[str] = set()      # element ids that must start a new page (filled during layout)
 TALL: set[str] = set()        # tables, code blocks and boxes
+TIGHTER: set[str] = set()     # second step for chapters the first step did not fix
+TIGHT: set[str] = set()       # chapters whose last page held only a few lines: set slightly tighter
 KEEP: set[str] = set()        # headings and lead-in lines that must stay on the page of the next block
 
 
@@ -336,7 +343,8 @@ def build_html(positions: list | None) -> str:
         head = f'<p class="partlabel">{html.escape(part_label.upper())}</p>' if part_label else ""
         label = ("Appendix " if key.isalpha() else "Chapter ") + num if num else ""
         chapnum = f'<p class="chapnum">{label}</p>' if label else ""
-        out.append(f'<div class="chapter">{head}{chapnum}<h1 id="ch-{key}">{html.escape(name)}</h1>{body}</div>')
+        cls = "chapter tighter" if key in TIGHTER else ("chapter tight" if key in TIGHT else "chapter")
+        out.append(f'<div class="{cls}">{head}{chapnum}<h1 id="ch-{key}">{html.escape(name)}</h1>{body}</div>')
 
     add_chapter("00", None)
     for num, name, keys in PARTS:
@@ -392,19 +400,44 @@ def main() -> int:
     # Breaks only accumulate during a layout run, so a break added while earlier content sat
     # differently can outlive its reason and leave a half-empty page. Drop every break whose previous
     # page is less than two-thirds full and lay out again: the pass re-adds the ones still needed.
-    for _ in range(3):
-        bottom, first = {}, {}
-        for p in collected:
-            if p.rect and p.id:
-                bottom[p.page_num] = max(bottom.get(p.page_num, 0.0), p.rect[3])
-            if (p.open_close & 1) and p.id in BREAKS:
-                first.setdefault(p.id, p.page_num)
-        stale = {i for i, pg in first.items()
-                 if pg > 0 and pg - 1 in bottom and bottom[pg - 1] < floor - 0.34 * (floor - TOP)}
-        if not stale:
+    def content_bottom(page) -> float:
+        """Lowest point of the text and images actually laid out on a page (no headers exist yet)."""
+        ys = [b[3] for b in page.get_text("blocks")]
+        ys += [r.y1 for x in page.get_images() for r in page.get_image_rects(x[0])]
+        return max(ys, default=TOP)
+
+    def prune():
+        nonlocal doc
+        for _ in range(4):
+            first = {}
+            for p in collected:
+                if (p.open_close & 1) and p.id in BREAKS:
+                    first.setdefault(p.id, p.page_num)
+            # page_num is 1-based, so the page before a break's page is doc[pg - 2]
+            stale = {i for i, pg in first.items()
+                     if pg > 1 and content_bottom(doc[pg - 2]) < floor - 0.34 * (floor - TOP)}
+            if not stale:
+                return
+            BREAKS.difference_update(stale)
+            doc = layout()
+
+    prune()
+    # A chapter whose last page holds only a few lines or a lone box is set with slightly tighter
+    # line spacing (1.36 instead of 1.42), which is usually enough to pull those lines back.
+    def sparse_endings() -> set[str]:
+        chapter_start = {p.id[3:]: p.page_num for p in collected
+                         if (p.open_close & 1) and p.heading == 1 and p.id and p.id.startswith("ch-")}
+        ordered = sorted(chapter_start.items(), key=lambda kv: kv[1])
+        return {key for (key, _), (_, nxt) in zip(ordered, ordered[1:])
+                if (content_bottom(doc[nxt - 2]) - TOP) / (floor - TOP) < 0.3}
+
+    for target in (TIGHT, TIGHTER):
+        found = sparse_endings() - TIGHTER
+        if not found:
             break
-        BREAKS.difference_update(stale)
+        target.update(found)
         doc = layout()
+        prune()
 
     starts, sections = {}, []
     for pos in collected:
@@ -485,6 +518,7 @@ def main() -> int:
     doc.subset_fonts()
     doc.save(args.out, garbage=4, deflate=True, deflate_fonts=True, deflate_images=True)
     shutil.rmtree(font_dir, ignore_errors=True)
+    print(f"tighter spacing: chapters {sorted(TIGHT - TIGHTER)} (step 1), {sorted(TIGHTER)} (step 2)")
     print(f"wrote {args.out.name} ({args.page}): {doc.page_count} pages, {args.out.stat().st_size / 1e6:.1f} MB")
     return 0
 
