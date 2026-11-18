@@ -1,0 +1,191 @@
+# 17 · Pretraining at scale
+
+Part IV · Pretraining. Assumes Chapter 6 (PyTorch, mixed precision, the 16-bytes-per-parameter rule) and Chapter 7 (optimisers, schedules, stability). Chapter 11 introduces the mixture-of-experts layers that expert parallelism serves; Chapter 21 covers the same hardware from the inference side.
+
+## Why it matters
+
+A 70B-parameter model trained on 15 trillion tokens needs about 6 × 10²⁴ floating-point operations, months of a thousand GPUs, and a memory footprint no single GPU can hold. Getting there means splitting the model, the data and the sequence across machines, overlapping communication with computation, and surviving hardware failures every few hours. Research scientists do not all write parallelism code, but they choose model shapes, batch sizes and context lengths that the system must support, read MFU dashboards, and debug runs that slow down or diverge. Interviews ask for the memory arithmetic, the differences between ZeRO stages, what tensor and pipeline parallelism cost, and how to estimate a training run's time and cost.
+
+Numbers in this chapter come from `code/ch17_check.py` (instant; hardware figures are round numbers for arithmetic, not vendor specifications).
+
+## Key concepts
+
+- **Data parallelism and all-reduce**: replicas process different batches and average gradients. [PyTorch DDP](https://docs.pytorch.org/docs/stable/notes/ddp.html).
+- **ZeRO and FSDP**: shard optimiser states, gradients and weights across data-parallel ranks. [ZeRO](https://arxiv.org/abs/1910.02054), [PyTorch FSDP](https://arxiv.org/abs/2304.11277).
+- **Tensor parallelism**: split each matrix multiplication across GPUs. [Megatron-LM](https://arxiv.org/abs/1909.08053).
+- **Pipeline parallelism**: split the layers into stages. [GPipe](https://arxiv.org/abs/1811.06965), [Megatron interleaved schedule](https://arxiv.org/abs/2104.04473).
+- **Sequence and context parallelism**: split the sequence dimension. [Reducing activation recomputation](https://arxiv.org/abs/2205.05198), [Ring Attention](https://arxiv.org/abs/2310.01889).
+- **Expert parallelism**: place MoE experts on different GPUs. [GShard](https://arxiv.org/abs/2006.16668).
+- **MFU (model FLOPs utilisation)**: achieved model FLOPs as a fraction of peak hardware FLOPs. [PaLM](https://arxiv.org/abs/2204.02311).
+- **Reference implementations**: [torchtitan](https://github.com/pytorch/torchtitan), [Megatron-LM](https://github.com/NVIDIA/Megatron-LM), [The Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook).
+
+## 17.1 The budget
+
+**Compute.** Training FLOPs ≈ 6ND (Chapter 13). For 70B parameters and 15T tokens: 6.3 × 10²⁴ FLOPs.
+
+**Time.** Divide by the cluster's sustained throughput: number of GPUs × peak FLOP/s × MFU. With round numbers (989 TFLOP/s dense bf16 per GPU):
+
+| GPUs | MFU | Days | GPU-hours |
+|---|---|---|---|
+| 1,024 | 40% | 180 | 4.4M |
+| 4,096 | 40% | 45 | 4.4M |
+| 16,384 | 38% | 12 | 4.7M |
+
+GPU-hours barely change with cluster size; wall-clock time does. Larger clusters lose some efficiency (more communication, more failures), so MFU tends to fall slightly.
+
+**MFU** = achieved model FLOPs per second / peak. Count the FLOPs the model needs (6N per token for the matmuls, plus about 12 · layers · d_model · sequence length for attention scores), not the FLOPs the hardware happens to execute (recomputation does not count). At 900 tokens per second per GPU, the 70B example runs at 44% MFU. Well-tuned dense training reaches 35–50%; MoE training is usually lower because of communication. MFU is the single most useful efficiency number on a training dashboard.
+
+## 17.2 Where the memory goes
+
+Per parameter, bf16 mixed precision with Adam needs 16 bytes: 2 for bf16 weights, 2 for bf16 gradients, 12 for the fp32 master copy and the two Adam moments. A 70B model therefore needs 1.12 TB before a single activation is stored; a GPU has 80–192 GB.
+
+**Activations** are the other big term. For a transformer layer with sequence length s, micro-batch b, width h and a attention heads, stored activations are roughly s·b·h·(34 + 5·a·s/h) bytes (Korthikanti et al., 2022). The second term is the attention score matrix, quadratic in s. For 80 layers at width 8,192, 64 heads and 8k tokens: 1,901 GB with everything stored, 183 GB if the attention scores are recomputed in the backward pass (which FlashAttention does automatically). Tensor and sequence parallelism divide this further by the parallel degree, and pipeline parallelism divides the layers among stages.
+
+**Activation recomputation** (checkpointing): store only each layer's input and recompute the rest during the backward pass. Full recomputation costs about one extra forward pass (around 33% more compute); selective recomputation of the cheap-to-compute, memory-heavy parts (attention) gets most of the saving for a few percent.
+
+## 17.3 Data parallelism, ZeRO and FSDP
+
+**Data parallelism (DP).** Every GPU holds a full model copy, processes a different slice of the batch, and the gradients are averaged with an **all-reduce** before each update.
+
+**Ring all-reduce** makes the cost independent of the number of GPUs. Split each gradient into n chunks. In n − 1 steps of reduce-scatter, each GPU passes one chunk to its neighbour, which adds it to its own; afterwards each GPU owns one fully summed chunk. In n − 1 steps of all-gather, the summed chunks travel round the ring. Each GPU sends 2(n − 1) chunks of size 1/n: about twice the gradient size, whatever n is.
+
+```python
+out, sent = ring_allreduce([np.arange(4) * (g + 1.0) for g in range(4)])
+# every GPU ends with [0, 10, 20, 30] = the sum; each sent 6 chunk-messages = 2(n-1)
+```
+
+Still, 140 GB of bf16 gradients for a 70B model across 64 GPUs at 50 GB/s effective bandwidth takes 5.5 seconds, longer than the compute of a step. Two remedies: overlap communication with the backward pass (reduce each layer's gradients as soon as they are ready, in buckets), and stop replicating everything.
+
+**ZeRO** (Rajbhandari et al., 2020) shards the replicated state across the DP ranks:
+
+| Scheme | What is sharded | Memory per GPU for 70B over 64 GPUs (no activations) |
+|---|---|---|
+| DDP | Nothing | 1,120 GB |
+| ZeRO-1 | Optimiser states | 293 GB |
+| ZeRO-2 | + gradients | 155 GB |
+| ZeRO-3 / FSDP | + weights | 17.5 GB |
+
+ZeRO-1 and ZeRO-2 cost no extra communication (a reduce-scatter plus all-gather is an all-reduce). ZeRO-3 (PyTorch's **FSDP**) gathers each layer's weights just before it is used and frees them after, adding about 50% more communication, which is hidden by prefetching the next layer while the current one computes. FSDP is the default starting point for models up to tens of billions of parameters; beyond that, or across slower networks, it is combined with the parallelisms below.
+
+## 17.4 Tensor parallelism
+
+Split each weight matrix across GPUs so each computes part of every matmul (Megatron-LM). In an MLP, split the first matrix by columns and the second by rows: each GPU computes its slice of the hidden layer independently, and one all-reduce at the end sums the partial outputs. Attention splits naturally by heads. That is two all-reduces of the activations per layer in the forward pass and two in the backward.
+
+Tensor parallelism (TP) communicates on every layer, so it needs the fastest links: it is used **within a node** (8 GPUs on NVLink), rarely across nodes. It cuts weights, gradients, optimiser states and (with **sequence parallelism**, which splits the layer-norm and dropout regions along the sequence) activations by the TP degree, and it reduces the per-GPU matmul size, which lowers efficiency if pushed too far.
+
+## 17.5 Pipeline parallelism
+
+Split the layers into p stages on different GPUs (or nodes); activations flow forward through the stages and gradients flow back. Only activations at stage boundaries cross the network, so pipeline parallelism (PP) tolerates slower links.
+
+The cost is the **bubble**: at the start and end of each batch, some stages are idle. With m micro-batches per batch, the idle fraction is (p − 1)/(m + p − 1):
+
+| Stages | Micro-batches | Bubble |
+|---|---|---|
+| 8 | 8 | 46.7% |
+| 8 | 32 | 17.9% |
+| 16 | 64 | 19.0% |
+
+More micro-batches shrink the bubble but need a large global batch. Schedules reduce it further: **1F1B** (alternate forward and backward passes to bound memory), **interleaved** stages (each GPU holds several non-adjacent chunks of layers), and **zero-bubble** schedules that split the backward pass into input-gradient and weight-gradient parts and fill idle slots with the latter.
+
+## 17.6 Sequence and context parallelism
+
+Long-context training (32k to 1M tokens) makes activations per sequence too large for one GPU even with recomputation. **Context parallelism** splits each sequence across GPUs. Attention needs every query to see every earlier key, so keys and values circulate: in **ring attention** each GPU computes attention for its query block against one key–value block at a time while passing blocks round the ring, overlapping communication with computation. Causal masking makes the work uneven across positions; implementations reorder blocks so each GPU gets a balanced share. Long-context extension is usually done in a separate mid-training phase (Chapter 16), with context parallelism switched on only then.
+
+## 17.7 Expert parallelism
+
+For MoE models (Chapter 11), place different experts on different GPUs. Each MoE layer then needs two **all-to-all** exchanges: send each token to the GPUs holding its chosen experts, and send the results back. All-to-all traffic is heavy and sensitive to load imbalance (one hot expert stalls everyone), which is why routing balance matters as much for systems as for quality. Common tricks: limit how many nodes a token's experts can span, overlap the all-to-all of one micro-batch with the computation of another, and use custom communication kernels.
+
+## 17.8 Putting it together
+
+Large runs combine these into "3D" (DP × TP × PP) or "4D/5D" layouts (adding context and expert parallelism). Rules of thumb:
+
+1. **TP within a node** (up to 8), because it communicates every layer.
+2. **PP across nodes** if the model does not fit with TP and FSDP alone; pick micro-batch counts that keep the bubble below about 15%.
+3. **DP (with ZeRO-1 or FSDP) across everything else**, scaling the global batch up to the critical batch size (Chapter 7).
+4. **CP for long sequences**, **EP for MoE**.
+5. Change one dimension at a time and measure MFU.
+
+A layout for the 70B example on 1,024 GPUs: TP = 8, PP = 4, DP = 32. Each GPU holds 2.19B parameters: 8.8 GB of bf16 weights and gradients, plus 0.82 GB of Adam state when the optimiser is sharded across the 32 DP ranks, leaving room for activations. A global batch of 4M tokens is 32 replicas × 1 sequence of 8,192 tokens × 16 gradient-accumulation micro-batches, which also gives the pipeline 16 micro-batches per step.
+
+## 17.9 Reliability
+
+At scale, hardware failure is routine. With a per-GPU mean time between failures of 50,000 hours, a 1,024-GPU job fails about every 49 hours; a 16,384-GPU job every 3 hours. The Llama 3 report described roughly 400 unexpected interruptions in a 54-day period of its largest run, most from GPU and memory faults.
+
+**Checkpointing.** A full checkpoint of the 70B example (weights, fp32 master copy, Adam states) is 1.12 TB. Write it sharded, in parallel from every rank, and asynchronously (copy to CPU memory, then write in the background) so training barely pauses. The best interval balances checkpoint cost C against lost work; the classical Young–Daly approximation is √(2·C·M) for mean time between failures M. With C = 1.2 minutes and M = 3 hours that is about 21 minutes.
+
+**Other failure modes to plan for:**
+
+- **Stragglers**: one slow GPU or link slows every synchronous step. Monitor per-rank step times and evict outliers.
+- **Silent data corruption**: hardware that returns wrong numbers without crashing. It shows up as unexplained loss spikes or NaNs; detect with redundant computation checks and gradient-norm anomalies.
+- **Hangs**: collective operations that never complete. Watchdog timeouts and automatic restart.
+- **Data loader state**: a restart must resume at exactly the next unseen batch, or the run silently repeats or skips data.
+- **Determinism**: bit-exact reproducibility at scale is expensive; aim for reproducible data order and configuration, and record everything.
+
+## 17.10 What a research scientist should monitor
+
+| Signal | What it tells you |
+|---|---|
+| MFU and tokens/s per GPU | Efficiency; sudden drops mean a straggler, a bad node or a data-loader stall |
+| Loss, gradient norm, max attention logit, per-layer update norms (Chapter 7) | Stability, before the loss shows it |
+| Per-domain held-out loss | Whether the mixture behaves as planned (Chapter 16) |
+| Small benchmark suite on regular checkpoints | Capability trends; early warning of regressions |
+| Restarts, lost hours, checkpoint durations | Effective throughput, which is what the budget sees |
+
+## Pitfalls
+
+- Planning memory for weights only and forgetting gradients, optimiser states and activations.
+- Using tensor parallelism across nodes.
+- Too few micro-batches for the number of pipeline stages.
+- Changing the global batch size (by adding GPUs) without re-tuning the learning rate.
+- Reporting hardware FLOPs (including recomputation) as MFU.
+- Checkpointing synchronously every few minutes at large scale, or too rarely.
+- Resuming without restoring the data loader's position.
+
+## Interview questions
+
+**1. Estimate the time to train a 70B model on 15T tokens on 4,096 GPUs.** 6 × 70e9 × 15e12 = 6.3e24 FLOPs; 4,096 × ~1e15 FLOP/s × 0.4 MFU ≈ 1.6e18 FLOP/s; about 45 days.
+
+**2. How much memory does training a 7B model with Adam need?** 16 bytes per parameter = 112 GB, plus activations: more than one 80 GB GPU, hence ZeRO/FSDP or more GPUs.
+
+**3. Explain ZeRO stages 1–3.** Shard optimiser states (1), plus gradients (2), plus weights (3). Stages 1 and 2 add no communication; stage 3 gathers weights per layer, about 1.5× DDP's traffic, hidden by prefetching.
+
+**4. How does ring all-reduce work, and what does it cost?** Reduce-scatter then all-gather around a ring; each GPU sends about twice the data size, independent of the number of GPUs.
+
+**5. How does Megatron split an MLP across GPUs?** First matrix by columns, second by rows; each GPU computes its hidden slice independently; one all-reduce sums the outputs. Attention splits by heads.
+
+**6. Why keep tensor parallelism inside a node?** It needs an all-reduce of activations in every layer, forward and backward, so it needs NVLink-class bandwidth.
+
+**7. What is the pipeline bubble, and how do you reduce it?** Idle time at the start and end of each batch, (p−1)/(m+p−1). More micro-batches, interleaved schedules, zero-bubble schedules.
+
+**8. How does context parallelism handle attention?** Each GPU holds a block of the sequence; key–value blocks pass round a ring while each GPU computes attention for its queries, with load balancing for the causal mask.
+
+**9. What is MFU, and what is a good value?** Model FLOPs achieved per second over peak; 35–50% for well-tuned dense training, lower for MoE.
+
+**10. Your run's throughput dropped 20% overnight. What do you check?** Per-rank step times for stragglers, node health and network errors, data-loader stalls (I/O), checkpoint timing, recent configuration or data changes, thermal throttling.
+
+**11. How often should you checkpoint?** Balance checkpoint cost against expected lost work: √(2·C·M); make checkpoints sharded and asynchronous to make C small.
+
+## Practice
+
+1. Train a small model with PyTorch FSDP on 2–8 GPUs (or simulated CPU processes with the gloo backend); compare memory per rank with DDP.
+2. Implement column- and row-parallel linear layers with `torch.distributed` and check the output against a single-GPU MLP.
+3. Write a calculator that, given model shape, sequence length, batch and parallel layout, outputs memory per GPU and step time; validate it against one real run.
+4. **Research exercise.** On a fixed small model, measure tokens per second and MFU for 4 layouts (pure DP, FSDP, FSDP + activation checkpointing, TP = 2 + DP). Explain each difference with the arithmetic of this chapter.
+5. Read the infrastructure sections of the Llama 3 and DeepSeek-V3 reports and list every reliability and efficiency technique they mention.
+
+## Read next
+
+- Rajbhandari et al., "ZeRO: Memory Optimizations Toward Training Trillion Parameter Models" (2020).
+- Shoeybi et al., "Megatron-LM" (2019) and Narayanan et al., "Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM" (2021).
+- Korthikanti et al., "Reducing Activation Recomputation in Large Transformer Models" (2022).
+- Zhao et al., "PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel" (2023).
+- Liu et al., "Ring Attention with Blockwise Transformers for Near-Infinite Context" (2023).
+- Llama Team, "The Llama 3 Herd of Models" (2024), infrastructure and reliability sections; DeepSeek-AI, "DeepSeek-V3 Technical Report" (2024).
+- Hugging Face, "The Ultra-Scale Playbook" (2025): a hands-on guide to all of the above.
+- Links to these papers are in the Key concepts section at the top of this chapter.
+
+## Done when
+
+You can estimate the FLOPs, time and GPU-hours of a run and compute MFU from throughput. You can break training memory into weights, gradients, optimiser states and activations, and explain recomputation. You can explain ring all-reduce, ZeRO stages and FSDP with their costs.
+
+You can explain tensor, pipeline, context and expert parallelism, where each runs and what each communicates. You can propose a parallel layout for a given model and cluster. You can plan checkpointing and list the failure modes a large run must survive.
