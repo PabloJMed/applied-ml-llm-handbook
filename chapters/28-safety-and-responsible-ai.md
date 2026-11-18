@@ -124,6 +124,20 @@ Moderation is a classification problem with asymmetric costs and a human queue:
 
 No single threshold is right. The standard design uses two: above a high threshold, act automatically (hide, reject); between the two, send to human review; below, publish. Choose thresholds from reviewer capacity and the cost of each error type, per category (hate speech and a mild complaint should not share a threshold). Track appeal and overturn rates, reviewer agreement (Chapter 48), and drift as language and attack patterns change.
 
+![Diagram](images/28-fig-1.png)
+
+*Precision of a classifier with 90% recall as a function of how common violations are. At 3% prevalence, a 1% false-positive rate still gives 74% precision. At 1 in 1,000, the same classifier is wrong on 92% of the items it flags; only a ten-times lower false-positive rate brings precision near 50%.*
+
+**Base rates decide the design.** Severe harms (threats, child-safety content, doxxing) are rare, so even excellent classifiers flag mostly innocent items. Those categories need lower false-positive rates (stronger models, several signals), human review of every flag, and an appeal path. Common, milder categories (spam, profanity) can be handled automatically at higher volumes. Always evaluate precision at the production prevalence, not on a balanced test set, where the same classifier looks far better.
+
+**Sizing the queue.** With the toy model above, 200,000 reviews a day, auto-hiding above 0.85 and sending 0.50–0.85 to humans:
+
+- **The review band.** It holds 860 items per 10,000, which is 17,200 items a day.
+- **Staffing.** At 30 seconds each, that is 143 reviewer-hours, or about 24 reviewers at 6 productive hours a day.
+- **The trade-off.** If that is unaffordable, the choices are explicit: narrow the band (fewer reviews, more errors in both directions), improve the model, or route only some categories to humans.
+
+Make the trade-off with the cost of each error type written down, not by moving thresholds until the queue fits.
+
 ## 28.7 Worked case: a review moderation and summarisation pipeline
 
 A reference design for any pipeline that runs user-generated text through models. Use it as a checklist for your own system, or as the answer shape for "design review moderation" in an interview.

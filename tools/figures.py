@@ -846,6 +846,148 @@ def ch20():
     save(fig, "20-fig-1.png")
 
 
+def ch21():
+    ctx = np.logspace(np.log10(1024), np.log10(131072), 60)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for kvh, c, ls, lab in ((32, S2, DASH[1], "MHA (32 KV heads)"), (8, S1, DASH[0], "GQA (8 KV heads)"), (1, S3, DASH[2], "MQA (1 KV head)")):
+        gb = 2 * 32 * kvh * 128 * ctx * 2 / 1e9; ax.plot(ctx, gb, color=c, ls=ls); label_end(ax, ctx[-1], gb[-1], lab, c, dy=-7 if kvh == 8 else 0)
+    ax.axhline(16, color=MUTED, lw=0.8, ls=DASH[1]); ax.text(1100, 19, "model weights (16 GB)", color=INK2, fontsize=7.5)
+    ax.set_xscale("log", base=2); ax.set_yscale("log"); ax.set_xlim(900, 1.2e6)
+    ax.set_xticks([1024, 4096, 16384, 65536, 131072]); ax.set_xticklabels(["1k", "4k", "16k", "64k", "128k"])
+    ax.set_xlabel("context length of one request (tokens)"); ax.set_ylabel("KV cache per request (GB)")
+    ax.set_title("One long request's cache can outweigh an 8B model")
+    save(fig, "21-fig-1.png")
+    # decode roofline for an 8B model on an 80 GB GPU (3.35 TB/s, 989 TFLOP/s at 50%), 2k-token contexts
+    B = np.arange(1, 239); kv = 2 * 32 * 8 * 128 * 2048 * 2
+    t = np.maximum((16e9 + B * kv) / 3.35e12, 2 * 8e9 * B / (0.5 * 989e12))
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(B, B / t, color=S1); ax.plot(B, 1 / t, color=S2, ls=DASH[1])
+    label_end(ax, B[-1], (B / t)[-1], "total tokens/s per GPU", S1); label_end(ax, B[-1], (1 / t)[-1], "tokens/s per user", S2)
+    for b in (1, 64, 238): print(f"batch {b}: step {t[b-1]*1e3:.1f} ms, total {b/t[b-1]:,.0f} tok/s, per user {1/t[b-1]:.0f}")
+    ax.axvline(238, color=MUTED, lw=0.8, ls=DASH[2]); ax.text(232, 3000, "GPU memory full", color=INK2, fontsize=7.5, ha="right")
+    ax.set_yscale("log"); ax.set_xlim(0, 330); ax.set_xlabel("concurrent requests in the batch"); ax.set_ylabel("tokens per second")
+    ax.set_title("Batching multiplies throughput at a small cost per user")
+    save(fig, "21-fig-2.png")
+
+
+def ch22():
+    rows = [("no caching", 27000, 4500, 6750), ("90% cache hits", 5130, 4500, 6750)]
+    fig, ax = plt.subplots(figsize=(W, 1.5))
+    for y, (name, a, b, c) in enumerate(rows[::-1]):
+        left = 0
+        for v, col, lab in ((a, S1, "static prefix (input)"), (b, S2, "dynamic input"), (c, S3, "output")):
+            ax.barh(y, v, left=left, color=col, height=0.55, edgecolor="white", linewidth=1.2, label=lab if y == 0 else None)
+            if v > 3000: ax.text(left + v / 2, y, f"${v:,.0f}", ha="center", va="center", color="white", fontsize=7.5)
+            left += v
+        ax.text(left + 500, y, f"${left:,.0f} / month", va="center", color=INK2, fontsize=8)
+    ax.set_yticks([0, 1]); ax.set_yticklabels([r[0] for r in rows[::-1]]); ax.set_xlim(0, 47000); ax.grid(axis="y", visible=False)
+    ax.legend(fontsize=7.5, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.32)); ax.set_xticks([])
+    ax.spines["bottom"].set_visible(False)
+    ax.set_title("After caching, output tokens are the biggest cost")
+    save(fig, "22-fig-1.png")
+
+
+def ch23():
+    dl = np.linspace(1, 10, 100)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for d, c, ls in ((0.05, S3, DASH[2]), (0.10, S1, DASH[0]), (0.20, S2, DASH[1])):
+        n = 2.8 ** 2 * d / (dl / 100) ** 2; ax.plot(dl, n, color=c, ls=ls)
+        label_end(ax, dl[-1], n[-1], f"models disagree on {d:.0%}", c)
+        print(f"d={d}: 2 points -> {2.8**2*d/0.02**2:,.0f}, 5 points -> {2.8**2*d/0.05**2:,.0f}")
+    ax.set_yscale("log"); ax.set_xlim(1, 14); ax.set_xticks(range(1, 11))
+    ax.set_xlabel("true difference to detect (accuracy points)"); ax.set_ylabel("questions needed (80% power)")
+    ax.set_title("Small gains need thousands of questions, even when paired")
+    save(fig, "23-fig-1.png")
+    gap = np.linspace(0, 400, 200); p = 1 / (1 + 10 ** (-gap / 400))
+    fig, ax = plt.subplots(figsize=(W, 1.9)); ax.plot(gap, p, color=S1)
+    for g in (25, 50, 100, 200):
+        pg = 1 / (1 + 10 ** (-g / 400)); ax.plot([g], [pg], "o", color=S1, ms=3)
+        ax.annotate(f"+{g}: wins {pg:.0%}", (g, pg), xytext=(6, -10), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.set_xlabel("rating difference (Elo scale)"); ax.set_ylabel("P(higher-rated wins)"); ax.set_ylim(0.48, 0.95)
+    ax.set_title("Rating gaps translate into modest win rates")
+    save(fig, "23-fig-2.png")
+
+
+def ch24():
+    t = np.linspace(0, 1, 50)
+    fig, ax = plt.subplots(figsize=(W, 2.4))
+    ax.plot(t, t, color=MUTED, ls=DASH[2], lw=1, label="perfect judge")
+    for tpr, tnr, c, ls in ((0.95, 0.90, S3, DASH[1]), (0.93, 0.67, S2, DASH[0])):
+        o = tpr * t + (1 - tnr) * (1 - t); ax.plot(t, o, color=c, ls=ls, label=f"judge with TPR {tpr:.2f}, TNR {tnr:.2f}")
+    ax.legend(fontsize=7.5, loc="lower right")
+    for x in (0.70, 0.85):
+        o = 0.93 * x + 0.33 * (1 - x); ax.plot([x], [o], "o", color=S2, ms=3.5)
+        ax.annotate(f"true {x:.0%} → judged {o:.0%}", (x, o), xytext=(-8, 9), textcoords="offset points", ha="right", color=INK2, fontsize=7.5)
+    ax.set_xlim(0, 1.02); ax.set_xticks(np.linspace(0, 1, 6)); ax.set_xlabel("true pass rate"); ax.set_ylabel("pass rate reported by the judge")
+    ax.set_title("A lenient judge inflates low scores and compresses differences")
+    save(fig, "24-fig-1.png")
+
+
+def ch25():
+    k = np.arange(1, 17)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for p, c in ((0.9, S1), (0.6, S2)):
+        a = 1 - (1 - p) ** k; b = p ** k
+        ax.plot(k, a, color=c, ls=DASH[1], marker="o", ms=2.5, label=f"pass@k, per-run success {p}")
+        ax.plot(k, b, color=c, ls=DASH[0], marker="o", ms=2.5, label=f"pass^k, per-run success {p}")
+        print(f"p={p}: pass^8 {p**8:.3f}")
+    ax.legend(fontsize=7.5, loc="center right", bbox_to_anchor=(1, 0.66)); ax.set_xticks([1, 2, 4, 8, 12, 16])
+    ax.set_xlim(0.5, 16.5); ax.set_xlabel("k (runs of the same task)"); ax.set_ylabel("probability")
+    ax.set_title("pass@k rewards one lucky run; pass^k demands every run")
+    save(fig, "25-fig-1.png")
+
+
+def ch26():
+    rng = np.random.default_rng(0); ds = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for N, c, ls in ((1000, S1, DASH[0]), (10000, S2, DASH[1])):
+        mx = []
+        for d in ds:
+            V = rng.standard_normal((N, d)).astype(np.float32); V /= np.linalg.norm(V, axis=1, keepdims=True); m = 0.0
+            for i in range(0, N, 2000):
+                G = np.abs(V[i:i + 2000] @ V.T); G[np.arange(G.shape[0]), np.arange(i, i + G.shape[0])] = 0; m = max(m, float(G.max()))
+            mx.append(m)
+        ax.plot(ds, mx, color=c, ls=ls, marker="o", ms=2.5, label=f"worst pair among {N:,} random directions")
+        print(N, dict(zip(ds, np.round(mx, 3))))
+    typ = [math.sqrt(2 / (math.pi * d)) for d in ds]; ax.plot(ds, typ, color=S3, ls=DASH[2], marker="o", ms=2.5, label="typical pair")
+    ax.legend(fontsize=7.5, loc="upper right")
+    ax.set_xscale("log", base=2); ax.set_xticks(ds); ax.set_xticklabels(ds); ax.set_xlim(12, 5000)
+    ax.set_xlabel("dimensions"); ax.set_ylabel("|cosine| between directions")
+    ax.set_title("High-dimensional spaces hold many nearly orthogonal directions")
+    save(fig, "26-fig-1.png")
+
+
+def ch27():
+    rng = np.random.default_rng(0); ns = 2 ** np.arange(0, 14)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for kind, c, ls, lab in (("normal", S1, DASH[0], "proxy error light-tailed (normal)"), ("t", S2, DASH[1], "proxy error heavy-tailed (Student t, 1.5 df)")):
+        ys = []
+        for n in ns:
+            trials = max(200, int(2_000_000 // n)); g = rng.standard_normal((trials, n))
+            e = rng.standard_normal((trials, n)) if kind == "normal" else rng.standard_t(1.5, (trials, n))
+            ys.append(g[np.arange(trials), np.argmax(g + e, 1)].mean())
+        ax.plot(ns, ys, color=c, ls=ls, marker="o", ms=2.5); label_end(ax, ns[-1], ys[-1], lab, c)
+        print(kind, dict(zip(ns.tolist(), np.round(ys, 2))))
+    ax.set_xscale("log", base=2); ax.set_xlim(0.8, 2 ** 13 * 40); ax.set_xticks([1, 4, 16, 64, 256, 1024, 4096])
+    ax.set_xticklabels(["1", "4", "16", "64", "256", "1k", "4k"])
+    ax.set_xlabel("n (best-of-n by the proxy reward)"); ax.set_ylabel("true quality of the pick")
+    ax.set_title("Optimising a proxy harder helps, until its errors dominate")
+    save(fig, "27-fig-1.png")
+
+
+def ch28():
+    pi = np.logspace(-4, np.log10(0.3), 200)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for fpr, c, ls in ((0.01, S2, DASH[1]), (0.001, S1, DASH[0])):
+        prec = 0.9 * pi / (0.9 * pi + fpr * (1 - pi)); ax.plot(pi, prec, color=c, ls=ls, label=f"recall 90%, false-positive rate {fpr:.1%}")
+        for x in (0.001, 0.03): print(f"fpr {fpr} prevalence {x}: precision {0.9*x/(0.9*x+fpr*(1-x)):.3f}")
+    for x in (0.001, 0.03): ax.axvline(x, color=MUTED, lw=0.6, ls=DASH[2])
+    ax.text(0.00105, 0.03, " 1 in 1,000", color=INK2, fontsize=7.5); ax.text(0.0315, 0.03, " 3%", color=INK2, fontsize=7.5)
+    ax.legend(fontsize=7.5, loc="upper left"); ax.set_xscale("log"); ax.set_xlim(1e-4, 0.3); ax.set_xticks([1e-4, 1e-3, 1e-2, 1e-1]); ax.set_xticklabels(["0.01%", "0.1%", "1%", "10%"])
+    ax.set_xlabel("share of items that violate the policy"); ax.set_ylabel("precision of flags")
+    ax.set_title("Rare harms make even good classifiers mostly wrong when they flag")
+    save(fig, "28-fig-1.png")
+
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]
     for ch in wanted:

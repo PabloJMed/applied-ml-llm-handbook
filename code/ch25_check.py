@@ -63,3 +63,15 @@ def check_end_state(state, expected):
     return {k: state.get(k) == v for k, v in expected.items()}
 print(check_end_state({"voucher_issued": 8.0, "escalated": False, "ticket_status": "resolved"},
                       {"voucher_issued": 5.0, "ticket_status": "resolved"}))
+
+# 25.7 pass^k with heterogeneous tasks: per-task success p ~ Beta(3, 1), mean 0.75
+import numpy as np
+from math import comb
+rng = np.random.default_rng(0); T, n = 120, 8
+p = rng.beta(3, 1, T); c = rng.binomial(n, p)
+est = lambda c, k: np.mean([comb(int(ci), k) / comb(n, k) for ci in c])
+for k in (1, 4, 8):
+    boot = [est(c[rng.integers(0, T, T)], k) for _ in range(2000)]
+    print(f"pass^{k}: {est(c, k):.3f} [{np.percentile(boot, 2.5):.3f}, {np.percentile(boot, 97.5):.3f}]; "
+          f"Beta(3,1) theory {3 / (3 + k):.3f}; if every task had p = 0.75: {0.75 ** k:.3f}")
+print("tasks never solved:", int((c == 0).sum()), " always solved:", int((c == n).sum()))

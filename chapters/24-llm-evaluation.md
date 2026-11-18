@@ -189,6 +189,12 @@ def corrected_pass_rate(observed_rate, tpr, tnr):
 # Judge with TPR 0.93, TNR 0.67 reports 80% pass; the corrected estimate is about 78%
 ```
 
+![Diagram](images/24-fig-1.png)
+
+*The pass rate a judge reports is a straight line in the true pass rate: TPR × true + (1 − TNR) × (1 − true). The lenient judge (orange) reports 75% for a system that is truly at 70% and 84% for one at 85%: a 15-point difference shows as 9.*
+
+**Imperfect judges hide differences.** The slope of that line is TPR + TNR − 1, so every true difference between systems shrinks by that factor. For the judge above it is 0.60, which means comparisons need roughly 1/0.6² ≈ 2.8 times as many cases to reach the same power. Improving the judge's TNR, its ability to catch failures, is often cheaper than collecting more evaluation cases.
+
 Iterate on the judge prompt until agreement is good enough, using the human labels as its own evaluation set, with a held-out part.
 
 ## 24.8 Sample sizes and confidence intervals
@@ -233,6 +239,31 @@ Offline sets never fully match production. Online signals:
 ## 24.10 Tooling
 
 You can do all of this with Python, a spreadsheet and git. Tools help at scale: tracing and observability (Langfuse, LangSmith, Arize Phoenix, Braintrust, Weights & Biases Weave) store traces, run evaluations, manage datasets and judges, and show results per version. Pick one that stores full traces and lets you annotate them, because annotation is where error analysis happens. Avoid tools that push you to generic out-of-the-box metrics before you have read your data.
+
+## 24.11 A worked judge calibration
+
+You want an LLM judge for "the answer is fully supported by the retrieved context" in a RAG assistant.
+
+1. **Label a calibration set.** A domain expert labels 200 outputs: 150 supported, 50 not.
+   - Take the outputs from the current system, so the failures are realistic.
+   - If failures are rare in production, oversample them. TNR is estimated only from the failures, and 50 is already few.
+2. **Run the judge and measure it.**
+
+   | | Judge: pass | Judge: fail |
+   |---|---|---|
+   | Human: pass (150) | 140 | 10 |
+   | Human: fail (50) | 17 | 33 |
+
+   - Raw agreement is 86.5% and Cohen's kappa is 0.62, which looks acceptable.
+   - The rates tell the real story. TPR is 0.93 (95% interval 0.88–0.96), but TNR is only 0.66 (0.52–0.78): the judge misses a third of unsupported answers.
+3. **Read the errors.**
+   - The 17 false passes are mostly answers that add a plausible detail missing from the context.
+   - The judge reads "plausible" as "supported". Fix the prompt: ask it to list each claim and quote the supporting sentence before deciding, and to fail any claim it cannot quote.
+4. **Re-measure on a held-out part.** Split the 200 into 120 for prompt development and 80 for checking, so the judge is not tuned to the very examples it is scored on. Iterate until TNR is high enough for the use, typically above 0.85 for a faithfulness gate.
+5. **Use it with its error rates.**
+   - In production the judge reports 80% supported. With the original TPR and TNR, the corrected estimate is (0.80 + 0.66 − 1)/(0.93 + 0.66 − 1) ≈ 78%.
+   - With the improved judge the correction is smaller and the interval narrower.
+   - Re-calibrate on 50 fresh labels every time the generator, the retriever or the judge model changes. Judge accuracy is a property of the pair, not of the judge alone.
 
 ## Pitfalls
 

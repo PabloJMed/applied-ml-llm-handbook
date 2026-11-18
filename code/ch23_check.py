@@ -94,3 +94,13 @@ def judge(b_first):
     return rng.random(10000) < p
 print(f"B shown second: win rate {judge(False).mean():.3f}; B shown first: {judge(True).mean():.3f}; "
       f"averaged over both orders: {(judge(False).mean() + judge(True).mean()) / 2:.3f} (true {true_pref_b})")
+
+# 23.11 worked comparison: 1,000 questions, models disagree on 12%, observed gain 1.8 points
+import math
+n, d, delta = 1000, 0.12, 0.018
+se = math.sqrt((d - delta ** 2) / n); deff = 1 + (5 - 1) * 0.1
+print("paired SE %.4f, 95%% CI [%.1f, %.1f] points; clustered (5 per passage, icc 0.1): SE %.4f, CI [%.1f, %.1f]"
+      % (se, 100 * (delta - 1.96 * se), 100 * (delta + 1.96 * se), se * math.sqrt(deff),
+         100 * (delta - 1.96 * se * math.sqrt(deff)), 100 * (delta + 1.96 * se * math.sqrt(deff))))
+print("questions needed for 80%% power at this gain: %.0f (x%.1f with clustering)" % (2.8 ** 2 * d / delta ** 2, deff))
+print("Elo: +50 -> %.3f, +100 -> %.3f" % (1 / (1 + 10 ** (-50 / 400)), 1 / (1 + 10 ** (-100 / 400))))

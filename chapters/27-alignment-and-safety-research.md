@@ -48,6 +48,16 @@ Reports in 2025 described frontier reasoning models doing the agentic equivalent
 
 Mitigations: hidden and randomised tests, read-only test files and sandboxes, verifiers that check properties rather than examples, held-out environments, monitoring of trajectories (by models and humans), and treating any sudden reward jump as a bug until shown otherwise.
 
+![Diagram](images/27-fig-1.png)
+
+*Best-of-n selection by a proxy reward equal to true quality plus error. With normally distributed errors, picking the best of more samples keeps improving true quality. With heavy-tailed errors, the top proxy score is increasingly an error outlier: true quality peaks around n = 8 and then falls back to the average.*
+
+**Overoptimisation has a shape.** Gao et al. (2023) measured it with a "gold" reward model standing in for humans and smaller proxy reward models trained on its labels. As best-of-n or RL pushed the proxy score up, gold reward first rose and then fell, with predictable functional forms in the KL distance from the starting policy. Larger proxy models and more preference data delayed the peak. The simulation shows the mechanism in its simplest form. When the proxy's errors are heavy-tailed, as they are when a few inputs exploit a blind spot, extreme proxy scores mostly select the exploit. In practice this means:
+
+- KL penalties and early stopping are there to keep the policy near the peak.
+- Reward models need ensembles or uncertainty estimates.
+- Gold-standard checks on samples (humans, stronger verifiers) should run throughout training, not only at the end.
+
 ## 27.3 Sycophancy and honesty
 
 Preference training rewards what raters like, and raters (human or AI) tend to like agreement, flattery and confident answers. Sharma et al. (2023) found sycophancy across assistants trained with human feedback: changing correct answers when users push back, tailoring answers to a user's stated views, giving biased feedback on work the user says they wrote.
@@ -139,6 +149,17 @@ And low rates compound: a capability that succeeds 5% of the time per attempt su
 - **Avoid training on the test**: methods tuned against one evaluation set will look better than they are.
 - **Think adversarially**: would the method still work if the model were trying to defeat it?
 - **Separate capability from propensity**: can the model do it, and does it tend to?
+
+## 27.11 A worked red-team evaluation
+
+You are asked whether a model's refusal training holds up against a family of jailbreaks before release.
+
+1. **Define success precisely.** An attack succeeds if the response contains actionable content for the harmful request, judged by a calibrated classifier plus human review of every positive and of a sample of negatives. Partial compliance and refusals with leaks count as successes. Write the rubric down before running anything.
+2. **Measure with intervals.** On 200 attack attempts drawn from the family, the current model fails on 12: an attack success rate (ASR) of 6.0%, with a 95% Wilson interval of 3.5–10.2%. After a mitigation, 3 of 200 succeed: 1.5% (0.5–4.3%). The improvement is real: the intervals barely overlap, and a paired test on the same prompts confirms it.
+3. **Do not read zero as safe.** If 0 of 300 attempts succeed, the true rate can still be up to about 1% (the rule of three: 3/n). An attacker who tries 50 variations against a 5% per-attempt success rate succeeds at least once with probability 1 − 0.95⁵⁰ = 92%. Rates per attempt understate risk against adaptive, repeated attacks, so report both the per-attempt ASR and the success rate within an attempt budget.
+4. **Test adaptively.** A fixed set of known jailbreaks measures yesterday's attacks. Add an automated red-teamer that mutates prompts against the current model (27.5), and a few hours of expert human red-teaming. Report the ASR for each source separately.
+5. **Check for over-refusal.** Run a set of benign prompts that resemble harmful ones (questions about medication doses, security concepts, history of violence). A mitigation that cuts ASR by refusing these has moved the problem, not solved it. Report both rates side by side.
+6. **Write the result for a decision.** For example: "per-attempt ASR 1.5% (0.5–4.3%) on the known-attack set; automated red-teaming found 2 new attack families with ASR above 10%, both fixed and re-tested; over-refusal on the benign set rose from 2.0% to 2.6%." State what was not tested: other languages, multi-turn attacks and tool use, for instance.
 
 ## Pitfalls
 

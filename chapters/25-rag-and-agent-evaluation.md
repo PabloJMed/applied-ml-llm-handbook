@@ -141,6 +141,12 @@ Exact trajectory matching is too strict when several paths are valid, so combine
 
 **3. Efficiency and robustness.** Steps, tokens, cost and latency per task; behaviour on failure (a tool times out, returns an error, or returns surprising data); loops; consistency across repeated runs. Agents are stochastic: run each task several times and report the share of runs that succeed (a pass^k style metric, "succeeds in all k runs", is stricter and closer to what reliability means for users).
 
+![Diagram](images/25-fig-1.png)
+
+*For a task an agent solves with probability p on each independent run: pass@k = 1 − (1 − p)^k, the chance at least one of k runs succeeds; pass^k = p^k, the chance all k succeed. A 90% agent succeeds in all 8 runs only 43% of the time.*
+
+The two metrics answer different questions. pass@k fits settings where a human or a verifier picks the good run, as in code generation with tests. pass^k fits settings where every run is a real customer interaction and each failure counts. τ-bench reported agents whose pass^8 fell far below their pass^1, which is what the curve predicts.
+
 **Simulated users.** For conversational agents, an LLM can play the customer from a scripted persona and goal ("wants a refund for a missing drink, gets impatient, lies about a second item"). This gives repeatable multi-turn tests, including adversarial ones. Check the simulator's realism by reading its conversations.
 
 **Safety evaluations for agents** are separate and mandatory: prompt injection in tool outputs, attempts to exceed permissions, and irreversible actions without confirmation (Chapter 28).
@@ -159,6 +165,27 @@ For the RAG assistant (E.4) and the agentic flow (E.10), a suite that would sati
 | Online | Resolution without escalation, re-contact rate, user feedback | Automation rate, human override rate, payouts per contact |
 
 Run the offline suite in CI on every prompt, retrieval or model change, and the online metrics plus sampled judging on production daily.
+
+## 25.7 A worked agent evaluation
+
+Evaluate a refund agent on 120 sandboxed tasks, 8 runs each, with end-state checks.
+
+**Estimating pass^k.** For a task with c successes out of n runs, the unbiased estimate of p^k is C(c, k)/C(n, k): the share of k-subsets of the runs that all succeeded. Average it over tasks, and bootstrap over tasks for the interval. In a simulation with per-task success rates drawn from a Beta(3, 1) distribution (mean 0.75):
+
+| Metric | Estimate (95% interval) | Theory for this task mix | If every task had p = 0.75 |
+|---|---|---|---|
+| pass^1 | 0.718 (0.673–0.765) | 0.750 | 0.750 |
+| pass^4 | 0.383 (0.320–0.452) | 0.429 | 0.316 |
+| pass^8 | 0.217 (0.142–0.292) | 0.273 | 0.100 |
+
+Two observations:
+
+- **Reliability is a property of tasks, not only of the agent.** Some tasks are almost always solved and others almost never: 26 tasks here succeeded in all 8 runs and 1 in none. That spread makes pass^k fall more slowly than p^k. Report the distribution of per-task success rates as well as the average, and read the tasks that are solved some runs but not others: those are the agent's unreliable behaviours.
+- **Intervals on pass^k are wide.** The interval for pass^8 spans 15 points with 120 tasks. Comparing two agent versions needs paired analysis on the same tasks and seeds, and usually more tasks than a one-off benchmark run provides.
+
+**Where the cost goes.** 120 tasks × 8 runs × about 12 model calls per run is 11,520 calls per evaluation, plus the simulated user's calls. Cache the static parts of the agent and user prompts (Chapter 22). Run the full 8-run suite nightly and a 2-run smoke version on every change.
+
+**Failure analysis.** Label every failed trajectory with its first wrong step: wrong tool, wrong argument, policy violation, gave up, loop, or a misunderstood user. That list, ranked by frequency, is the roadmap for the next iteration, and the first wrong step is usually far more informative than the final state.
 
 ## Pitfalls
 

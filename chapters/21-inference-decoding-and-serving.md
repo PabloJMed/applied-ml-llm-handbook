@@ -105,6 +105,20 @@ kv_cache_gb(32, 32, 128, 8192, 1)   # 4.29 GB per conversation without GQA
 
 The model weights for 8 billion parameters in 16-bit precision are 8e9 × 2 bytes = 16 GB. So at 32 users with long contexts, **the cache is bigger than the model**. That single fact explains why long context is expensive, why grouped-query attention was invented (it cut the cache 4× above), and why serving engines are mostly memory managers.
 
+![Diagram](images/21-fig-1.png)
+
+*KV cache for a single request of an 8B model with 32 layers and 128-dimensional heads, in fp16, by number of key–value heads. With full multi-head attention a 32k-token request needs as much memory as the whole model; GQA cuts it 4× and MQA 32×.*
+
+**Levers that shrink the cache.** Every factor in the formula has a technique that targets it:
+
+- **Fewer KV heads.** GQA and MQA (Chapter 10) shrink the head count.
+- **A compressed latent.** MLA (Chapter 11) stores a small latent instead of full keys and values.
+- **Lower precision.** An 8-bit or 4-bit cache halves or quarters the bytes per number.
+- **Fewer cached tokens.** Sliding-window or local attention layers cache only the last few thousand tokens; hybrid models with state-space layers keep a fixed-size state for most layers.
+- **Sharing across requests.** Prefix caching keeps one copy of a common prefix.
+
+The cost of each is a possible quality loss, so they are evaluated on long-context tasks, not only on short benchmarks.
+
 ## 21.5 Prefill and decode: two very different phases
 
 ![Diagram](images/14-01.png)
@@ -117,6 +131,18 @@ The model weights for 8 billion parameters in 16-bit precision are 8e9 × 2 byte
 A rough single-user speed limit for decode: memory bandwidth / bytes read per token. With 2 TB/s of bandwidth and 16 GB of weights, about 2e12 / 16e9 = **125 tokens per second**, at best. End-to-end latency for one answer ≈ TTFT + output tokens × TPOT; a 300-token answer at 8 ms per token takes 2.4 s after the first token. That is why **streaming** tokens to the user matters: perceived latency becomes TTFT.
 
 The key insight for serving: during decode, reading the weights once can serve **many users at the same time**. Batch 32 users together and each weight read produces 32 tokens instead of one. Throughput rises almost linearly with batch size, until the cache fills GPU memory or the maths units saturate. **Prefix caching** reuses the cache of a shared beginning (the system prompt, few-shot examples, a long document) across requests; API providers sell this as "prompt caching" at a discount. Put the stable part of the prompt first so it can be reused.
+
+![Diagram](images/21-fig-2.png)
+
+*Decode throughput of an 8B model on one 80 GB GPU (3.35 TB/s, 50% of 989 TFLOP/s usable) with 2k-token contexts. Each step reads the weights once plus every request's cache. Total throughput rises about 50× while each user's speed falls about 5×. The batch stops at 238 requests, when the caches fill memory.*
+
+**Reading the curve.** A step's time is the larger of two numbers: the bytes it must read divided by bandwidth, or the FLOPs it must do divided by compute.
+
+- **One request.** The step reads 16 GB of weights and a quarter of a gigabyte of cache: 4.9 ms, 206 tokens per second.
+- **64 requests.** The same weights are read once for all of them, and the step takes 9.9 ms. Each user gets 101 tokens per second, and the GPU produces 6,500.
+- **238 requests.** The caches now weigh 64 GB, four times the weights, so reading them dominates the step: 23.8 ms, 42 tokens per second per user and about 10,000 per GPU.
+
+The maths units are never the limit here: even at 238 requests, the matmuls need under a third of the step. This is why serving work concentrates on memory (paging, cache compression, quantisation) and why a latency target (say 50 tokens per second per user) sets the batch size, and through it the cost per token.
 
 ## 21.6 Serving engines: what vLLM and friends actually do
 

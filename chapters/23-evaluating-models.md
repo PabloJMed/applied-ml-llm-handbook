@@ -44,6 +44,10 @@ Four levels, each with its own role:
 
 **Sample size.** For a paired comparison, the number of questions needed to detect a difference δ with 80% power is about (1.96 + 0.84)² × d / δ², where d is the fraction of questions on which the models disagree. Detecting a 2-point gain needs about 2,000 questions if they disagree on 10%, and about 4,000 at 20%. Many benchmark comparisons in papers are underpowered.
 
+![Diagram](images/23-fig-1.png)
+
+*Questions needed for a paired comparison to detect a true difference with 80% power at the 5% level, by how often the two models disagree. Halving the difference to detect quadruples the questions.*
+
 **Many comparisons.** Comparing 20 checkpoints and picking the best is a multiple-comparison problem; the winner's score is biased upwards. Confirm on a held-out set or correct for multiplicity (Chapter 2).
 
 **Report**: the mean, its standard error (clustered if relevant), the number of questions, and for comparisons the paired difference with its interval.
@@ -103,6 +107,12 @@ If test items, or close paraphrases, were in the training data, scores measure m
 
 Open-ended quality is hard to score absolutely, so many evaluations compare responses in pairs: humans or judges vote, and a **Bradley–Terry** model (the same as for reward models, Chapter 18) turns votes into ratings, usually on an Elo-like scale. On 3,000 simulated battles among five models, fitted ratings recover the true order, but adjacent models' bootstrap intervals overlap (for example [1,181, 1,235] and [1,149, 1,205]): with this many votes, the top three are hard to separate.
 
+![Diagram](images/23-fig-2.png)
+
+*Win probability implied by a rating gap on the Elo scale, P = 1 / (1 + 10^(−gap/400)). A 50-point lead means winning 57% of battles; 100 points, 64%.*
+
+The conversion keeps leaderboard gaps in proportion. Models 20 points apart win about 53% of head-to-head votes against each other: users would barely notice the difference. Interval width matters as much as the gap. A rating with a ±25-point interval cannot be ranked against neighbours within that range.
+
 Arenas with crowd-sourced prompts and votes have become the most cited leaderboards, and their known problems are worth knowing:
 
 - **Style and length**: voters prefer longer, more formatted answers; style-controlled ratings regress the votes on length and markdown features.
@@ -142,6 +152,22 @@ Use a harness (lm-evaluation-harness, Inspect, HELM, or your lab's own) so promp
 5. Contamination checks done and their results.
 6. For judges: which judge, bias controls, agreement with humans.
 7. Seeds or training-variance estimates for training-time comparisons.
+
+## 23.11 A worked comparison: is the new checkpoint better?
+
+A new checkpoint scores 71.3% on a 1,000-question reading benchmark; the old one scored 69.5%. The team wants to announce a 1.8-point gain.
+
+1. **Pair the comparison.** The two models disagree on 12% of questions. The paired standard error of the difference is √((0.12 − 0.018²)/1,000) = 1.09 points, so the 95% interval is [−0.3, +3.9]. It includes zero.
+2. **Account for clusters.** The questions come in passages of 5, and answers within a passage are correlated (intraclass correlation about 0.1). The design effect is 1 + (5 − 1) × 0.1 = 1.4, so the standard error grows by √1.4 to 1.29 points, and the interval widens to [−0.7, +4.3].
+3. **Ask what it would take.** To detect a 1.8-point gain with 80% power at this disagreement rate needs about 2,900 independent questions, or 4,100 with the clustering. The benchmark is about four times too small for the claim.
+4. **Get more evidence, not a different test.** There are four honest options:
+   - Evaluate on other benchmarks that measure the same skill and pool the paired differences.
+   - Measure a lower-variance quantity, such as per-token loss or bits per byte on held-out text in the domain (23.4), which uses every token instead of one bit per question.
+   - Check that the difference survives two other prompt formats (23.3).
+   - Train a second seed of both recipes if the change was a training change.
+5. **Report what you have.** For example: "+1.8 points (95% CI −0.7 to +4.3, clustered, 1,000 questions); consistent direction on two related benchmarks; loss on held-out reading text lower by 0.6%." That is a credible, modest claim. "New checkpoint is better at reading comprehension" is not, yet.
+
+The same arithmetic applies to every row of a results table. A table of 10 benchmarks with no intervals invites readers to over-read the noise in each one.
 
 ## Pitfalls
 

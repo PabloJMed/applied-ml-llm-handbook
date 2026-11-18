@@ -107,6 +107,12 @@ The two induction heads are partly redundant (removing one hurts, removing both 
 
 Individual neurons are often **polysemantic**: one neuron responds to unrelated concepts. The leading explanation is **superposition**: a model represents more features than it has dimensions, as nearly-orthogonal directions, which works when features are sparse (rarely active together). Toy Models of Superposition showed this happens in small networks and depends on sparsity and importance.
 
+![Diagram](images/26-fig-1.png)
+
+*Absolute cosine between random unit directions. The typical pair (√(2/πd)) is close to orthogonal already at a few hundred dimensions. Even the worst-aligned pair among 10,000 directions has cosine below 0.09 at 4,096 dimensions, the width of a mid-sized model's residual stream.*
+
+This geometry is what makes superposition possible. A residual stream of 4,096 dimensions can hold far more than 4,096 directions with little interference, and the number grows exponentially with the width if a fixed amount of interference is acceptable. The interference shows up as noise when several features are active at once, so superposition works when features are sparse. The model's nonlinearities then filter the small interference terms.
+
 If features are directions in superposition, we need to recover those directions from activations. A **sparse autoencoder (SAE)** learns an over-complete dictionary: encode an activation into many latents with a sparsity constraint, decode back as a sparse combination of learned directions.
 
 In the check script, 24 sparse features (each active 5% of the time, 1.2 on average per input) are stored in an 8-dimensional space (mean |cos| between feature directions 0.29: heavily overlapping). Three SAEs with 32 latents:
@@ -144,6 +150,29 @@ Reasoning models produce long chains of thought in natural language. That is an 
 - Beware **interpretability illusions**: a direction that seems to control a concept may act through a different mechanism, especially in subspace interventions.
 - Avoid cherry-picking: report how many features or examples you looked at and how many fit the story.
 - Compare with simple baselines (probes, prompting) before claiming an SAE-based method is useful.
+
+## 26.11 A worked investigation: does the model track the speaker's language?
+
+**Question.** A multilingual model answers in the user's language. Is there an internal representation of "language of the conversation", and does the model use it to choose output tokens?
+
+1. **Behaviour first.** Build 2,000 prompts in four languages, with matched content, and measure how often the answer is in the prompt's language. Include conflicting cases (an English instruction quoting a Spanish text) to see which signal wins.
+2. **Descriptive tools.**
+   - Train linear probes for the language at every layer on residual-stream activations, with a held-out split.
+   - Add a control task (random labels assigned per word type) and report selectivity, the gap between the two accuracies (26.3).
+   - Expect high accuracy almost everywhere, because language is easy to read from tokens. The interesting result is where a representation of the *conversation's* language exists separately from the *current token's*. Test that on the conflicting cases.
+3. **Causal tests.**
+   - **Steering.** Take the difference of mean activations between Spanish and English conversations at a middle layer, and add it to English prompts. Does the answer switch language while keeping its content?
+   - **Activation patching** (26.5) between matched prompts in two languages localises the layers and positions where patching flips the output language.
+   - Use several corruptions and report the share of prompts flipped, not single examples.
+4. **Sparse features.** If an SAE is available for that layer, look for latents that fire on the conversation's language rather than on single tokens. Check them causally (ablate, amplify) and compare with the mean-difference direction. If the simple direction steers as well as the SAE latent, say so (26.10).
+5. **Report.**
+   - The behavioural rates.
+   - The probe curves with their controls.
+   - The causal effect sizes with intervals over prompts.
+   - The failure cases: prompts where steering changed the content, or did nothing.
+   - A short statement of what the evidence does and does not show. For example: "a linear direction at layers 14–18 causally controls output language for 87% of prompts; we did not test whether it is the mechanism the model uses without intervention."
+
+The structure transfers to most interpretability questions: behaviour, then correlational evidence, then causal tests with controls, then honest scoping.
 
 ## Pitfalls
 

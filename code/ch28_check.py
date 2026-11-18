@@ -30,3 +30,9 @@ score = np.where(y, rng.beta(5, 2, 10000), rng.beta(2, 6, 10000))
 for th in [0.5, 0.7, 0.85]:
     pred = score >= th; tp = (pred & y).sum()
     print(th, "precision", round(tp / pred.sum(), 3), "recall", round(tp / y.sum(), 3), "flagged per 10k", pred.sum())
+
+# 28.6 sizing the review queue: 200k reviews/day, auto-hide above 0.85, human review 0.50-0.85, 30 s per item
+per10k_review = 910 - 50; daily = 200_000 / 10_000 * per10k_review
+print(f"items to review per day {daily:,.0f}; reviewer hours {daily * 30 / 3600:.0f}; reviewers at 6 productive h/day {daily * 30 / 3600 / 6:.0f}")
+for fpr, pi in ((0.01, 0.001), (0.01, 0.03), (0.001, 0.001)):
+    print(f"recall 0.9, FPR {fpr}, prevalence {pi}: precision {0.9 * pi / (0.9 * pi + fpr * (1 - pi)):.3f}")

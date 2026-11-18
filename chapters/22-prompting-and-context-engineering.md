@@ -193,6 +193,10 @@ monthly_cost(3_000_000, 3000, 500, 150, 3.0, 15.0, cache_read_factor=0.1, cache_
 
 The prices here are illustrative, and the sketch ignores any cache-write premium. The lesson holds: when a long fixed prefix dominates the input, caching can cut input cost by more than half. Combined with batch APIs for offline work (Chapter 21), and with a smaller model for easy cases, this is how LLM features become affordable.
 
+![Diagram](images/22-fig-1.png)
+
+*The monthly bill from the example above, split by where the tokens go. Caching 90% of the static prefix removes $21,870. What remains is mostly output, so the next lever is shorter outputs (a label instead of prose, a tighter schema) rather than a shorter prompt.*
+
 ## 22.8 Prompt injection and defences
 
 **Prompt injection** is text that the model treats as instructions when you meant it as data. **Direct injection:** the user types "ignore your instructions and...". **Indirect injection:** the instructions hide in content the system reads: a web page, an email, a review, a PDF, a tool result. Indirect injection is the bigger risk for RAG and agents, because the attacker never talks to your system directly.
@@ -216,6 +220,33 @@ The interview-ready principle: **never let the model be the only thing standing 
 - **Many-shot ICL.** With long contexts, hundreds or thousands of examples can approach fine-tuning performance on some tasks, at higher inference cost; prompt caching makes it practical. The same mechanism powers many-shot jailbreaking (Chapter 27).
 - **Prompt sensitivity is a measurement problem.** Small changes in wording, example order or formatting can move accuracy by several points, more for smaller models. When comparing models or prompts, evaluate several templates and report the spread (Chapter 23), and prefer evaluation designs that are robust to format (for example likelihood scoring for base models).
 - **Automatic prompt optimisation** (DSPy-style search, or LLM-proposed rewrites scored on a dev set) can beat hand-written prompts, with the usual risk of over-fitting the dev set: keep a held-out test set.
+
+## 22.10 A worked prompt: support-ticket triage
+
+The task is to route incoming support tickets to one of eight queues and extract the order id, returned as JSON. Here is a development loop that would hold up in review.
+
+1. **Build the set first.**
+   - Label 300 recent tickets, stratified by queue and language, with 20% of them hard cases (several issues in one ticket, no order id, sarcasm).
+   - Freeze 100 of them as a test set and iterate on the other 200.
+   - Is 300 enough? To see a 5-point improvement in a paired comparison where versions disagree on about 10% of tickets takes about 2.8² × 0.10 / 0.05² ≈ 310 tickets (Chapter 23). A 2-point change is invisible at this size, so do not chase one.
+2. **Write version 1 in the cacheable order.**
+   - The stable part comes first: role, queue definitions with one-line boundaries between similar queues, the output schema, and six examples covering the hard cases.
+   - The ticket comes last, delimited as data.
+   - Use structured output (22.4) so every response parses.
+3. **Run it and read the failures.**
+   - Group the errors on the dev set. Typical groups: confusing two neighbouring queues, picking the first issue in a multi-issue ticket, and inventing an order id when none is present.
+   - Count each group and fix the largest. A boundary sentence between the two queues often helps. So do a rule ("if several issues, route by the one that blocks the customer") and an explicit null ("order_id: null when absent; never guess").
+4. **Re-run with paired comparison.**
+   - Compare versions on the same tickets. Count the tickets that flipped from wrong to right and from right to wrong, not only the totals.
+   - If outputs are sampled, run three times and look at the spread. If it is wide, lower the temperature or add an example for the unstable cases.
+5. **Check the cost and the test set once.**
+   - At 3,500 input and 150 output tokens per call and the prices of 22.7, an evaluation run of 300 tickets costs about $4, so iteration is cheap. Production cost is set by the cache hit rate and the output length.
+   - Touch the frozen test set only for the final version, and report its result with an interval.
+6. **Ship with a version and a monitor.**
+   - Register the configuration (22.5) and log the version with every output.
+   - Sample 50 production tickets a week for review. Their errors become new dev-set cases, so the set grows with the product.
+
+The order of the steps matters more than any trick inside the prompt: a fixed evaluation set and error analysis make every later change measurable.
 
 ## Pitfalls
 

@@ -90,3 +90,15 @@ checks = {
     "no_email": lambda o: re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", o) is None,
 }
 print(run_checks('{"answer": "You can request a voucher within 24 hours.", "sources": ["policy-17#1"]}', checks))
+
+# 24.11 worked calibration: 200 expert labels (150 pass, 50 fail)
+import math
+tp, fn, tn, fp = 140, 10, 33, 17
+human = [1] * (tp + fn) + [0] * (tn + fp); judge = [1] * tp + [0] * fn + [0] * tn + [1] * fp
+tpr, tnr = tp / (tp + fn), tn / (tn + fp)
+def wilson(k, n, z=1.96):
+    p = k / n; den = 1 + z * z / n; c = (p + z * z / (2 * n)) / den; h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return round(c - h, 3), round(c + h, 3)
+po = (tp + tn) / 200; pe = (150 / 200) * ((tp + fp) / 200) + (50 / 200) * ((tn + fn) / 200)
+print(f"agreement {po:.3f}, kappa {(po - pe) / (1 - pe):.3f}, TPR {tpr:.3f} {wilson(tp, tp + fn)}, TNR {tnr:.3f} {wilson(tn, tn + fp)}")
+print("observed 80%% -> corrected %.3f; true gap 15 points looks like %.1f" % ((0.80 + tnr - 1) / (tpr + tnr - 1), 15 * (tpr + tnr - 1)))
