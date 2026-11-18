@@ -1,0 +1,12 @@
+numpy
+scipy
+pandas
+scikit-learn
+statsmodels
+torch
+lightgbm
+faiss-cpu
+tokenizers
+fastapi
+pydantic
+httpx
