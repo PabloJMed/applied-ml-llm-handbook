@@ -4,7 +4,7 @@
 
 A self-study handbook for AI and LLM research scientists, and for the applied ML engineers who work alongside them: from the maths underneath to how large language models are pretrained, post-trained, served, evaluated and understood, with the research craft and interviews of the job. Theory, working code and worked numbers in one place.
 
-**Read it as a book:** [AI-and-LLM-Scientist-Handbook.pdf](AI-and-LLM-Scientist-Handbook.pdf) (7 × 10 in book format, with bookmarks and a linked contents page; for an A4 print version run `python tools/build_pdf.py --page a4`). Or browse the chapters below as Markdown.
+**Read it as a book:** [AI-and-LLM-Scientist-Handbook.pdf](AI-and-LLM-Scientist-Handbook.pdf) (7 × 10 in book format, with bookmarks and a linked contents page; an A4 print version can be built, see below). Or browse the chapters below as Markdown.
 
 ## What is inside
 
@@ -134,6 +134,7 @@ Text, diagrams and the PDF: [CC BY-NC-SA 4.0](https://creativecommons.org/licens
 The Markdown in `chapters/` is the single source: the PDF is built from it with [`tools/build_pdf.py`](tools/build_pdf.py), so they match.
 
 ```bash
-pip install -r tools/requirements.txt
-python tools/build_pdf.py
+uv run --python 3.12 --with-requirements tools/requirements.txt tools/build_pdf.py
 ```
+
+Add `--page a4 --out AI-and-LLM-Scientist-Handbook-A4.pdf` for an A4 print version. Without uv: `pip install -r tools/requirements.txt` in a Python 3.10+ environment, then `python tools/build_pdf.py`.

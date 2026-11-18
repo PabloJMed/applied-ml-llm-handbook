@@ -52,8 +52,8 @@ PARTS = [
 
 # Page presets: page size, margins (left/right, top, bottom) and base font size.
 PRESETS = {
-    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=54, top=66, bottom=62, base=9.6),
-    "a4": dict(page=pymupdf.paper_rect("a4"), mx=74, top=78, bottom=70, base=10.4),
+    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=48, top=58, bottom=54, base=9.0),
+    "a4": dict(page=pymupdf.paper_rect("a4"), mx=66, top=70, bottom=62, base=9.8),
 }
 
 ACCENT = (0.722, 0.384, 0.247)      # terracotta
@@ -78,15 +78,15 @@ def css(base: float) -> str:
 @font-face {{ font-family: mono; src: url(JetBrainsMono-Bold.ttf); font-weight: bold; }}
 @font-face {{ font-family: mono; src: url(JetBrainsMono-Italic.ttf); font-style: italic; }}
 
-body {{ margin: 0; padding: 0; font-family: serif; font-size: {s(1)}; line-height: 1.5; color: #1f1f1d; }}
-p {{ margin: 0 0 {s(0.62)} 0; text-align: left; }}
+body {{ margin: 0; padding: 0; font-family: serif; font-size: {s(1)}; line-height: 1.42; color: #1f1f1d; }}
+p {{ margin: 0 0 {s(0.55)} 0; text-align: left; }}
 strong, b {{ font-weight: bold; color: #141413; }}
 em, i {{ font-style: italic; }}
 a {{ color: #8f4a2c !important; text-decoration: none !important; }}
 
 h1, h2, h3, h4 {{ font-family: sans; font-weight: bold; color: #1a1a18; }}
-h2 {{ font-size: {s(1.32)}; line-height: 1.25; margin: {s(1.7)} 0 {s(0.55)} 0; }}
-h3 {{ font-size: {s(1.08)}; line-height: 1.3; margin: {s(1.3)} 0 {s(0.4)} 0; }}
+h2 {{ font-size: {s(1.32)}; line-height: 1.25; margin: {s(1.45)} 0 {s(0.5)} 0; }}
+h3 {{ font-size: {s(1.08)}; line-height: 1.3; margin: {s(1.15)} 0 {s(0.35)} 0; }}
 h4 {{ font-size: {s(1.0)}; margin: {s(1.1)} 0 {s(0.3)} 0; }}
 span.sec {{ color: #b8623f; }}
 
@@ -97,7 +97,7 @@ pre {{ font-family: mono; font-size: {s(0.72)}; line-height: 1.45; color: #2b2a2
 pre code {{ font-size: {s(0.72)}; color: #2b2a27; }}
 
 ul, ol {{ margin: 0 0 {s(0.7)} 0; padding-left: {s(1.6)}; }}
-li {{ margin: 0 0 {s(0.28)} 0; }}
+li {{ margin: 0 0 {s(0.22)} 0; }}
 li p {{ margin: 0 0 {s(0.25)} 0; }}
 blockquote {{ margin: {s(0.4)} 0 {s(0.8)} 0; padding-left: {s(0.9)}; border-left: 1.2pt solid #c98a6c; color: #4f4d48; }}
 
@@ -114,6 +114,8 @@ p.caption {{ font-family: sans; font-size: {s(0.78)}; color: #6e6c66; text-align
 hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {s(0.8)} 0; }}
 
 .chapter {{ page-break-before: always; }}
+.brk {{ page-break-before: always; }}
+p.spacer {{ margin: 0; font-size: 1pt; line-height: 1; }}
 .partlabel {{ font-family: sans; font-weight: bold; font-size: {s(0.72)}; color: #b8623f; margin: {s(1.0)} 0 {s(1.6)} 0; }}
 .chapnum {{ font-family: sans; font-size: {s(0.95)}; color: #b8623f; margin: 0 0 {s(0.25)} 0; }}
 h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bottom: {s(0.9)};
@@ -166,12 +168,90 @@ def prepare_fonts() -> Path:
     return tmp
 
 
+BREAKS: set[str] = set()      # element ids that must start a new page (filled during layout)
+TALL: set[str] = set()        # tables, code blocks and boxes
+KEEP: set[str] = set()        # headings and lead-in lines that must stay on the page of the next block
+
+
+def add_ids(key: str, body: str) -> str:
+    """Give every block a stable id and mark the ones the previous layout pass found stranded at a
+    page bottom with a page break."""
+    counter = iter(range(1000000))
+    state = {"prev": None, "end": 0}
+
+    def tag(m):
+        el, attrs = m.group(1), m.group(2) or ""
+        eid = f"e{key}-{next(counter)}"
+        prev, gap = state["prev"], body[state["end"]:m.start()]
+        state["prev"], state["end"] = eid, m.end()
+        if prev in BREAKS and (prev in KEEP or not gap.strip()):
+            # the heading or lead-in before this block (or the box this block opens) already starts
+            # a new page: no second break
+            return f'<{el} id="{eid}"{attrs}>'
+        if eid in BREAKS and el in ("table", "pre", "ul", "ol", "div"):
+            return f'<p class="brk spacer">&#8203;</p><{el} id="{eid}"{attrs}>'
+        if eid in BREAKS:
+            if 'class="' in attrs:
+                attrs = attrs.replace('class="', 'class="brk ', 1)
+            else:
+                attrs = ' class="brk"' + attrs
+        return f'<{el} id="{eid}"{attrs}>'
+    # pre-compute which ids will be headings or lead-in lines (same numbering as tag() below)
+    n = 0
+    for m in re.finditer(r'<(h2|h3|h4|table|pre|p|ul|ol|div)((?: [^>]*)?)>', body):
+        eid = f"e{key}-{n}"; n += 1
+        if m.group(1) in ("h2", "h3", "h4"):
+            KEEP.add(eid)
+        elif m.group(1) == "p" and re.match(r'(?:(?!</p>).)*:(?:</strong>|</em>|</b>)*</p>\s*<(?:ul|ol|pre|table|div)', body[m.end():], flags=re.S):
+            KEEP.add(eid)
+    body = re.sub(r'<(h2|h3|h4|table|pre|p|ul|ol|div)((?: [^>]*)?)>', tag, body)
+    for m in re.finditer(r'<(?:table|pre) id="([^"]+)"|<div id="([^"]+)" class="(?:brk )?box"', body):
+        TALL.add(m.group(1) or m.group(2))
+    for m in re.finditer(r'<h[234] id="([^"]+)"', body):
+        KEEP.add(m.group(1))
+    for m in re.finditer(r'<p id="([^"]+)"[^>]*>(?:(?!</p>).)*:</p>\s*<(?:ul|ol|pre|table|div)', body, flags=re.S):
+        KEEP.add(m.group(1))
+    return body
+
+
 def chapter_files() -> dict[str, Path]:
     return {p.name.split("-", 1)[0]: p for p in sorted(CHAPTERS.glob("*.md"))}
 
 
 def make_md() -> MarkdownIt:
     return MarkdownIt("commonmark", {"html": False, "typographer": False}).enable(["table", "strikethrough"])
+
+
+CODE_COLS = 100                # characters per code line; set from the page geometry in main()
+
+
+def wrap_code_line(line: str, cols: int) -> list[str]:
+    """Fit one code line into `cols` characters: move a trailing comment above the code, then break
+    at spaces with a hanging indent so continuation lines are visibly continuations."""
+    if len(line) <= cols:
+        return [line]
+    indent = len(line) - len(line.lstrip(" "))
+    m = re.search(r"\s{2,}(#|--|//) ", line)
+    if m and line[:m.start()].strip() and len(line[:m.start()].rstrip()) <= cols:
+        comment = " " * indent + line[m.start():].strip()
+        return wrap_code_line(comment, cols) + [line[:m.start()].rstrip()]
+    hang = " " * min(indent + 4, cols // 2)
+    out, rest = [], line
+    while len(rest) > cols:
+        cut = max(rest.rfind(", ", 0, cols - 1) + 1, rest.rfind(" ", indent + 1, cols))
+        if cut <= indent + 1:
+            cut = cols
+        out.append(rest[:cut].rstrip())
+        rest = hang + rest[cut:].lstrip()
+    out.append(rest)
+    return out
+
+
+def wrap_code(markdown: str, cols: int) -> str:
+    def fix(m):
+        lines = m.group(2).split("\n")
+        return m.group(1) + "\n".join(x for l in lines for x in wrap_code_line(l, cols)) + m.group(3)
+    return re.sub(r"(^```[^\n]*\n)(.*?)(\n```)", fix, markdown, flags=re.S | re.M)
 
 
 def wrap_box(body: str, heading: str) -> str:
@@ -187,7 +267,7 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = re.sub(r"\n---\n\n\[[^\n]*\]\([^\n]*\)[^\n]*\s*$", "\n", text)   # drop the web navigation footer
     first, _, rest = text.partition("\n")
     title = first.lstrip("# ").strip()
-    body = md.render(rest)
+    body = md.render(wrap_code(rest, CODE_COLS))
     # The first paragraph repeats the part name ("Part I · Foundations. Assumes ..."); the part is
     # shown above the title, so drop it and set the rest as the chapter's italic intro.
     body = re.sub(r"^<p>Part [IVX]+ · (?:[^.<:]*\.\s*)?", '<p class="partintro">', body, count=1)
@@ -199,7 +279,7 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     body = re.sub(r"<h([23])>([0-9]+[a-z]?\.[0-9]+(?:\.[0-9]+)?|[A-E]\.[0-9]+) ", r'<h\1><span class="sec">\2</span>&#160;&#160;', body)
     for h in ("Key concepts", "Done when"):
         body = wrap_box(body, h)
-    return title, body
+    return title, add_ids(key, body)
 
 
 def build_html(positions: list | None) -> str:
@@ -265,6 +345,9 @@ def main() -> int:
     P = PRESETS[args.page]
     PAGE, MX, TOP, BOTTOM, BASE = P["page"], P["mx"], P["top"], P["bottom"], P["base"]
 
+    global CODE_COLS
+    code_size = BASE * 0.72
+    CODE_COLS = int((PAGE.width - 2 * MX - 2 * 0.7 * BASE) / (0.6 * code_size)) - 2
     font_dir = prepare_fonts()
     archive = pymupdf.Archive()
     archive.add(pymupdf.Archive(str(font_dir)))
@@ -275,8 +358,21 @@ def main() -> int:
 
     collected: list = []
 
+    line = BASE * 1.42
+    floor = PAGE.height - BOTTOM                 # bottom of the text area
+
     def contentfn(positions):
         collected[:] = positions
+        starts = [p for p in (positions or []) if (p.open_close & 1) and p.id and p.id.startswith("e")]
+        for prev, nxt in zip(starts, starts[1:]):
+            # a heading or lead-in line whose next block starts on a later page moves with it
+            if prev.id in KEEP and nxt.page_num != prev.page_num and prev.rect[1] > TOP + line:
+                BREAKS.add(prev.id)
+        for p in starts:
+            # tables and code blocks need room for a few lines before the page ends
+            if p.id not in KEEP and p.rect[1] > floor - 3.5 * line and p.rect[1] > TOP + line:
+                if re.match(r"e[0-9A-E]+-", p.id) and p.id in TALL:
+                    BREAKS.add(p.id)
         return build_html(positions)
 
     doc = pymupdf.Story.write_stabilized_with_links(
