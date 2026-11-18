@@ -1,10 +1,10 @@
 # The AI & LLM Scientist Handbook
 
-**Pablo Medina** · written with the guidance of Claude Opus 5.5 (Anthropic)
+**Pablo Medina & Claude Opus 5.5**
 
 A self-study handbook for AI and LLM research scientists, and for the applied ML engineers who work alongside them: from the maths underneath to how large language models are pretrained, post-trained, served, evaluated and understood, with the research craft and interviews of the job. Theory, working code and worked numbers in one place.
 
-**Read it as a book:** [AI-and-LLM-Scientist-Handbook.pdf](AI-and-LLM-Scientist-Handbook.pdf) (A4, with bookmarks and a linked contents page). Or browse the chapters below as Markdown.
+**Read it as a book:** [AI-and-LLM-Scientist-Handbook.pdf](AI-and-LLM-Scientist-Handbook.pdf) (7 × 10 in book format, with bookmarks and a linked contents page; for an A4 print version run `python tools/build_pdf.py --page a4`). Or browse the chapters below as Markdown.
 
 ## What is inside
 
@@ -123,7 +123,7 @@ python code/ch18_check.py
 
 ## About
 
-Written by Pablo Medina with the guidance of Claude Opus 5.5 (Anthropic), and reviewed and edited by the author. The second edition (November 2026) restructures the first edition, the *Applied ML & LLM Handbook*, around the LLM research-scientist role and adds 13 chapters. Corrections and suggestions are welcome: open an issue.
+By Pablo Medina & Claude Opus 5.5 (Anthropic). The second edition (November 2026) restructures the first edition, the *Applied ML & LLM Handbook*, around the LLM research-scientist role and adds 13 chapters. Corrections and suggestions are welcome: open an issue.
 
 ## Licence
 
