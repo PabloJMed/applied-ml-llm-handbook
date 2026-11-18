@@ -199,3 +199,7 @@ The full cost picture now has three terms: pretraining, post-training (increasin
 You can derive the compute-optimal allocation and explain why Kaplan and Chinchilla differed. You can run the IsoFLOP method and a parametric fit, and list what makes fits wrong. You can explain inference-aware over-training with numbers, and the value of repeated data.
 
 You can explain the emergence debate with the exact-match example and describe how to forecast benchmark scores. You can compute pass@k correctly and explain test-time compute scaling and where verification limits it.
+
+---
+
+[← 12 · Model families and scaling](12-model-families-and-scaling.md) · [Contents](../README.md#contents) · [14 · Multimodal models →](14-multimodal-models.md)

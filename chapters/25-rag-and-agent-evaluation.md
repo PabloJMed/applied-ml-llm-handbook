@@ -231,4 +231,4 @@ You can evaluate an agent on end state, trajectory, efficiency, robustness and s
 
 ---
 
-[← 22 · LLM evaluation](22-llm-evaluation.md) · [Contents](../README.md#contents) · [24 · Safety and responsible AI →](24-safety-and-responsible-ai.md)
+[← 24 · LLM evaluation](24-llm-evaluation.md) · [Contents](../README.md#contents) · [26 · Interpretability and analysis →](26-interpretability.md)

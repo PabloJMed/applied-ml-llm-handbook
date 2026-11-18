@@ -83,7 +83,7 @@ For a 61-layer model at a 128k-token context that is 524 GB per sequence with fu
 
 **Linear attention.** Softmax attention needs all past keys. Replace exp(q·k) with a product of feature maps φ(q)·φ(k) and the sum over the past can be accumulated in a d × d state:
 
-S_t = S_{t−1} + φ(k_t) v_tᵀ,  output_t = φ(q_t)ᵀ S_t / φ(q_t)ᵀ z_t
+S_t = S_(t−1) + φ(k_t) v_tᵀ,  output_t = φ(q_t)ᵀ S_t / φ(q_t)ᵀ z_t
 
 That is an RNN with a matrix-valued state: constant memory per token at inference, and a parallel form for training. The check script confirms the two forms give identical outputs.
 
@@ -199,3 +199,7 @@ Most "X beats the transformer" claims dissolve under these checks:
 You can implement a top-k MoE layer with a load-balancing loss and explain auxiliary-loss-free balancing. You can compute total and active parameters and explain what MoE costs in serving. You can explain MLA and compute KV-cache sizes for MHA, GQA and MLA.
 
 You can show that linear attention is an RNN, explain the recall weakness of fixed-size states and what gates and the delta rule fix. You can describe a hybrid design and how you would evaluate it. You can explain multi-token prediction and masked diffusion LMs, and list the checks a new-architecture claim must pass.
+
+---
+
+[← 10 · The transformer in depth](10-the-transformer-in-depth.md) · [Contents](../README.md#contents) · [12 · Model families and scaling →](12-model-families-and-scaling.md)

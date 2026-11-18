@@ -299,4 +299,4 @@ You can decide between prompting, RAG and fine-tuning for a given need and defen
 
 ---
 
-[← 15 · Prompting and context engineering](15-prompting-and-context-engineering.md) · [Contents](../README.md#contents) · [17 · Embeddings →](17-embeddings.md)
+[← 19 · Post-training II: reinforcement learning and reasoning models](19-post-training-rl-and-reasoning.md) · [Contents](../README.md#contents) · [21 · Inference, decoding and serving →](21-inference-decoding-and-serving.md)

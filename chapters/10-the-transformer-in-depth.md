@@ -356,4 +356,4 @@ You have trained a mini-GPT yourself.
 
 ---
 
-[← 09 · Text and tokenisation](09-text-and-tokenisation.md) · [Contents](../README.md#contents) · [11 · Model families and scaling →](11-model-families-and-scaling.md)
+[← 9 · Text and tokenisation](09-text-and-tokenisation.md) · [Contents](../README.md#contents) · [11 · Architectures beyond the vanilla transformer →](11-architectures-beyond-the-transformer.md)

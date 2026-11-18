@@ -203,4 +203,4 @@ You have done at least one full mock behavioural round.
 
 ---
 
-[← 32 · ML depth question bank](32-ml-depth-question-bank.md) · [Contents](../README.md#contents) · [34 · Thinking like a senior →](34-thinking-like-a-senior.md)
+[← 37 · ML depth question bank](37-ml-depth-question-bank.md) · [Contents](../README.md#contents) · [39 · Thinking like a senior →](39-thinking-like-a-senior.md)

@@ -186,4 +186,4 @@ You can do Chinchilla arithmetic with C = 6ND and D = 20N, and explain why pract
 
 ---
 
-[← 10 · The transformer in depth](10-the-transformer-in-depth.md) · [Contents](../README.md#contents) · [12 · NLP tasks with modern tools →](12-nlp-tasks-with-modern-tools.md)
+[← 11 · Architectures beyond the vanilla transformer](11-architectures-beyond-the-transformer.md) · [Contents](../README.md#contents) · [13 · Scaling laws →](13-scaling-laws.md)

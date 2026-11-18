@@ -199,4 +199,4 @@ You can derive and numerically check a simple gradient. You can define entropy, 
 
 ---
 
-[← 00 · Overview](00-overview.md) · [Contents](../README.md#contents) · [02 · Statistics and experimentation →](02-statistics-and-experimentation.md)
+[← Overview](00-overview.md) · [Contents](../README.md#contents) · [2 · Statistics and experimentation →](02-statistics-and-experimentation.md)

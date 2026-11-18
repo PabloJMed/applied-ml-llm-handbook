@@ -376,4 +376,4 @@ You know which models need scaling, which give calibrated probabilities, and whi
 
 ---
 
-[← 03 · ML fundamentals](03-ml-fundamentals.md) · [Contents](../README.md#contents) · [05 · Evaluation and metrics →](05-evaluation-and-metrics.md)
+[← 39 · Thinking like a senior](39-thinking-like-a-senior.md) · [Contents](../README.md#contents) · [41 · NLP tasks with modern tools →](41-nlp-tasks-with-modern-tools.md)

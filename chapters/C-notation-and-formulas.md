@@ -89,6 +89,42 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Distillation: L = α T² KL(softmax(z_t/T) ‖ softmax(z_s/T)) + (1 − α) CE(y, z_s)
 - LoRA: W = W₀ + (α/r) BA, with B ∈ R^(d×r), A ∈ R^(r×k), r ≪ min(d, k); trainable params r(d + k)
 
+## Training dynamics, scaling and systems (Ch 7, 13, 17)
+
+- AdamW: m ← β₁m + (1−β₁)g; v ← β₂v + (1−β₂)g²; p ← p(1 − ηλ) − η m̂ / (√v̂ + ε), with m̂ = m/(1−β₁ᵗ), v̂ = v/(1−β₂ᵗ)
+- Gradient noise scale: B_simple = tr(Σ) / |G|²
+- z-loss: λ_z · (log Σ_j e^{z_j})²
+- Chinchilla parametric loss: L(N, D) = E + A/N^α + B/D^β; compute-optimal N_opt = G (C/6)^(β/(α+β)), G = (αA/βB)^(1/(α+β))
+- Chinchilla's "20 tokens per parameter" minimises training compute only; inference-aware optima are much larger
+- Effective repeated data (Muennighoff et al.): D' = U + U R* (1 − e^(−R/R*)), R = epochs − 1, R* ≈ 15.4
+- MFU = tokens/s × (6N + 12 · layers · d · seq) / peak FLOP/s
+- Activation memory per layer ≈ s · b · h · (34 + 5 a s / h) bytes (no recomputation)
+- Ring all-reduce traffic per GPU: 2 (n − 1)/n × message size
+- Pipeline bubble: (p − 1)/(m + p − 1)
+- MoE load-balancing loss: E · Σ_e f_e P_e
+
+## Post-training and reasoning (Ch 18, 19)
+
+- GAE: δ_t = r_t + γV(s_(t+1)) − V(s_t); A_t = δ_t + γλ A_(t+1)
+- PPO-clip: max E[min(ρA, clip(ρ, 1−ε, 1+ε)A)], ρ = π/π_old
+- KL estimators (r = π_ref/π): k1 = −log r; k2 = (log r)²/2; k3 = r − 1 − log r
+- KL-regularised optimum: π*(y|x) ∝ π_ref(y|x) exp(r(x, y)/β)
+- IPO: (h − 1/(2β))², with h the log-ratio margin of chosen over rejected
+- Best-of-n KL from the base policy: log n − (n − 1)/n
+- Unbiased pass@k: 1 − C(n−c, k)/C(n, k)
+- Self-consistency: majority vote over sampled final answers
+
+## Evaluation and interpretability (Ch 23, 26, 27)
+
+- Clustered SE of a mean: √(Σ over clusters c of (Σ of e_i for i in c)²) / n
+- Paired sample size: n ≈ (z_(α/2) + z_β)² · d / δ², with disagreement rate d
+- Bits per byte: (Σ token loss in nats) / (bytes × ln 2)
+- 2PL IRT: P(correct) = σ(a_i(θ_m − b_i))
+- Bradley–Terry / Elo: P(i beats j) = σ(s_i − s_j); Elo scale 400/ln 10 per unit
+- SAE: f = ReLU(W_e(x − b_d) + b_e), x̂ = W_d f + b_d; loss |x − x̂|² + λ Σ f_i |W_d,i| (or TopK)
+- Weak-to-strong PGR = (student − weak) / (ceiling − weak)
+- Zero successes in n trials: 95% upper bound 1 − 0.05^(1/n) ≈ 3/n
+
 ## Inference (Ch 21)
 
 - Temperature: p_i ∝ exp(z_i / T)

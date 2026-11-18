@@ -407,4 +407,4 @@ You can produce a slice report and a user-level bootstrap interval, including a 
 
 ---
 
-[← 04 · Classic models](04-classic-models.md) · [Contents](../README.md#contents) · [06 · Neural network fundamentals →](06-neural-network-fundamentals.md)
+[← 3 · ML fundamentals](03-ml-fundamentals.md) · [Contents](../README.md#contents) · [5 · Neural network fundamentals →](05-neural-network-fundamentals.md)

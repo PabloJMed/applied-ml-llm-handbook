@@ -262,4 +262,4 @@ You have a debugging sequence for a loss that does not move.
 
 ---
 
-[← 06 · Neural network fundamentals](06-neural-network-fundamentals.md) · [Contents](../README.md#contents) · [08 · Embeddings and sequence models →](08-embeddings-and-sequence-models.md)
+[← 5 · Neural network fundamentals](05-neural-network-fundamentals.md) · [Contents](../README.md#contents) · [7 · Optimisation and training dynamics →](07-optimisation-and-training-dynamics.md)

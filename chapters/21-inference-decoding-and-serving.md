@@ -293,4 +293,4 @@ You can explain speculative decoding and the trade-offs of quantisation. You can
 
 ---
 
-[← 13a · Infrastructure primer](13a-infrastructure-primer.md) · [Contents](../README.md#contents) · [15 · Prompting and context engineering →](15-prompting-and-context-engineering.md)
+[← 20 · Fine-tuning and parameter-efficient methods](20-fine-tuning-and-lora.md) · [Contents](../README.md#contents) · [22 · Prompting and context engineering →](22-prompting-and-context-engineering.md)

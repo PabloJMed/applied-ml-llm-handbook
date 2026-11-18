@@ -315,4 +315,4 @@ You can explain L1, L2 and early stopping, including why L1 gives zeros. You can
 
 ---
 
-[← 02 · Statistics and experimentation](02-statistics-and-experimentation.md) · [Contents](../README.md#contents) · [04 · Classic models →](04-classic-models.md)
+[← 2 · Statistics and experimentation](02-statistics-and-experimentation.md) · [Contents](../README.md#contents) · [4 · Evaluation and metrics →](04-evaluation-and-metrics.md)

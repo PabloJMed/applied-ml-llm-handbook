@@ -240,4 +240,4 @@ You can argue framework vs plain Python for a given use case, with criteria. You
 
 ---
 
-[← 19 · Retrieval-augmented generation](19-retrieval-augmented-generation.md) · [Contents](../README.md#contents) · [21 · Agents and tool use →](21-agents-and-tool-use.md)
+[← 31 · Retrieval-augmented generation](31-retrieval-augmented-generation.md) · [Contents](../README.md#contents) · [33 · Agents and tool use →](33-agents-and-tool-use.md)

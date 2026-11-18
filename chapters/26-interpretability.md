@@ -202,3 +202,7 @@ Reasoning models produce long chains of thought in natural language. That is an 
 You can explain the residual stream view, QK and OV circuits and composition. You can find an induction circuit in a small model with attention patterns, ablations and patching, and explain the mechanism. You can run and interpret a probe with proper baselines.
 
 You can explain superposition, train an SAE and evaluate it beyond reconstruction, and describe transcoders and attribution graphs. You can build a steering vector and explain the refusal-direction result. You can list the main pitfalls of interpretability evidence.
+
+---
+
+[← 25 · RAG and agent evaluation](25-rag-and-agent-evaluation.md) · [Contents](../README.md#contents) · [27 · Alignment and safety research →](27-alignment-and-safety-research.md)

@@ -245,4 +245,4 @@ You can evaluate multilingual and cross-lingual retrieval. You can choose an emb
 
 ---
 
-[← 16 · Fine-tuning and LoRA](16-fine-tuning-and-lora.md) · [Contents](../README.md#contents) · [18 · Information retrieval →](18-information-retrieval.md)
+[← 28 · Safety and responsible AI](28-safety-and-responsible-ai.md) · [Contents](../README.md#contents) · [30 · Information retrieval →](30-information-retrieval.md)

@@ -201,4 +201,4 @@ You can explain the KL penalty and reward hacking with an example. You can expla
 
 ---
 
-[← 12 · NLP tasks with modern tools](12-nlp-tasks-with-modern-tools.md) · [Contents](../README.md#contents) · [13a · Infrastructure primer →](13a-infrastructure-primer.md)
+[← 14 · Multimodal models](14-multimodal-models.md) · [Contents](../README.md#contents) · [16 · Pretraining data →](16-pretraining-data.md)

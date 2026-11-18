@@ -161,4 +161,4 @@ Your one-minute "why this company, why now" story is rehearsed.
 
 ---
 
-[← 33 · Behavioural interviews](33-behavioural-interviews.md) · [Contents](../README.md#contents) · [A · Glossary →](A-glossary.md)
+[← 38 · Behavioural interviews](38-behavioural-interviews.md) · [Contents](../README.md#contents) · [40 · Classic models →](40-classic-models.md)

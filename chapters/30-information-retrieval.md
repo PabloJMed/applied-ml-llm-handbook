@@ -439,4 +439,4 @@ You can choose a vector store and explain pre-filtering, post-filtering and part
 
 ---
 
-[← 17 · Embeddings](17-embeddings.md) · [Contents](../README.md#contents) · [19 · Retrieval-augmented generation →](19-retrieval-augmented-generation.md)
+[← 29 · Embeddings and representation learning](29-embeddings.md) · [Contents](../README.md#contents) · [31 · Retrieval-augmented generation →](31-retrieval-augmented-generation.md)

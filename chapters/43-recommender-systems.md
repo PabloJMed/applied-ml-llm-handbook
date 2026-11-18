@@ -549,4 +549,4 @@ You can draw the four-stage funnel and say what each stage optimises and how it 
 
 ---
 
-[← 24 · Safety and responsible AI](24-safety-and-responsible-ai.md) · [Contents](../README.md#contents) · [26 · Search and learning to rank →](26-search-and-learning-to-rank.md)
+[← 42 · Infrastructure primer](42-infrastructure-primer.md) · [Contents](../README.md#contents) · [44 · Search ranking and learning to rank →](44-search-and-learning-to-rank.md)

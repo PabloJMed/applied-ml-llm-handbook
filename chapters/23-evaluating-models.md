@@ -200,3 +200,7 @@ Use a harness (lm-evaluation-harness, Inspect, HELM, or your lab's own) so promp
 You can compute standard errors, clustered standard errors and paired differences, and size an evaluation for a target difference. You can list the sources of variance beyond question sampling and control them. You can explain bits per byte and when to use likelihood versus generative scoring.
 
 You can critique a benchmark's construct validity and explain IRT. You can detect contamination with and without training data. You can fit Bradley–Terry ratings with intervals, explain arena pitfalls, and de-bias an LLM judge. You can write an evaluation report that a sceptical reviewer would accept.
+
+---
+
+[← 22 · Prompting and context engineering](22-prompting-and-context-engineering.md) · [Contents](../README.md#contents) · [24 · LLM evaluation →](24-llm-evaluation.md)

@@ -48,7 +48,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 | KV cache example | 32 layers, 32 KV heads × 128, 8k tokens, fp16 ≈ 4.3 GB per sequence; 8 KV heads (GQA) ≈ 1.1 GB |
 | Training memory (Adam, mixed precision) | ≈ 16 bytes per parameter + activations (7B → ≈ 112 GB) |
 | Inference weights | 2 bytes/param in bf16, 1 in int8, 0.5 in int4 (7B → 14 / 7 / 3.5 GB) |
-| Chinchilla | compute-optimal ≈ 20 training tokens per parameter |
+| Chinchilla | compute-optimal ≈ 20 training tokens per parameter (minimises training compute; deployed models train much longer, Ch 13) |
 | LoRA parameters per matrix | r(d + k) instead of d·k; update (α/r)BA, B = 0 at start |
 | InfoNCE | −log [exp(sᵢᵢ/τ) / Σⱼ exp(sᵢⱼ/τ)] |
 | LLM cost | calls × (in tokens × in price + out tokens × out price) − caching − batch discounts |
@@ -114,7 +114,38 @@ One page per area, for the night before. Everything here is a reminder of someth
 - Monitor: input drift, prediction drift, delayed-label performance, latency, cost; for LLMs also traces, tokens, sampled judged quality.
 - Point-in-time joins (`merge_asof` backward); data contracts; label agreement (kappa).
 
-## B.6 Interview day
+## B.6 LLM research (Chapters 7, 11, 13–19, 23, 26–27, 34)
+
+**Numbers to know**
+
+| Thing | Number or formula |
+|---|---|
+| Training FLOPs | 6ND; time = 6ND / (GPUs × peak × MFU); MFU 35–50% dense |
+| Training memory | 16 bytes/param (Adam, mixed precision) + activations; ZeRO-3 divides all of it by the DP degree |
+| Compute-optimal | N_opt ∝ C^(β/(α+β)); about 20 tokens/param minimises training compute; deployed small models train on hundreds to thousands |
+| Repeated data | ≈ fresh up to ~4 epochs; little value beyond ~16 |
+| Pipeline bubble | (p − 1)/(m + p − 1) |
+| Ring all-reduce | each GPU sends ≈ 2× the data, independent of GPU count |
+| bf16 / fp16 / e4m3 | ε = 0.0078 / max 65,504 / max 448 |
+| MLA cache | (latent + rope dims) × 2 bytes per token per layer: 1,152 vs 65,536 for 128-head MHA |
+| MoE balance loss | E · Σ f_e P_e = 1 at uniform routing |
+| GRPO advantage | (r − mean)/std per group; token-level mean loss; zero-variance groups teach nothing |
+| Best-of-n KL | log n − (n − 1)/n |
+| pass@k (unbiased) | 1 − C(n−c, k)/C(n, k) |
+| Eval SE | √(p(1−p)/n); paired, clustered; ~2,000 items to detect 2 points at 10% disagreement |
+| Absence of evidence | 0/n successes → 95% upper bound ≈ 3/n |
+
+**Rules of thumb**
+
+- Tune baselines as hard as methods; compare at matched tokens and decayed checkpoints.
+- Run 2–3 seeds of the baseline to know the noise floor; re-run sweep winners.
+- Small-scale results are hypotheses until they hold at two scales.
+- Read 20 items of any benchmark; run a blind or perturbed baseline; check contamination.
+- RL: verify the verifier; watch entropy, length and pass@k, not only pass@1.
+- Interpretability: descriptive tools generate hypotheses; interventions test them.
+- Safety evals: elicit hard, report intervals, never treat zero observed successes as zero risk.
+
+## B.7 Interview day
 
 - **Coding:** clarify → example → plan aloud → code → test edge cases → complexity and scale. Autocomplete was off in practice; it will be off now.
 - **ML depth:** answer the question asked in one sentence first, then the detail; say "it depends on…" only followed by the deciding factors.
@@ -125,4 +156,4 @@ One page per area, for the night before. Everything here is a reminder of someth
 
 ---
 
-[← A · Glossary](A-glossary.md) · [Contents](../README.md#contents) · [C · Notation and formulas →](C-notation-and-formulas.md)
+[← A · Glossary](A-glossary.md) · [Contents](../README.md#contents) · [C · Notation and common formulas →](C-notation-and-formulas.md)

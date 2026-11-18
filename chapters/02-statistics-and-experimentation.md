@@ -300,4 +300,4 @@ You can handle multiple testing and explain why peeking is a problem. You can de
 
 ---
 
-[← 01 · The maths you actually use](01-the-maths-you-actually-use.md) · [Contents](../README.md#contents) · [03 · ML fundamentals →](03-ml-fundamentals.md)
+[← 1 · The maths you actually use](01-the-maths-you-actually-use.md) · [Contents](../README.md#contents) · [3 · ML fundamentals →](03-ml-fundamentals.md)

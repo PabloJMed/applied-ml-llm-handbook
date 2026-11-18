@@ -479,7 +479,7 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 
 **202. [S] What limits reward-model accuracy?** Human label noise (inter-annotator agreement often 60–70%), distribution shift to policy outputs, spurious features such as length.
 
-**203. [I] Explain GAE.** δ_t = r_t + γV(s_{t+1}) − V(s_t), A_t = δ_t + γλA_{t+1}: a λ-weighted mix of multi-step advantage estimates trading bias for variance.
+**203. [I] Explain GAE.** δ_t = r_t + γV(s_(t+1)) − V(s_t), A_t = δ_t + γλA_(t+1): a λ-weighted mix of multi-step advantage estimates trading bias for variance.
 
 **204. [I] Why does PPO clip the ratio?** To stop updates from moving the policy far from the one that sampled the data, where advantage estimates are invalid.
 
@@ -563,4 +563,4 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 
 ---
 
-[← 31 · The ML coding interview](31-the-ml-coding-interview.md) · [Contents](../README.md#contents) · [33 · Behavioural interviews →](33-behavioural-interviews.md)
+[← 36 · Research interviews](36-research-interviews.md) · [Contents](../README.md#contents) · [38 · Behavioural interviews →](38-behavioural-interviews.md)

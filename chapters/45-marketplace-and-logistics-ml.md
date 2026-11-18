@@ -215,4 +215,4 @@ You can design a switchback test for a supply-side change.
 
 ---
 
-[← 26 · Search and learning to rank](26-search-and-learning-to-rank.md) · [Contents](../README.md#contents) · [28 · ML system design →](28-ml-system-design.md)
+[← 44 · Search ranking and learning to rank](44-search-and-learning-to-rank.md) · [Contents](../README.md#contents) · [46 · ML system design: the method →](46-ml-system-design.md)

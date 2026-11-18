@@ -266,3 +266,7 @@ What to log on every run: loss (train and held-out), learning rate, gradient nor
 You can write AdamW with bias correction from memory and explain each hyperparameter. You can explain warm-up, cosine and WSD schedules, and why WSD makes experiments cheaper. You can define the gradient noise scale and explain why the critical batch size grows during training.
 
 You can explain what Muon, Lion and Adafactor change, and when you would try them. You can state the problem µP solves and its main rules. You can explain bf16, fp16 and fp8, master weights and fp8 scaling. You can diagnose a loss spike from logged signals and list the standard fixes.
+
+---
+
+[← 6 · PyTorch for practitioners](06-pytorch-for-practitioners.md) · [Contents](../README.md#contents) · [8 · Embeddings and sequence models →](08-embeddings-and-sequence-models.md)

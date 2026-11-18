@@ -197,4 +197,4 @@ You can tell the story from seq2seq to the transformer in two minutes.
 
 ---
 
-[← 07 · PyTorch for practitioners](07-pytorch-for-practitioners.md) · [Contents](../README.md#contents) · [09 · Text and tokenisation →](09-text-and-tokenisation.md)
+[← 7 · Optimisation and training dynamics](07-optimisation-and-training-dynamics.md) · [Contents](../README.md#contents) · [9 · Text and tokenisation →](09-text-and-tokenisation.md)

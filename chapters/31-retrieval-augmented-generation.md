@@ -310,4 +310,4 @@ You can design metadata and filters, including permissions. You can choose query
 
 ---
 
-[← 18 · Information retrieval](18-information-retrieval.md) · [Contents](../README.md#contents) · [20 · Frameworks and tooling →](20-frameworks-and-tooling.md)
+[← 30 · Information retrieval](30-information-retrieval.md) · [Contents](../README.md#contents) · [32 · Frameworks and tooling →](32-frameworks-and-tooling.md)

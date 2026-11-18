@@ -1,7 +1,7 @@
-"""Build Applied-ML-and-LLM-Handbook.pdf from the Markdown chapters.
+"""Build AI-and-LLM-Scientist-Handbook.pdf from the Markdown chapters.
 
     pip install -r tools/requirements.txt
-    python tools/build_pdf.py            # writes Applied-ML-and-LLM-Handbook.pdf in the repo root
+    python tools/build_pdf.py            # writes AI-and-LLM-Scientist-Handbook.pdf in the repo root
 
 The Markdown in chapters/ is the single source. Layout: A4, compact typography
 (Inter body, Source Serif 4 headings, JetBrains Mono code; all SIL OFL, in tools/fonts/),
@@ -21,27 +21,28 @@ from markdown_it import MarkdownIt
 ROOT = Path(__file__).resolve().parent.parent
 CHAPTERS = ROOT / "chapters"
 FONTS = ROOT / "tools" / "fonts"
-OUT = ROOT / "Applied-ML-and-LLM-Handbook.pdf"
+OUT = ROOT / "AI-and-LLM-Scientist-Handbook.pdf"
 
-TITLE = "Applied ML & LLM Handbook"
-SUBTITLE = ("The theory, the code, the system design and the interview, in one place: "
-            "a self-study guide for data scientists and ML engineers preparing for "
-            "senior applied ML and LLM roles.")
+TITLE = "The AI & LLM Scientist Handbook"
+SUBTITLE = ("From the maths underneath to how large language models are pretrained, post-trained, "
+            "served, evaluated and understood: theory, working code, research craft and interviews, "
+            "in one place.")
 AUTHOR = "Pablo Medina"
 CREDIT = "Written with the guidance of Claude Opus 5.5 (Anthropic)"
-EDITION = "Edition of November 2026"
+EDITION = "Second edition, November 2026"
 
 PARTS = [
-    ("I", "Foundations", ["01", "02", "03", "04", "05"]),
-    ("II", "Deep learning", ["06", "07", "08"]),
-    ("III", "NLP and transformers", ["09", "10", "11", "12"]),
-    ("IV", "Large language models", ["13", "13a", "14", "15", "16"]),
-    ("V", "Retrieval and RAG", ["17", "18", "19"]),
-    ("VI", "Agents", ["20", "21"]),
-    ("VII", "Evaluating LLM systems", ["22", "23", "24"]),
-    ("VIII", "Recommender and search systems", ["25", "26", "27"]),
-    ("IX", "ML systems and production", ["28", "29", "30"]),
-    ("X", "Interview craft", ["31", "32", "33", "34"]),
+    ("I", "Foundations", ["01", "02", "03", "04"]),
+    ("II", "Deep learning and training dynamics", ["05", "06", "07", "08"]),
+    ("III", "Transformers and architectures", ["09", "10", "11", "12", "13", "14"]),
+    ("IV", "Pretraining", ["15", "16", "17"]),
+    ("V", "Post-training", ["18", "19", "20"]),
+    ("VI", "Inference and prompting", ["21", "22"]),
+    ("VII", "Evaluation science", ["23", "24", "25"]),
+    ("VIII", "Interpretability, alignment and safety", ["26", "27", "28"]),
+    ("IX", "Retrieval and agents", ["29", "30", "31", "32", "33"]),
+    ("X", "Research craft and interviews", ["34", "35", "36", "37", "38", "39"]),
+    ("XI", "Applied ML systems (optional track)", ["40", "41", "42", "43", "44", "45", "46", "47", "48"]),
     ("", "Appendices", ["A", "B", "C", "D", "E"]),
 ]
 
@@ -128,6 +129,7 @@ def make_md() -> MarkdownIt:
 
 def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = path.read_text(encoding="utf-8")
+    text = re.sub(r"\n---\n\n\[[^\n]*\]\([^\n]*\)[^\n]*\s*$", "\n", text)   # drop the web navigation footer
     first, _, rest = text.partition("\n")
     title = first.lstrip("# ").strip()
     body = md.render(rest)
@@ -159,7 +161,7 @@ def build_html(positions: list | None) -> str:
     n_chapters = sum(len(keys) for num, _, keys in PARTS if num)
     out.append(f"""
 <div class="cover">
-<p class="cover-title">Applied ML<br>&amp; LLM Handbook</p>
+<p class="cover-title">The AI &amp; LLM<br>Scientist Handbook</p>
 <p class="cover-sub">{html.escape(SUBTITLE)}</p>
 <p class="cover-author">{AUTHOR}</p>
 <p class="cover-credit">{html.escape(CREDIT)}</p>
@@ -253,7 +255,7 @@ def main() -> int:
             shape.draw_rect(page.rect); shape.finish(fill=COVER_BG, color=None)
             shape.draw_rect(pymupdf.Rect(0, 0, 18, page.rect.height)); shape.finish(fill=ACCENT, color=None)
             shape.commit(overlay=False)
-            hits = page.search_for("LLM Handbook")
+            hits = page.search_for("Scientist Handbook")
             y = (hits[0].y1 + 12) if hits else 260
             page.draw_line((MARGIN_X, y), (MARGIN_X + 92, y), color=ACCENT, width=1.6)
             continue
@@ -294,8 +296,8 @@ def main() -> int:
     doc.set_metadata({
         "title": TITLE,
         "author": AUTHOR,
-        "subject": "A self-study guide for senior applied ML and LLM roles",
-        "keywords": "machine learning, LLM, RAG, MLOps, system design, interview preparation",
+        "subject": "A self-study handbook for AI and LLM research scientists",
+        "keywords": "LLM, pretraining, post-training, RLHF, reasoning, scaling laws, evaluation, interpretability, alignment, machine learning",
         "creator": f"{AUTHOR}, written with the guidance of Claude Opus 5.5",
         "producer": f"tools/build_pdf.py, PyMuPDF {pymupdf.VersionBind}",
         "creationDate": pymupdf.get_pdf_now(),

@@ -221,3 +221,7 @@ Data decisions are only as good as the experiments behind them.
 You can describe a full web-data pipeline and justify the order of its steps. You can implement heuristic filters, MinHash with LSH and a quality classifier, and explain what each removes wrongly. You can decontaminate against a benchmark and state the limits.
 
 You can design a mixture with temperature sampling and epoch constraints, and explain DoReMi and mixing laws. You can explain annealing, mid-training and the uses and risks of synthetic data. You can design a data ablation whose result you would trust.
+
+---
+
+[← 15 · How LLMs are trained](15-how-llms-are-trained.md) · [Contents](../README.md#contents) · [17 · Pretraining at scale →](17-pretraining-at-scale.md)

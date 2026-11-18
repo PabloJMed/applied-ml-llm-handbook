@@ -321,4 +321,4 @@ You can choose batch, online, streaming or hybrid inference for a use case and j
 
 ---
 
-[← 13 · How LLMs are trained](13-how-llms-are-trained.md) · [Contents](../README.md#contents) · [14 · Inference, decoding and serving →](14-inference-decoding-and-serving.md)
+[← 41 · NLP tasks with modern tools](41-nlp-tasks-with-modern-tools.md) · [Contents](../README.md#contents) · [43 · Recommender systems →](43-recommender-systems.md)

@@ -225,4 +225,4 @@ You can describe the release ladder and write a canary rollback test. You can co
 
 ---
 
-[← 28 · ML system design](28-ml-system-design.md) · [Contents](../README.md#contents) · [30 · Data for ML →](30-data-for-ml.md)
+[← 46 · ML system design: the method](46-ml-system-design.md) · [Contents](../README.md#contents) · [48 · Data for ML →](48-data-for-ml.md)

@@ -1,6 +1,8 @@
 # D · Paper map
 
-Forty papers that come up again and again in applied ML and LLM work and interviews, grouped by theme, one paragraph each: the problem it solved, the key idea, and why it still matters. Every title links to the paper. Read the abstract, the figures and the conclusion first; go deeper where your role needs it. A star (★) marks ten to know cold for any applied LLM role.
+More than a hundred papers that come up again and again in LLM research, applied ML and interviews, grouped by theme, one paragraph each: the problem it solved, the key idea, and why it still matters. Entries 1–40 cover foundations and applied work; 41–110 cover the research areas of the LLM-scientist chapters. Every title links to the paper. Read the abstract, the figures and the conclusion first; go deeper where your role needs it. A star (★) marks ten to know cold for any applied LLM role; the research core is listed below.
+
+**The research-scientist core (know these cold):** 10 (transformer), 17 and 56 (Chinchilla and its replication), 22 and 24 (InstructGPT, DPO), 26 and 76 (R1, GRPO), 41 (µP), 47–48 (DeepSeekMoE, MLA), 61 (FineWeb), 66–67 (ZeRO, Megatron), 71 (reward over-optimisation), 89 (error bars for evals), 95 and 98 (circuits, sparse autoencoders), 101 (weak-to-strong), 107–108 (Llama 3, DeepSeek-V3).
 
 ## Foundations of deep learning
 
@@ -100,6 +102,170 @@ Forty papers that come up again and again in applied ML and LLM work and intervi
 
 **40. Deng et al.,** [**"Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data"**](https://exp-platform.com/cuped/) **(CUPED, 2013).** A pre-period covariate cuts variance, so experiments need less traffic or time (Ch 2).
 
+## Optimisation and training dynamics
+
+**41. Yang et al.,** [**"Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer"**](https://arxiv.org/abs/2203.03466) **(µP, 2022).** A parametrisation under which the best hyperparameters found on a small model transfer to a much wider one (Ch 7).
+
+**42. McCandlish et al.,** [**"An Empirical Model of Large-Batch Training"**](https://arxiv.org/abs/1812.06162) **(2018).** The gradient noise scale predicts the critical batch size, and it grows as training progresses (Ch 7).
+
+**43. Liu et al.,** [**"Muon is Scalable for LLM Training"**](https://arxiv.org/abs/2502.16982) **(Moonlight, 2025).** Scaled up the Muon optimiser (orthogonalised momentum for hidden matrices) with the adjustments needed for large models (Ch 7).
+
+**44. Micikevicius et al.,** [**"FP8 Formats for Deep Learning"**](https://arxiv.org/abs/2209.05433) **(2022).** The e4m3 and e5m2 formats and how scaling makes 8-bit training work (Ch 7, 17).
+
+**45. Cohen et al.,** [**"Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability"**](https://arxiv.org/abs/2103.00065) **(2021).** Sharpness rises to about 2/η and hovers there; the learning rate shapes which minima training can reach (Ch 7).
+
+**46. Wortsman et al.,** [**"Small-scale proxies for large-scale Transformer training instabilities"**](https://arxiv.org/abs/2309.14322) **(2023).** Reproduces large-run instabilities (logit growth, divergence) in small models and tests the fixes (Ch 7).
+
+## Architectures beyond the vanilla transformer
+
+**47. Dai et al.,** [**"DeepSeekMoE"**](https://arxiv.org/abs/2401.06066) **(2024).** Fine-grained and shared experts: the design most large MoEs now follow (Ch 11).
+
+**48. DeepSeek-AI,** [**"DeepSeek-V2"**](https://arxiv.org/abs/2405.04434) **(2024).** Introduced multi-head latent attention, cutting the KV cache by an order of magnitude or more (Ch 11).
+
+**49. Gu and Dao,** [**"Mamba"**](https://arxiv.org/abs/2312.00752) **(2023); Dao and Gu,** [**"Transformers are SSMs"**](https://arxiv.org/abs/2405.21060) **(Mamba-2, 2024).** Selective state-space models with linear-time sequence mixing, and their duality with linear attention (Ch 11).
+
+**50. Yang et al.,** [**"Gated Delta Networks"**](https://arxiv.org/abs/2412.06464) **(2024).** Combines the delta-rule update with gating for linear attention that overwrites and forgets; used in hybrid models (Ch 11).
+
+**51. Lieber et al.,** [**"Jamba"**](https://arxiv.org/abs/2403.19887) **(2024).** An early production hybrid of Mamba, attention and MoE layers (Ch 11).
+
+**52. Su et al.,** [**"RoFormer: Enhanced Transformer with Rotary Position Embedding"**](https://arxiv.org/abs/2104.09864) **(2021); Peng et al.,** [**"YaRN"**](https://arxiv.org/abs/2309.00071) **(2023).** RoPE, the standard positional encoding, and the most common way to extend its context (Ch 10).
+
+**53. Gloeckle et al.,** [**"Better & Faster Large Language Models via Multi-token Prediction"**](https://arxiv.org/abs/2404.19737) **(2024).** Predicting several tokens ahead as a training signal and a built-in draft model (Ch 11).
+
+**54. Nie et al.,** [**"Large Language Diffusion Models"**](https://arxiv.org/abs/2502.09992) **(LLaDA, 2025).** A masked diffusion LM competitive with autoregressive models of its size (Ch 11).
+
+**55. Arora et al.,** [**"Zoology: Measuring and Improving Recall in Efficient Language Models"**](https://arxiv.org/abs/2312.04927) **(2023).** Associative recall explains most of the gap between attention and efficient alternatives (Ch 11).
+
+## Scaling laws
+
+**56. Besiroglu et al.,** [**"Chinchilla Scaling: A replication attempt"**](https://arxiv.org/abs/2404.10102) **(2024).** Found problems in one of Chinchilla's fits; a lesson in checking scaling-law fits (Ch 13).
+
+**57. Sardana et al.,** [**"Beyond Chinchilla-Optimal"**](https://arxiv.org/abs/2401.00448) **(2024).** Accounting for inference makes smaller, longer-trained models optimal (Ch 13).
+
+**58. Muennighoff et al.,** [**"Scaling Data-Constrained Language Models"**](https://arxiv.org/abs/2305.16264) **(2023).** The value of repeated data: near-fresh up to about four epochs (Ch 13, 16).
+
+**59. Schaeffer, Miranda and Koyejo,** [**"Are Emergent Abilities of Large Language Models a Mirage?"**](https://arxiv.org/abs/2304.15004) **(2023).** Many apparent jumps come from discontinuous metrics (Ch 13).
+
+**60. Snell et al.,** [**"Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters"**](https://arxiv.org/abs/2408.03314) **(2024).** Inference compute as a scaling axis, and how to allocate it by difficulty (Ch 13, 19).
+
+## Pretraining data
+
+**61. Penedo et al.,** [**"The FineWeb Datasets"**](https://arxiv.org/abs/2406.17557) **(2024).** An open, documented web pipeline with ablations, and the educational-quality subset FineWeb-Edu (Ch 16).
+
+**62. Li et al.,** [**"DataComp-LM"**](https://arxiv.org/abs/2406.11794) **(DCLM, 2024).** A benchmark for data curation; model-based filtering with a simple classifier wins (Ch 16).
+
+**63. Lee et al.,** [**"Deduplicating Training Data Makes Language Models Better"**](https://arxiv.org/abs/2107.06499) **(2021).** Exact-substring and near-duplicate removal reduces memorisation and improves efficiency (Ch 16).
+
+**64. Xie et al.,** [**"DoReMi"**](https://arxiv.org/abs/2305.10429) **(2023).** Learning data-mixture weights with small proxy models (Ch 16).
+
+**65. Gunasekar et al.,** [**"Textbooks Are All You Need"**](https://arxiv.org/abs/2306.11644) **(2023); Maini et al.,** [**"Rephrasing the Web"**](https://arxiv.org/abs/2401.16380) **(2024).** Synthetic and rephrased data as a lever for small models (Ch 16).
+
+## Training at scale
+
+**66. Rajbhandari et al.,** [**"ZeRO"**](https://arxiv.org/abs/1910.02054) **(2020).** Sharding optimiser states, gradients and weights across data-parallel ranks (Ch 17).
+
+**67. Shoeybi et al.,** [**"Megatron-LM"**](https://arxiv.org/abs/1909.08053) **(2019); Narayanan et al.,** [**"Efficient Large-Scale Language Model Training on GPU Clusters"**](https://arxiv.org/abs/2104.04473) **(2021).** Tensor and pipeline parallelism and how to combine them (Ch 17).
+
+**68. Korthikanti et al.,** [**"Reducing Activation Recomputation in Large Transformer Models"**](https://arxiv.org/abs/2205.05198) **(2022).** Activation-memory arithmetic, sequence parallelism and selective recomputation (Ch 17).
+
+**69. Liu, Zaharia and Abbeel,** [**"Ring Attention with Blockwise Transformers"**](https://arxiv.org/abs/2310.01889) **(2023).** Context parallelism for very long sequences (Ch 17).
+
+## Post-training
+
+**70. Schulman et al.,** [**"Proximal Policy Optimization Algorithms"**](https://arxiv.org/abs/1707.06347) **(2017).** The clipped objective behind RLHF (Ch 18).
+
+**71. Gao, Schulman and Hilton,** [**"Scaling Laws for Reward Model Overoptimization"**](https://arxiv.org/abs/2210.10760) **(2022).** Gold reward rises then falls as a policy optimises a proxy; larger reward models delay it (Ch 18, 27).
+
+**72. Zhou et al.,** [**"LIMA: Less Is More for Alignment"**](https://arxiv.org/abs/2305.11206) **(2023).** A thousand carefully chosen SFT examples go a long way for format and style (Ch 18).
+
+**73. Lambert et al.,** [**"Tülu 3"**](https://arxiv.org/abs/2411.15124) **(2024).** A fully open post-training recipe: SFT, on-policy preferences and RL with verifiable rewards (Ch 18, 19).
+
+**74. Azar et al.,** [**"A General Theoretical Paradigm to Understand Learning from Human Preferences"**](https://arxiv.org/abs/2310.12036) **(IPO, 2023); Meng, Xia and Chen,** [**"SimPO"**](https://arxiv.org/abs/2405.14734) **(2024).** Two widely used DPO variants and the problems they fix (Ch 18).
+
+**75. Huang et al.,** [**"The N+ Implementation Details of RLHF with PPO"**](https://arxiv.org/abs/2403.17031) **(2024).** The details that make or break PPO for language models (Ch 18).
+
+## Reasoning and reinforcement learning
+
+**76. Shao et al.,** [**"DeepSeekMath"**](https://arxiv.org/abs/2402.03300) **(2024).** Introduced GRPO, the group-relative policy optimisation behind R1-style training (Ch 19).
+
+**77. Lightman et al.,** [**"Let's Verify Step by Step"**](https://arxiv.org/abs/2305.20050) **(2023).** Process supervision beats outcome supervision for selecting maths solutions (Ch 19).
+
+**78. Wang et al.,** [**"Self-Consistency Improves Chain of Thought Reasoning"**](https://arxiv.org/abs/2203.11171) **(2022).** Majority voting over sampled reasoning paths (Ch 19).
+
+**79. Yu et al.,** [**"DAPO"**](https://arxiv.org/abs/2503.14476) **(2025); Liu et al.,** [**"Understanding R1-Zero-Like Training"**](https://arxiv.org/abs/2503.20783) **(Dr. GRPO, 2025).** The biases of GRPO and practical fixes for stable large-scale RL (Ch 19).
+
+**80. Kimi Team,** [**"Kimi k1.5"**](https://arxiv.org/abs/2501.12599) **(2025).** Scaling RL for reasoning, including long-context RL and length control (Ch 19).
+
+**81. Muennighoff et al.,** [**"s1: Simple test-time scaling"**](https://arxiv.org/abs/2501.19393) **(2025).** A thousand examples and budget forcing give test-time scaling (Ch 19).
+
+**82. Yue et al.,** [**"Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?"**](https://arxiv.org/abs/2504.13837) **(2025).** pass@k evidence that RL mainly sharpens existing solutions (Ch 19).
+
+## Multimodal models
+
+**83. Dosovitskiy et al.,** [**"An Image is Worth 16x16 Words"**](https://arxiv.org/abs/2010.11929) **(ViT, 2020).** Patches as tokens (Ch 14).
+
+**84. Zhai et al.,** [**"Sigmoid Loss for Language Image Pre-Training"**](https://arxiv.org/abs/2303.15343) **(SigLIP, 2023).** A pairwise sigmoid loss that replaced CLIP's softmax in many vision towers (Ch 14).
+
+**85. Liu et al.,** [**"Visual Instruction Tuning"**](https://arxiv.org/abs/2304.08485) **(LLaVA, 2023); Alayrac et al.,** [**"Flamingo"**](https://arxiv.org/abs/2204.14198) **(2022).** The projector and cross-attention designs for VLMs (Ch 14).
+
+**86. Radford et al.,** [**"Robust Speech Recognition via Large-Scale Weak Supervision"**](https://arxiv.org/abs/2212.04356) **(Whisper, 2022).** Large-scale weakly supervised speech recognition (Ch 14).
+
+**87. Ho, Jain and Abbeel,** [**"Denoising Diffusion Probabilistic Models"**](https://arxiv.org/abs/2006.11239) **(2020); Rombach et al.,** [**"Latent Diffusion"**](https://arxiv.org/abs/2112.10752) **(2022).** The foundations of diffusion image generation (Ch 14).
+
+**88. Chameleon Team,** [**"Chameleon"**](https://arxiv.org/abs/2405.09818) **(2024); Zhou et al.,** [**"Transfusion"**](https://arxiv.org/abs/2408.11039) **(2024).** Early-fusion and unified models that read and generate images (Ch 14).
+
+## Evaluation
+
+**89. Miller,** [**"Adding Error Bars to Evals"**](https://arxiv.org/abs/2411.00640) **(2024).** Standard errors, clustering and paired comparisons for model evaluation (Ch 23).
+
+**90. Liang et al.,** [**"Holistic Evaluation of Language Models"**](https://arxiv.org/abs/2211.09110) **(HELM, 2022).** Multi-metric, multi-scenario evaluation as a discipline (Ch 23).
+
+**91. Rein et al.,** [**"GPQA"**](https://arxiv.org/abs/2311.12022) **(2023); Phan et al.,** [**"Humanity's Last Exam"**](https://arxiv.org/abs/2501.14249) **(2025).** Expert-written benchmarks built to resist saturation (Ch 23).
+
+**92. Chiang et al.,** [**"Chatbot Arena"**](https://arxiv.org/abs/2403.04132) **(2024); Singh et al.,** [**"The Leaderboard Illusion"**](https://arxiv.org/abs/2504.20879) **(2025).** Pairwise human-preference leaderboards and their pitfalls (Ch 23).
+
+**93. Jimenez et al.,** [**"SWE-bench"**](https://arxiv.org/abs/2310.06770) **(2023); Kwa et al.,** [**"Measuring AI Ability to Complete Long Tasks"**](https://arxiv.org/abs/2503.14499) **(2025).** Agentic evaluation on real software tasks, and task-length horizons as a capability trend (Ch 23, 25).
+
+**94. Polo et al.,** [**"tinyBenchmarks"**](https://arxiv.org/abs/2402.14992) **(2024).** IRT-selected subsets cut evaluation cost with little loss (Ch 23).
+
+## Interpretability
+
+**95. Elhage et al.,** [**"A Mathematical Framework for Transformer Circuits"**](https://transformer-circuits.pub/2021/framework/index.html) **(2021); Olsson et al.,** [**"In-context Learning and Induction Heads"**](https://arxiv.org/abs/2209.11895) **(2022).** The residual-stream view and the first well-understood circuit (Ch 26).
+
+**96. Meng et al.,** [**"Locating and Editing Factual Associations in GPT"**](https://arxiv.org/abs/2202.05262) **(ROME, 2022).** Causal tracing of facts to mid-layer MLPs, and rank-one edits (Ch 26).
+
+**97. Elhage et al.,** [**"Toy Models of Superposition"**](https://arxiv.org/abs/2209.10652) **(2022).** Why neurons are polysemantic (Ch 26).
+
+**98. Bricken et al.,** [**"Towards Monosemanticity"**](https://transformer-circuits.pub/2023/monosemantic-features) **(2023); Gao et al.,** [**"Scaling and evaluating sparse autoencoders"**](https://arxiv.org/abs/2406.04093) **(2024).** Sparse autoencoders recover interpretable features, and how to train and evaluate them at scale (Ch 26).
+
+**99. Ameisen et al.,** [**"Circuit Tracing"**](https://transformer-circuits.pub/2025/attribution-graphs/methods.html) **(2025).** Attribution graphs from transcoders trace multi-step computation in production models (Ch 26).
+
+**100. Arditi et al.,** [**"Refusal in Language Models Is Mediated by a Single Direction"**](https://arxiv.org/abs/2406.11717) **(2024).** A striking result on linear representations and the fragility of safety training (Ch 26, 27).
+
+## Alignment and safety
+
+**101. Burns et al.,** [**"Weak-to-Strong Generalization"**](https://arxiv.org/abs/2312.09390) **(2023).** An empirical analogy for supervising models stronger than their supervisors (Ch 27).
+
+**102. Sharma et al.,** [**"Towards Understanding Sycophancy in Language Models"**](https://arxiv.org/abs/2310.13548) **(2023).** Sycophancy across RLHF-trained assistants and its roots in preference data (Ch 27).
+
+**103. Zou et al.,** [**"Universal and Transferable Adversarial Attacks on Aligned Language Models"**](https://arxiv.org/abs/2307.15043) **(GCG, 2023).** Optimisation-based jailbreak suffixes that transfer across models (Ch 27).
+
+**104. Hubinger et al.,** [**"Sleeper Agents"**](https://arxiv.org/abs/2401.05566) **(2024); Greenblatt et al.,** [**"Alignment Faking in Large Language Models"**](https://arxiv.org/abs/2412.14093) **(2024).** Deceptive behaviours that survive or game safety training, in constructed settings (Ch 27).
+
+**105. Betley et al.,** [**"Emergent Misalignment"**](https://arxiv.org/abs/2502.17424) **(2025).** Narrow fine-tuning producing broad misalignment (Ch 27).
+
+**106. Greenblatt et al.,** [**"AI Control"**](https://arxiv.org/abs/2312.06942) **(2023); Baker et al.,** [**"Monitoring Reasoning Models for Misbehavior"**](https://arxiv.org/abs/2503.11926) **(2025).** Safety without verified alignment, and chain-of-thought monitoring with its fragility (Ch 27).
+
+## Open model and system reports
+
+**107. Llama Team,** [**"The Llama 3 Herd of Models"**](https://arxiv.org/abs/2407.21783) **(2024).** The most detailed account of a dense frontier-scale pretraining run, including infrastructure and failures (Ch 15, 16, 17).
+
+**108. DeepSeek-AI,** [**"DeepSeek-V3 Technical Report"**](https://arxiv.org/abs/2412.19437) **(2024).** MoE with MLA, auxiliary-loss-free balancing, multi-token prediction and fp8 training at scale (Ch 11, 17).
+
+**109. OLMo Team,** [**"2 OLMo 2 Furious"**](https://arxiv.org/abs/2501.00656) **(2024).** A fully open model with data, code and checkpoints; annealing and mid-training documented (Ch 16).
+
+**110. Qwen Team,** [**"Qwen3 Technical Report"**](https://arxiv.org/abs/2505.09388) **(2025).** Dense and MoE families with thinking and non-thinking modes in one model and a documented post-training pipeline; read at least one new open technical report a month to stay current (Ch 11, 15, 19).
+
 ## Also worth a look
 
 Sculley et al., ["Hidden Technical Debt in Machine Learning Systems"](https://research.google/pubs/hidden-technical-debt-in-machine-learning-systems/) (2015), for MLOps (Ch 47) · Holtzman et al., ["The Curious Case of Neural Text Degeneration"](https://arxiv.org/abs/1904.09751) (2020), for nucleus sampling (Ch 21) · Kwon et al., ["PagedAttention / vLLM"](https://arxiv.org/abs/2309.06180) (2023), for serving (Ch 21) · Greshake et al., [indirect prompt injection](https://arxiv.org/abs/2302.12173) (2023), for safety (Ch 28) · Zheng et al., ["Judging LLM-as-a-Judge"](https://arxiv.org/abs/2306.05685) (2023), for evaluation (Ch 24).
@@ -107,9 +273,10 @@ Sculley et al., ["Hidden Technical Debt in Machine Learning Systems"](https://re
 ## A reading plan
 
 - **Week 1:** the ten starred papers (abstract, figures, method, conclusion).
+- **Research track:** the research core above over two weeks, then one area per week from 41–110.
 - **Week 2:** the papers closest to your own work or target role, for example 27–29 (fine-tuning), 22 and 24 (alignment and preference data), 35–36 (RAG) or 38–39 (recommendations).
 - **Ongoing:** one paper every few days from the rest, with a three-sentence summary in your own words: problem, idea, why it matters for the products you work on.
 
 ---
 
-[← C · Notation and formulas](C-notation-and-formulas.md) · [Contents](../README.md#contents) · [E · Worked designs →](E-worked-designs.md)
+[← C · Notation and common formulas](C-notation-and-formulas.md) · [Contents](../README.md#contents) · [E · Worked system designs →](E-worked-designs.md)

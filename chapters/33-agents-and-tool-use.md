@@ -261,4 +261,4 @@ You can take an agent from prototype to production with shadow mode and evaluati
 
 ---
 
-[← 20 · Frameworks and tooling](20-frameworks-and-tooling.md) · [Contents](../README.md#contents) · [22 · LLM evaluation →](22-llm-evaluation.md)
+[← 32 · Frameworks and tooling](32-frameworks-and-tooling.md) · [Contents](../README.md#contents) · [34 · Research craft →](34-research-craft.md)

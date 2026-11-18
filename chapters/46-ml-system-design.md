@@ -396,4 +396,4 @@ You can draw the multi-stage funnel and say what each stage optimises. You can e
 
 ---
 
-[← 27 · Marketplace and logistics ML](27-marketplace-and-logistics-ml.md) · [Contents](../README.md#contents) · [29 · MLOps and LLMOps →](29-mlops-and-llmops.md)
+[← 45 · Marketplace and logistics ML](45-marketplace-and-logistics-ml.md) · [Contents](../README.md#contents) · [47 · MLOps and LLMOps →](47-mlops-and-llmops.md)

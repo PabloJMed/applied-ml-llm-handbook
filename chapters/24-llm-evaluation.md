@@ -306,4 +306,4 @@ You can name judge biases and their fixes. You can compute Wilson intervals and 
 
 ---
 
-[← 21 · Agents and tool use](21-agents-and-tool-use.md) · [Contents](../README.md#contents) · [23 · RAG and agent evaluation →](23-rag-and-agent-evaluation.md)
+[← 23 · Evaluating models](23-evaluating-models.md) · [Contents](../README.md#contents) · [25 · RAG and agent evaluation →](25-rag-and-agent-evaluation.md)

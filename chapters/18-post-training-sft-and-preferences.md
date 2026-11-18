@@ -73,13 +73,13 @@ On synthetic preferences generated from a hidden linear reward with realistic la
 
 **The objective.** Maximise expected reward while staying close to the reference (SFT) policy:
 
-maximise E_{y∼π}[r(x, y)] − β · KL(π(·|x) ‖ π_ref(·|x))
+maximise E[r(x, y)] over responses y sampled from π, minus β · KL(π(·|x) ‖ π_ref(·|x))
 
 In practice the KL penalty is applied per token, and the reward model's score is added at the last token. Each generated token is an action; the "state" is the prompt plus tokens so far.
 
 **PPO** needs a value model V (a scalar head predicting expected future reward from each position) to compute **advantages**: how much better the chosen token was than expected. **Generalised advantage estimation** mixes multi-step returns with a decay λ:
 
-δ_t = r_t + γ V(s_{t+1}) − V(s_t),  A_t = δ_t + γλ A_{t+1}
+δ_t = r_t + γ V(s_(t+1)) − V(s_t),  A_t = δ_t + γλ A_(t+1)
 
 With a reward of 1 at the last token, values [0.4, 0.5, 0.6, 0.8] and γ = 1, λ = 0.95, the advantages are [0.547, 0.470, 0.390, 0.200].
 
@@ -211,3 +211,7 @@ Human preference labels are slow and expensive. Most current pipelines use **AI 
 You can design an SFT mixture, implement masking and packing correctly and explain what SFT cannot teach. You can train and evaluate a Bradley–Terry reward model and explain its limits. You can walk through PPO for LLMs, compute GAE advantages and the clipped objective, and compare KL estimators.
 
 You can explain reward over-optimisation with the best-of-n example and list defences. You can derive DPO, explain why it matches RLHF in theory but not in practice, and compare IPO, KTO, ORPO and SimPO. You can plan an evaluation of a post-trained model.
+
+---
+
+[← 17 · Pretraining at scale](17-pretraining-at-scale.md) · [Contents](../README.md#contents) · [19 · Post-training II: reinforcement learning and reasoning models →](19-post-training-rl-and-reasoning.md)

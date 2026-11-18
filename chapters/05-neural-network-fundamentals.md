@@ -186,4 +186,4 @@ You can explain activations, initialisation schemes and why they matter. You can
 
 ---
 
-[← 05 · Evaluation and metrics](05-evaluation-and-metrics.md) · [Contents](../README.md#contents) · [07 · PyTorch for practitioners →](07-pytorch-for-practitioners.md)
+[← 4 · Evaluation and metrics](04-evaluation-and-metrics.md) · [Contents](../README.md#contents) · [6 · PyTorch for practitioners →](06-pytorch-for-practitioners.md)

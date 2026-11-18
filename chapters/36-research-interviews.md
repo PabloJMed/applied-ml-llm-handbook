@@ -191,3 +191,7 @@ Research roles vary enormously in what you actually do. Ask:
 You can answer a research-design question with clarification, hypotheses including confounds, a controlled and compute-matched design, a noise plan, decision rules and extensions. You can discuss a paper with a balanced critique and a concrete next experiment.
 
 You can give a 30-minute talk on your work that includes limitations and your contribution, and answer questions on its numbers. You can scope and write up a take-home research task that a grader would score highly on rigour and communication.
+
+---
+
+[← 35 · The ML coding interview](35-the-ml-coding-interview.md) · [Contents](../README.md#contents) · [37 · ML depth question bank →](37-ml-depth-question-bank.md)

@@ -221,4 +221,4 @@ You can explain shuffles, broadcast joins and skew in Spark. You can define a da
 
 ---
 
-[← 29 · MLOps and LLMOps](29-mlops-and-llmops.md) · [Contents](../README.md#contents) · [31 · The ML coding interview →](31-the-ml-coding-interview.md)
+[← 47 · MLOps and LLMOps](47-mlops-and-llmops.md) · [Contents](../README.md#contents) · [A · Glossary →](A-glossary.md)

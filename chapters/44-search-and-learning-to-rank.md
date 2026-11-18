@@ -414,4 +414,4 @@ You can debug a 2% drop in search conversion out loud, step by step.
 
 ---
 
-[← 25 · Recommender systems](25-recommender-systems.md) · [Contents](../README.md#contents) · [27 · Marketplace and logistics ML →](27-marketplace-and-logistics-ml.md)
+[← 43 · Recommender systems](43-recommender-systems.md) · [Contents](../README.md#contents) · [45 · Marketplace and logistics ML →](45-marketplace-and-logistics-ml.md)

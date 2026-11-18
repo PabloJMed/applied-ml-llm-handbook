@@ -208,4 +208,4 @@ You can summarise the EU AI Act's risk tiers in one minute.
 
 ---
 
-[← 23 · RAG and agent evaluation](23-rag-and-agent-evaluation.md) · [Contents](../README.md#contents) · [25 · Recommender systems →](25-recommender-systems.md)
+[← 27 · Alignment and safety research](27-alignment-and-safety-research.md) · [Contents](../README.md#contents) · [29 · Embeddings and representation learning →](29-embeddings.md)

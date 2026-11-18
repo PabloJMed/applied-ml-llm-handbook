@@ -180,3 +180,7 @@ Two checks a research scientist should always run:
 You can explain how images, audio and video become tokens and compute their token counts. You can compare CLIP and SigLIP, and the four ways of combining modalities. You can describe a VLM training recipe and why data quality dominates.
 
 You can explain tiling, native resolution with 2-D RoPE and token merging. You can explain diffusion, flow matching and classifier-free guidance at whiteboard level. You can design a multimodal evaluation with blind baselines and resolution controls.
+
+---
+
+[← 13 · Scaling laws](13-scaling-laws.md) · [Contents](../README.md#contents) · [15 · How LLMs are trained →](15-how-llms-are-trained.md)

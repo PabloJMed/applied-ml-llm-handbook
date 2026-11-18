@@ -333,4 +333,4 @@ You have done at least three timed mock coding rounds.
 
 ---
 
-[← 30 · Data for ML](30-data-for-ml.md) · [Contents](../README.md#contents) · [32 · ML depth question bank →](32-ml-depth-question-bank.md)
+[← 34 · Research craft](34-research-craft.md) · [Contents](../README.md#contents) · [36 · Research interviews →](36-research-interviews.md)

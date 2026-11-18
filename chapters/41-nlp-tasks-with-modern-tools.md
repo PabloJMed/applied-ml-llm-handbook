@@ -399,4 +399,4 @@ You can implement ROUGE and explain why overlap metrics fail for LLM outputs.
 
 ---
 
-[← 11 · Model families and scaling](11-model-families-and-scaling.md) · [Contents](../README.md#contents) · [13 · How LLMs are trained →](13-how-llms-are-trained.md)
+[← 40 · Classic models](40-classic-models.md) · [Contents](../README.md#contents) · [42 · Infrastructure primer →](42-infrastructure-primer.md)

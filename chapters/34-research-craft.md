@@ -216,3 +216,7 @@ Figures: label axes with units, show intervals, use the same scale for compared 
 You can choose and scope a research problem with a falsifiable hypothesis and a kill criterion. You can read a paper critically and reproduce its key result. You can design experiments with tuned baselines, matched compute, controls and appropriate ablations.
 
 You can estimate how many seeds an experiment needs, avoid the winner's curse, and report results with intervals. You can budget compute across small-scale and confirmation phases, keep experiments reproducible, and write a research memo whose claims match its evidence.
+
+---
+
+[← 33 · Agents and tool use](33-agents-and-tool-use.md) · [Contents](../README.md#contents) · [35 · The ML coding interview →](35-the-ml-coding-interview.md)

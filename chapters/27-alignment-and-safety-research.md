@@ -195,3 +195,7 @@ And low rates compound: a capability that succeeds 5% of the time per attempt su
 You can explain specification, generalisation and oversight gaps, with examples of reward hacking and sycophancy and how to measure them. You can describe jailbreak families, layered defences and how to report attack success rates with intervals.
 
 You can explain scalable oversight, weak-to-strong generalisation and PGR. You can summarise the main deception and scheming results and how to interpret them. You can explain AI control and chain-of-thought monitoring and their limits, and design a dangerous-capability evaluation with proper elicitation and statistics.
+
+---
+
+[← 26 · Interpretability and analysis](26-interpretability.md) · [Contents](../README.md#contents) · [28 · Safety and responsible AI →](28-safety-and-responsible-ai.md)

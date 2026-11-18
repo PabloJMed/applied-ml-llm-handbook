@@ -188,3 +188,7 @@ RL for reasoning is dominated by **generation**: sampling long responses for man
 You can describe the R1 recipe and what each stage contributes. You can implement GRPO, explain its length and standard-deviation biases and the DAPO and Dr. GRPO fixes. You can design verifiers and a prompt curriculum, and explain how verifiers get gamed.
 
 You can argue both sides of whether RL creates new reasoning, using pass@k curves. You can compare PRMs and ORMs, choose among self-consistency, best-of-n, search and longer thinking, and say when voting fails. You can explain why distillation is the cheap path for small models and what makes RL systems expensive.
+
+---
+
+[← 18 · Post-training I: SFT, reward models and preference optimisation](18-post-training-sft-and-preferences.md) · [Contents](../README.md#contents) · [20 · Fine-tuning and parameter-efficient methods →](20-fine-tuning-and-lora.md)

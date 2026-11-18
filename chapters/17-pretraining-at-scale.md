@@ -189,3 +189,7 @@ At scale, hardware failure is routine. With a per-GPU mean time between failures
 You can estimate the FLOPs, time and GPU-hours of a run and compute MFU from throughput. You can break training memory into weights, gradients, optimiser states and activations, and explain recomputation. You can explain ring all-reduce, ZeRO stages and FSDP with their costs.
 
 You can explain tensor, pipeline, context and expert parallelism, where each runs and what each communicates. You can propose a parallel layout for a given model and cluster. You can plan checkpointing and list the failure modes a large run must survive.
+
+---
+
+[← 16 · Pretraining data](16-pretraining-data.md) · [Contents](../README.md#contents) · [18 · Post-training I: SFT, reward models and preference optimisation →](18-post-training-sft-and-preferences.md)
