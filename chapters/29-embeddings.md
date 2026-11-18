@@ -168,6 +168,10 @@ What to check for the Gulf or Spain: quality per language (often weaker for Arab
 
 So: shortlist from MTEB (filtered to retrieval tasks and your languages), then compare three to five candidates on your own evaluation set, with latency, dimension, cost per million tokens (for APIs) and licence in the table. A model ten places lower on MTEB often wins on your data, and a fine-tuned small model often beats a large general one.
 
+## 29.9 LLM-based embedders
+
+The strongest general-purpose embedding models are now built on decoder LLM backbones (often 1–8B parameters) rather than BERT-sized encoders: take a pretrained LLM, enable bidirectional attention or use the last token's (or mean-pooled) hidden state, and train contrastively on large mixtures of retrieval, classification and clustering data, often synthetic, with task instructions prepended to queries ("Represent this question for retrieving supporting documents: ..."). MMTEB, the massively multilingual successor to MTEB, covers hundreds of tasks across many languages. Trade-offs: much higher quality on hard and multilingual retrieval, but larger vectors and slower encoding, which matters at index-build time and for latency. Matryoshka training (29.5) and quantisation (29.6) offset the storage cost. For representation analysis in research (comparing what different layers or models encode), see centred kernel alignment and probing in Chapter 26.
+
 ## Pitfalls
 
 - **Using a raw pretrained encoder** (masked LM only) for similarity without contrastive training.

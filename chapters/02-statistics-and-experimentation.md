@@ -216,6 +216,16 @@ In a simulation where heavy users are more likely to get a promotion and the tru
 
 Other tools to name: regression discontinuity, instrumental variables, synthetic control, and causal graphs (DAGs) to reason about which variables to adjust for.
 
+## 2.11 Statistics for model evaluation
+
+The same tools apply when the "experiment" is a comparison between models rather than between product variants, with three differences covered in depth in Chapter 23:
+
+- **The unit is a question, not a user**, and questions are often clustered (several per passage, repository or template), so standard errors must be clustered.
+- **Comparisons are paired**: two models answer the same questions, so analyse per-question differences (McNemar for binary outcomes, a paired bootstrap otherwise). Pairing removes shared difficulty and makes small differences detectable.
+- **Training is random**: the same recipe trained with a different seed gives a different model. Seed variance is a second source of noise on top of question sampling, and for small models it is often the larger one (Chapter 34).
+
+Rule of thumb: a difference between two models smaller than twice its paired standard error, or smaller than the seed-to-seed spread of the baseline, is not a result.
+
 ## Pitfalls
 
 - **Peeking and stopping early** when the primary metric looks significant.

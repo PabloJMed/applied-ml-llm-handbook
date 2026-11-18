@@ -170,6 +170,24 @@ A decision rule worth saying in interviews:
 
 Team fit counts too: if the platform team already supports one stack with tracing and deployment, the cost of a different choice is not just yours.
 
+## 32.8 The research stack
+
+Application frameworks are not what research scientists use to train models. The tools you will meet in a research team:
+
+| Need | Common tools |
+|---|---|
+| Pretraining at scale | Megatron-LM / Megatron Core, torchtitan, DeepSpeed, nanotron, MaxText (JAX) |
+| Fine-tuning and post-training | Hugging Face TRL, PEFT, Axolotl, torchtune; OpenRLHF, verl and similar for large-scale RL |
+| Inference for rollouts and evaluation | vLLM, SGLang |
+| Data processing | datatrove, Dolma toolkit, Spark or Ray for large pipelines; NeMo Curator |
+| Evaluation | lm-evaluation-harness, Inspect, HELM, LightEval, OpenAI's simple-evals style scripts |
+| Interpretability | TransformerLens, nnsight, SAELens |
+| Experiment tracking | Weights & Biases, MLflow, TensorBoard |
+| Cluster scheduling | Slurm, Kubernetes with Kueue or similar |
+| Kernels | Triton, CUDA, FlashAttention, Liger-style fused kernels |
+
+The habits from Chapter 34 matter more than the tools: configuration files, versioned code and data, tracked runs and evaluation as code. Know one stack deeply and be able to read the others' code.
+
 ## Pitfalls
 
 - Not knowing what prompt the framework actually sends. Log it.

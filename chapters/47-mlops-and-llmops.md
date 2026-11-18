@@ -159,6 +159,18 @@ Teams rarely build everything at once. A practical order:
 
 Google's MLOps guide calls these levels 0 to 2; whatever the naming, saying where a team is and what you would add next is a strong interview answer.
 
+## 47.9 Operations for research-scale training
+
+Research teams run a different kind of production: long training jobs and large experiment fleets.
+
+- **Run tracking**: every run's configuration, code commit, data version and metrics in one place; runs grouped by experiment.
+- **Training-health monitoring**: loss, gradient norms, logit statistics, throughput and MFU, with alerts on spikes, stalls and NaNs (Chapters 7 and 17).
+- **Checkpoint management**: sharded, asynchronous, retained on a schedule; automatic evaluation of each checkpoint on a fixed suite.
+- **Fault tolerance**: automatic restarts, node health checks, straggler detection, exact data-loader resumption.
+- **Reproducibility**: pinned environments (containers), fixed data snapshots, recorded seeds; documented non-determinism.
+- **Evaluation pipelines** that score checkpoints automatically and publish dashboards, so model comparisons use the same code every time (Chapter 23).
+- **Cost accounting**: GPU-hours per project and per experiment, to support the compute budgeting of Chapter 34.
+
 ## Pitfalls
 
 - Different feature code for training and serving.

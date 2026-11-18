@@ -347,6 +347,13 @@ def evaluate_retriever(retrieve, eval_set, k=10):
 
 Report the comparison table per query segment (language, intent, query length) with bootstrap intervals over queries (Chapter 4.9). A typical finding: hybrid beats either alone, re-ranking adds the most on long and vague queries, and some segment (often a second language) is much worse than the average.
 
+## 30.10 Frontier topics in retrieval
+
+- **Learned sparse retrieval** (SPLADE-style): a transformer predicts weights over the vocabulary for each document and query, including terms that do not appear in the text, giving inverted-index efficiency with semantic matching. A strong middle ground between BM25 and dense retrieval, and good for hybrid search.
+- **Reasoning-intensive retrieval**: benchmarks such as BRIGHT contain queries whose relevant documents share little surface or semantic overlap with them (a maths problem and the theorem needed to solve it). Standard embedders score poorly; gains come from query rewriting with reasoning models, reasoning-trained rerankers and retrievers fine-tuned on such data.
+- **Generative and agentic retrieval**: models that issue many searches, read results and refine queries over multiple steps (Chapter 33), which shifts the bottleneck from single-shot ranking quality to recall over a search session and to the cost of many calls.
+- **Long context versus retrieval**: very long contexts reduce but do not remove the need for retrieval; retrieval remains cheaper, fresher and more precise for large corpora (Chapter 31).
+
 ## Pitfalls
 
 - **Blaming the LLM for retrieval failures.** Check recall@k first: if the right passage was not retrieved, the generator never had a chance.

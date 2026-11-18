@@ -309,6 +309,18 @@ The top row runs on every request; the bottom row is how the system improves. Dr
 
 **A strong closing line for LLM designs:** "Every change to the prompt or model goes through the eval set before shipping, the same way code goes through tests."
 
+## Research system design
+
+Research-scientist loops sometimes replace product design questions with research-system questions. The eight steps still apply, with different content:
+
+**"Design the training run for a 7B model with 2,000 GPUs for a month."** Clarify goals (general or domain model, languages, context length, inference constraints). Budget: compute available (2,000 GPUs × 30 days × ~4 × 10¹⁴ effective FLOP/s ≈ 2 × 10²⁴ FLOPs), so roughly 40–50T tokens for 7B, deliberately over-trained for inference (Chapter 13); data supply decides whether that is realistic (Chapter 16). Architecture choice (dense or MoE, GQA or MLA, context length), parallel layout and MFU target (Chapter 17), schedule (WSD with an annealing phase), small-scale ablations for data mixture and learning rate first, evaluation plan across training, checkpointing and failure handling, and the decision points (when to stop, when to anneal).
+
+**"Design an evaluation suite for a new model release."** Capabilities (knowledge, reasoning, maths, code, long context, multilingual, tool use), safety (harmful compliance and over-refusal), chat quality with length control, regression against the previous model; contamination checks; statistical reporting with intervals; human evaluation on a sample; automation in a harness so every checkpoint is scored (Chapters 23–25).
+
+**"Design an RLHF / RLVR pipeline."** Prompt sources and difficulty filtering, reward models or verifiers and how they are audited, the algorithm (DPO, PPO or GRPO variants) and its stability measures, rollout infrastructure (inference engine, asynchronous generation), monitoring for reward hacking and over-optimisation (gold evaluations, KL, length), and iteration with fresh on-policy data (Chapters 18–19).
+
+**"Design an ablation plan for a new architecture."** Hypotheses, matched baselines with tuned learning rates, a model ladder with scaling-law fits, recall and long-context evaluations, throughput measurements, seeds, decision criteria (Chapters 11, 13 and 34).
+
 ## Pitfalls
 
 These are the mistakes that most often cost candidates the round, roughly in order of frequency.

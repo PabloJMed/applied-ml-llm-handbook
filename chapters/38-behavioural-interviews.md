@@ -146,6 +146,22 @@ Ask two or three; they signal what you care about.
 - "What does the path to the next level look like here, and what distinguished people who got there quickly?"
 - "How does the team share models and data with other teams in the company?"
 
+## 38.8 Stories for research roles
+
+Research-scientist loops add questions that applied loops rarely ask. Prepare a story for each:
+
+| Question | What it tests | A strong story shows |
+|---|---|---|
+| "Tell me about a result that turned out to be wrong." | Rigour, honesty | How you found the error, what you changed in your process (seeds, baselines, evaluation) |
+| "Tell me about a research direction you abandoned." | Judgement | A kill criterion, evidence, the decision and what you salvaged |
+| "Tell me about a negative result you are proud of." | Taste, scientific values | Why the question mattered and how the negative result changed what others did |
+| "How did you choose your last project?" | Taste | Impact, tractability, your edge; alternatives you considered |
+| "Describe a disagreement with a collaborator about a research decision." | Collaboration | Resolved by an experiment or evidence, not authority |
+| "Tell me about a time you had to share credit or resolve authorship." | Integrity | Early, explicit agreements; fairness |
+| "What's a paper you think is overrated, and why?" | Critical reading | Specific methodological critique, balanced with what it got right |
+
+Research stories still follow STAR, but the "Result" should include what you learned about doing research, not just the outcome.
+
 ## Pitfalls
 
 - **"We" all the way through,** so the interviewer cannot tell what you did.

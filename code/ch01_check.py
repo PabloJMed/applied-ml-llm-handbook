@@ -49,3 +49,18 @@ print(round(entropy(p), 3), round(cross_entropy(p, q), 3), round(kl(p, q), 3), r
 def softmax(z):
     z = z - z.max(); e = np.exp(z); return e / e.sum()
 print(softmax(np.array([1000., 1001., 1002.])).round(3))
+
+# 1.7 forward vs reverse KL: fit one Gaussian to a two-mode target
+from scipy.optimize import minimize
+xs = np.linspace(-8, 8, 4001); dx = xs[1] - xs[0]
+def normal(x, m, s): return np.exp(-0.5 * ((x - m) / s) ** 2) / (s * np.sqrt(2 * np.pi))
+p = 0.5 * normal(xs, -2, 0.6) + 0.5 * normal(xs, 2, 0.6)
+def kl(a, b): return np.sum(a * (np.log(a + 1e-300) - np.log(b + 1e-300))) * dx
+fwd = minimize(lambda t: kl(p, normal(xs, t[0], np.exp(t[1]))), [0.5, 0.0]).x
+rev = minimize(lambda t: kl(normal(xs, t[0], np.exp(t[1])), p), [1.0, -0.5]).x
+print(f"forward KL(p||q) fit: mean {fwd[0]:.2f}, sd {np.exp(fwd[1]):.2f}  (covers both modes)")
+print(f"reverse KL(q||p) fit: mean {rev[0]:.2f}, sd {np.exp(rev[1]):.2f}  (picks one mode)")
+
+# 1.8 perplexity and bits: a model with loss 2.0 nats/token
+loss = 2.0
+print(f"loss {loss} nats/token = {loss/np.log(2):.2f} bits/token, perplexity {np.exp(loss):.2f}")

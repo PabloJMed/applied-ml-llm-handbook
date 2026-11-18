@@ -127,6 +127,10 @@ Same compute, four times fewer parameters, lower loss: Gopher was undertrained. 
 
 The path most teams follow: prototype with a large API model, measure on a labelled set, then cut cost with batch APIs, smaller models, cascades (small model first, large model only when unsure) or distillation. A merchant classifier or a review-moderation pipeline usually follows exactly this shape.
 
+## 12.7 Where to go deeper
+
+This chapter is the overview. For the modern mixture-of-experts design space (many fine-grained experts with top-8 routing, shared experts, auxiliary-loss-free balancing) and other architecture changes, see Chapter 11; most leading open-weight models released since 2024 are MoEs, and the "top-1 or top-2 of 8 experts" design described in 12.3 is the earlier, Mixtral-era version. For scaling laws in depth (derivations, fitting, inference-aware over-training, data constraints, test-time compute), see Chapter 13. For multimodal models beyond CLIP, see Chapter 14.
+
 ## Pitfalls
 
 - Using raw BERT `[CLS]` or raw LLM hidden states as sentence embeddings without contrastive training.

@@ -120,6 +120,33 @@ Where KL appears: the RLHF penalty that keeps a fine-tuned policy close to the r
 
 **Numerical stability:** compute softmax as exp(z − max z) / Σ, otherwise large logits overflow (softmax of [1000, 1001, 1002] works only with the shift and gives [0.09, 0.245, 0.665]); compute log-softmax directly rather than log(softmax).
 
+## 1.7 Matrix calculus and curvature
+
+Research code and papers use a few matrix-calculus facts constantly:
+
+- **Gradient shapes match parameter shapes.** For y = Wx with loss L, ∂L/∂W = (∂L/∂y) xᵀ (an outer product) and ∂L/∂x = Wᵀ(∂L/∂y). Backpropagation through a linear layer is these two lines.
+- **Jacobians** collect all first derivatives of a vector function: J_ij = ∂y_i/∂x_j. The chain rule multiplies Jacobians; backpropagation computes vector–Jacobian products without forming them.
+- **Softmax Jacobian**: ∂s_i/∂z_j = s_i(δ_ij − s_j). Combined with cross-entropy it collapses to the famous gradient s − y.
+- **The Hessian** (second derivatives) describes curvature. Its largest eigenvalue (the sharpness) limits the stable learning rate of gradient descent to about 2/λ_max; the ratio of largest to smallest eigenvalue (the condition number) explains why plain gradient descent zig-zags in narrow valleys and why adaptive and preconditioned optimisers help (Chapter 7).
+- **Convexity**: linear and logistic regression have convex losses (one minimum); neural networks do not, yet in high dimensions most critical points are saddles rather than bad local minima, which is part of why gradient descent works.
+
+## 1.8 Information theory for language models
+
+**Forward versus reverse KL.** KL divergence is not symmetric, and which direction you minimise changes the answer. Fit a single Gaussian q to a two-mode target p (modes at −2 and +2, each with standard deviation 0.6):
+
+| Objective | Fitted mean | Fitted sd | Behaviour |
+|---|---|---|---|
+| Forward KL(p ‖ q) | 0.00 | 2.09 | Mode-covering: spreads to cover both modes, puts mass where p has none |
+| Reverse KL(q ‖ p) | 2.00 | 0.60 | Mode-seeking: picks one mode and fits it tightly |
+
+Maximum-likelihood training (cross-entropy on data) minimises forward KL from the data to the model, so language models cover the data distribution, including its unlikely corners. The KL penalty in RLHF is a reverse KL from the policy to the reference, and on-policy distillation also uses reverse KL: both make the student or policy mode-seeking, which tends to produce sharper but less diverse outputs (Chapters 18 and 19).
+
+**Perplexity and bits.** A language model's cross-entropy loss in nats per token converts to bits per token by dividing by ln 2, and to **perplexity** by exponentiating: loss 2.0 nats is 2.89 bits per token and perplexity 7.39, as if the model were choosing uniformly among about 7 tokens at each step. Because tokens differ in length between tokenizers, compare models in **bits per byte** (Chapter 23).
+
+**Compression is prediction.** A model that assigns probability p to the next symbol can encode it in −log₂ p bits with arithmetic coding, so a language model's total log-loss on a text is the length of the shortest code it can produce for it. Better prediction is better compression; this is why pretraining loss is such a robust measure of model quality, and why "the model learns to compress the internet" is a precise statement rather than a metaphor.
+
+**Mutual information** I(X; Y) = H(X) − H(X | Y) measures how much knowing Y reduces uncertainty about X. It underlies contrastive learning (InfoNCE is a lower bound on mutual information, Chapter 29) and some interpretability and data-selection methods.
+
 ## Pitfalls
 
 - **Ignoring base rates** when reading a classifier's flags.

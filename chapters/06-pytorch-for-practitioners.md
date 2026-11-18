@@ -202,6 +202,8 @@ the code, not the data.
 6. Try a learning-rate sweep (1e-5 to 1e-2) before anything clever.
 7. Compare with a simple baseline (logistic regression, LightGBM). On tabular data a well-tuned GBM usually wins (Chapter 40).
 
+**Scaling beyond one GPU.** The training loop here becomes distributed with DistributedDataParallel, then fully sharded data parallelism (FSDP2) when the model no longer fits, then tensor, pipeline and context parallelism for the largest models. Chapter 17 covers the memory and communication arithmetic; Chapter 7 covers the optimisers, schedules and numerical formats used at scale.
+
 ## Pitfalls
 
 - Calling `model(x)` with probabilities into `BCEWithLogitsLoss` (double sigmoid), or applying softmax before `CrossEntropyLoss`.

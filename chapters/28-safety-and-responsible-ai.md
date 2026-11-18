@@ -8,6 +8,8 @@ An LLM feature at a delivery platform touches customers' addresses and phone num
 
 The code below was run; outputs quoted are from that run.
 
+**Where this chapter fits.** This chapter is responsible AI in deployed products: moderation, privacy, fairness, prompt-injection defences and regulation in practice. Alignment and safety *research* (reward hacking, sycophancy, jailbreak robustness, scalable oversight, deception evaluations, dangerous-capability evaluations) is covered in Chapter 27, and interpretability in Chapter 26.
+
 ## Key concepts
 
 - **Hallucination**: fluent output unsupported by the input or by facts. [Survey of Hallucination in NLG](https://arxiv.org/abs/2202.03629).

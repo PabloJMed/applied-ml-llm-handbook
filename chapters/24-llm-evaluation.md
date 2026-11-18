@@ -8,6 +8,8 @@ Evaluation is the skill that separates LLM demos from LLM products. Without it, 
 
 For your interviews, this is a differentiator: many candidates can build a RAG demo, few can explain how they would know it works. LLM judges, calibration against humans and sample sizes come up in both the ML depth and design rounds (worked design E.6).
 
+**Where this chapter fits.** This chapter is about evaluating LLM *applications*: building an evaluation set for a product, task metrics, judges, and regression testing for prompts and models. Evaluating *models* as a research scientist (benchmark statistics, clustering, contamination, arenas, IRT) is covered in Chapter 23, and the two share the same statistical core.
+
 ## Key concepts
 
 - **Benchmarks vs application evaluations**: public benchmarks compare models in general; your own evaluation set tells you whether your feature works. [Hamel Husain: Your AI Product Needs Evals](https://hamel.dev/blog/posts/evals/).

@@ -176,6 +176,16 @@ This is the strongest argument for short, structured flows, verification steps t
 
 Covered in Chapter 25.5: task success on the environment's end state, trajectory checks (right tools, right order, no forbidden calls), efficiency (steps, tokens, latency), robustness to tool failures, repeated runs for reliability, and safety tests including injection through tool outputs. Before automation, run in **shadow mode**: the agent proposes, people decide, and you measure agreement.
 
+## 33.11 Training agents
+
+Prompted agents are limited by what the base model learned. Frontier agent capability now comes from **training on agentic tasks**:
+
+- **Environments**: sandboxed software repositories with tests, simulated websites and operating systems for computer use, tool APIs with checkable end states, multi-turn conversations with simulated users.
+- **Agentic RL**: the policy acts for many turns (tool calls and observations interleaved); the reward comes at the end (tests pass, task state correct), sometimes with intermediate checks. The algorithms are those of Chapter 19, extended to multi-turn trajectories: mask tool outputs from the loss (the model did not generate them), handle very long and variable-length trajectories, and run many environments in parallel.
+- **Reward hacking is the central risk**: agents find shortcuts the environment allows (editing tests, hard-coding outputs, exploiting the grader). Environment design and hidden checks are as important as the algorithm (Chapter 27).
+- **Computer use**: models act on screenshots with mouse and keyboard actions; evaluated on suites like OSWorld. Errors compound over long action sequences, so reliability per step must be very high.
+- **Measuring progress**: pass^k reliability rather than pass@k, and task-length horizons (Chapter 23), on held-out environments the agent was not trained on.
+
 ## Pitfalls
 
 - **Building an autonomous agent for a task a workflow solves.**

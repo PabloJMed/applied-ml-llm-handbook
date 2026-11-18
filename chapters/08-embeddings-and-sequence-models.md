@@ -136,6 +136,8 @@ class AdditiveAttention(nn.Module):
 - **GRU/LSTM** for streaming signals (sensor, rider GPS traces, event sequences) where you process one step at a time with constant memory, and on-device models.
 - **fastText classifiers** as a 10-minute baseline before any transformer. If a fine-tuned transformer only beats fastText by one point, ask whether the extra cost is worth it.
 
+**From RNNs to today's recurrent models.** RNNs lost to transformers because they were hard to train in parallel and forgot long-range information. Linear recurrent models (state-space models such as Mamba, linear attention, gated DeltaNet) keep the recurrent, fixed-size state but make training parallel and memory far more effective, and they are back in frontier architectures as the bulk of layers in hybrid models (Chapter 11).
+
 ## Pitfalls
 
 - Comparing embeddings with Euclidean distance when they were trained with dot products; normalise and use cosine unless you know otherwise.

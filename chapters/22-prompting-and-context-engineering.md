@@ -210,6 +210,13 @@ There is no complete fix today; models cannot reliably separate instructions fro
 
 The interview-ready principle: **never let the model be the only thing standing between untrusted text and a consequential action.** Chapter 28 covers jailbreaks and wider safety.
 
+## 22.9 What research says about in-context learning
+
+- **Why it works.** In-context learning emerges with scale and is linked to induction-style circuits (Chapter 26); theoretical work shows transformers can implement simple learning algorithms (such as a gradient-descent step on a linear model) in their forward pass. In practice, demonstrations mainly communicate the format, label space and input distribution: experiments that randomise the labels of few-shot examples often lose surprisingly little accuracy on classification tasks for smaller models, while larger models follow the given labels more closely.
+- **Many-shot ICL.** With long contexts, hundreds or thousands of examples can approach fine-tuning performance on some tasks, at higher inference cost; prompt caching makes it practical. The same mechanism powers many-shot jailbreaking (Chapter 27).
+- **Prompt sensitivity is a measurement problem.** Small changes in wording, example order or formatting can move accuracy by several points, more for smaller models. When comparing models or prompts, evaluate several templates and report the spread (Chapter 23), and prefer evaluation designs that are robust to format (for example likelihood scoring for base models).
+- **Automatic prompt optimisation** (DSPy-style search, or LLM-proposed rewrites scored on a dev set) can beat hand-written prompts, with the usual risk of over-fitting the dev set: keep a held-out test set.
+
 ## Pitfalls
 
 - **Changing prompts without an evaluation set.** Each fix breaks something you are not looking at.

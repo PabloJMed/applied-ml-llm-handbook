@@ -35,6 +35,8 @@ Few applied teams pre-train an LLM. You will, however, choose between models who
 
 **Mechanics.** AdamW, warm-up then cosine decay, bf16, batch sizes of millions of tokens, and 3D parallelism (data, tensor, pipeline) across thousands of GPUs. Loss spikes are handled by restarting from a checkpoint and skipping data. The output is a **base model**: it continues text well but does not follow instructions reliably.
 
+**Where to go deeper.** This chapter is the map of the pipeline. Pretraining data is covered in Chapter 16 and the mechanics of large runs (parallelism beyond the classic "3D" data, tensor and pipeline split: sharded data parallelism, context and expert parallelism; fp8; checkpointing) in Chapter 17. Modern recipes also use warmup-stable-decay schedules and, increasingly, optimisers such as Muon (Chapter 7). Post-training is covered in depth in Chapters 18 (SFT, reward models, PPO, DPO) and 19 (RL with verifiable rewards and reasoning).
+
 ## 15.2 Supervised fine-tuning (SFT)
 
 Train on (prompt, ideal response) pairs, usually in a chat template, with the loss computed only on the response tokens:

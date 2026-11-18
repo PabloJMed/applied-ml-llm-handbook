@@ -1,6 +1,6 @@
 # 37 · ML depth question bank
 
-Part X · Research craft and interviews. 160 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
+Part X · Research craft and interviews. 240 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
 
 ## How to use this bank
 
@@ -384,6 +384,182 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 **159. [I] When does pandas stop being enough?** When data no longer fits comfortably in memory or jobs take too long: push work to SQL, use Polars or DuckDB, or Spark for distributed processing.
 
 **160. [S] How would you set up data contracts for an ML pipeline?** Agreed schemas, types, freshness and quality rules between producers and consumers, enforced by automated checks that fail the pipeline or alert before bad data reaches training or serving.
+
+## E. LLM research (Chapters 7, 11, 13–19, 23, 26–27, 34)
+
+### Pretraining data and scaling (Chapters 13, 16)
+
+**161. [I] What are the main steps of a web pretraining-data pipeline?** URL filtering, HTML extraction, language ID, heuristic filters, deduplication, model-based quality filtering, PII and toxicity removal, decontamination, tokenisation and sharding with provenance metadata.
+
+**162. [I] How does MinHash estimate document similarity?** Hash each shingle with many hash functions and keep the minimum per function; the fraction of matching minima estimates the Jaccard similarity.
+
+**163. [S] How do you choose the LSH bands and rows?** The candidate probability 1 − (1 − sʳ)ᵇ is an S-curve with its threshold near (1/b)^(1/r); choose b and r to place it at the similarity you want, balancing missed duplicates against false candidates.
+
+**164. [S] Why might global deduplication across all crawl snapshots hurt?** It removes good documents that recur across years and leaves a higher share of low-quality unique pages; per-snapshot deduplication performed better in FineWeb's ablations.
+
+**165. [I] What does a quality classifier like DCLM's or FineWeb-Edu's do, and what is the risk?** Scores documents by similarity to a high-quality reference (or LLM-rated educational value); risk of narrowing style and topics and of biases against dialects and regions.
+
+**166. [S] How would you choose a data mixture?** Proxy-model ablations, learned weights (DoReMi) or fitted mixing laws, constrained by epochs per source; validate per domain and at two scales.
+
+**167. [I] What is annealing on high-quality data?** Switching to a curated mixture during the final learning-rate decay; also a cheap way to measure a data source's value.
+
+**168. [S] What are the risks of synthetic pretraining data?** Narrowed distribution, inherited errors, contamination via the generator, and collapse when models repeatedly train on their own outputs without fresh data.
+
+**169. [I] Derive the compute-optimal allocation from L = E + A/N^α + B/D^β with C = 6ND.** Substitute D = C/6N, differentiate, set to zero: N_opt ∝ C^(β/(α+β)), D_opt ∝ C^(α/(α+β)).
+
+**170. [I] Why are small open models trained far past 20 tokens per parameter?** Inference cost: minimising training plus lifetime serving compute favours smaller models trained longer.
+
+**171. [S] How much is repeated data worth?** Nearly as good as fresh data up to about 4 epochs, sharply diminishing beyond about 16 (Muennighoff et al.).
+
+**172. [S] Are emergent abilities real?** Many apparent jumps come from discontinuous metrics like exact match; continuous metrics usually show smooth improvement, though some multi-step tasks still appear abruptly.
+
+### Optimisation and training at scale (Chapters 7, 17)
+
+**173. [B] Write the AdamW update.** m = β₁m + (1−β₁)g; v = β₂v + (1−β₂)g²; bias-correct both; p ← p(1 − ηλ) − η m̂/(√v̂ + ε).
+
+**174. [I] Why does Adam need warm-up?** Early second-moment estimates are poor, so every coordinate moves by about the full learning rate in a noisy direction.
+
+**175. [I] What is the WSD schedule's advantage?** Any checkpoint in the constant phase can be decayed into a good model, so runs can be extended and branched cheaply for experiments.
+
+**176. [S] What does the gradient noise scale tell you?** Roughly the critical batch size: below it, larger batches save steps almost linearly; it grows as the loss falls.
+
+**177. [S] What does Muon do?** Orthogonalises the momentum of each hidden weight matrix with Newton–Schulz iterations, equalising update size across directions; embeddings and heads stay on AdamW.
+
+**178. [S] What problem does µP solve?** Under the standard parametrisation the optimal learning rate shifts with width; µP scales initialisation and per-layer learning rates so hyperparameters tuned on small models transfer.
+
+**179. [I] Why keep fp32 master weights in bf16 training?** bf16 has 8 bits of precision, so small updates to weights near 1 round away; accumulating in fp32 preserves them.
+
+**180. [S] What makes fp8 training hard?** Tiny dynamic range requiring fine-grained scaling, sensitive operations kept in higher precision, and silent quality loss that appears late.
+
+**181. [I] What do z-loss and QK-norm prevent?** Growth of output logits and of attention logits respectively, common causes of late-training instability.
+
+**182. [B] How much memory does Adam training need per parameter in mixed precision?** About 16 bytes: bf16 weights and gradients plus fp32 master weights and two moments.
+
+**183. [I] Compare ZeRO stages 1, 2 and 3.** Shard optimiser states; plus gradients; plus weights. Stages 1–2 add no communication; stage 3 gathers weights per layer, about 1.5× DDP traffic.
+
+**184. [I] Why is tensor parallelism kept inside a node?** It all-reduces activations in every layer, needing NVLink-class bandwidth.
+
+**185. [I] What is the pipeline bubble?** Idle time at batch start and end, (p − 1)/(m + p − 1); reduced by more micro-batches and interleaved or zero-bubble schedules.
+
+**186. [S] How does context parallelism compute attention?** Each GPU holds a sequence block; key–value blocks circulate around a ring while each GPU attends its queries, with load balancing for causal masks.
+
+**187. [B] How do you estimate training time?** 6ND FLOPs divided by GPUs × peak FLOP/s × MFU.
+
+**188. [S] Your training throughput fell 20% overnight. What do you check?** Per-rank step times for stragglers, node and network health, data-loader I/O, checkpoint timing, recent configuration changes.
+
+### Architectures (Chapters 10, 11, 14)
+
+**189. [I] How does a top-k MoE layer change compute and memory?** Compute per token scales with k active experts; memory with all experts.
+
+**190. [I] Why do MoEs need load balancing, and what are two methods?** Routers collapse onto few experts; the Switch auxiliary loss E·Σ f_e P_e, or auxiliary-loss-free per-expert selection biases.
+
+**191. [S] What are fine-grained and shared experts?** Many small experts with more active per token, plus always-on experts for common knowledge.
+
+**192. [S] Explain MLA and why it needs decoupled RoPE.** Cache a low-rank latent per token and reconstruct keys and values; absorbing up-projections into other matrices fails with position-dependent rotations, so position uses separate rotary dimensions.
+
+**193. [I] Show that causal linear attention is an RNN.** Replace exp(q·k) with φ(q)·φ(k); the running sums of φ(k)vᵀ and φ(k) form a fixed-size state updated per token.
+
+**194. [S] What is the weakness of SSMs and linear attention, and how do hybrids fix it?** Fixed-size state limits precise recall from long context; hybrids keep a minority of full-attention layers.
+
+**195. [S] What does the delta rule change in linear attention?** It overwrites the value stored for a key instead of adding to it, reducing interference.
+
+**196. [I] What is multi-token prediction for?** Extra training signal and built-in draft heads for speculative decoding.
+
+**197. [S] How do position interpolation, NTK scaling and YaRN extend RoPE context?** PI scales all positions down; NTK raises the base, stretching low frequencies; YaRN interpolates only low-frequency dimensions with an attention temperature fix.
+
+**198. [I] How do VLMs turn images into tokens, and what limits resolution?** Patch features from a vision encoder, projected into the LLM; token count grows with the square of image side, managed by tiling, native resolution and token merging.
+
+### Post-training (Chapters 18, 20)
+
+**199. [B] Why mask prompt tokens in the SFT loss?** The model should learn to produce responses, not to predict user and system text.
+
+**200. [I] What goes wrong with naive sequence packing?** Examples attend to each other and positions continue across boundaries; reset position IDs and use block-diagonal masks.
+
+**201. [I] Write the Bradley–Terry reward-model loss.** −log σ(r(x, y_chosen) − r(x, y_rejected)).
+
+**202. [S] What limits reward-model accuracy?** Human label noise (inter-annotator agreement often 60–70%), distribution shift to policy outputs, spurious features such as length.
+
+**203. [I] Explain GAE.** δ_t = r_t + γV(s_{t+1}) − V(s_t), A_t = δ_t + γλA_{t+1}: a λ-weighted mix of multi-step advantage estimates trading bias for variance.
+
+**204. [I] Why does PPO clip the ratio?** To stop updates from moving the policy far from the one that sampled the data, where advantage estimates are invalid.
+
+**205. [S] Compare the k1, k2 and k3 KL estimators.** k1 = −log r is unbiased but high-variance; k2 = (log r)²/2 low-variance but biased; k3 = r − 1 − log r unbiased, non-negative, low-variance.
+
+**206. [S] Derive DPO.** The KL-regularised optimum is π_ref·exp(r/β)/Z; solve for r, substitute into Bradley–Terry; Z cancels.
+
+**207. [S] Why does offline DPO underperform PPO in practice?** Fixed off-policy data, no exploration, likelihood displacement; on-policy iterative DPO narrows the gap.
+
+**208. [I] What is likelihood displacement?** In DPO, chosen and rejected log-probabilities both fall while their gap grows, moving mass to other responses.
+
+**209. [I] When would you use KTO, IPO or SimPO?** KTO for unpaired binary feedback; IPO for near-deterministic preferences; SimPO to remove length bias and the reference model.
+
+**210. [S] Describe reward over-optimisation and its defences.** Proxy reward keeps rising while gold quality peaks and falls; KL budgets, early stopping, bigger or ensembled reward models, length control, gold evaluations.
+
+**211. [I] What is the KL of best-of-n sampling from the base policy?** log n − (n − 1)/n.
+
+**212. [I] How does model merging work?** Average fine-tunes of the same base, or add scaled task vectors (fine-tuned minus base), with TIES or DARE to reduce interference.
+
+### Reasoning and RL (Chapters 19, 13)
+
+**213. [I] Explain GRPO.** Sample a group per prompt; advantage = reward minus group mean (often divided by its std); PPO-style clipped token-level updates; no value model.
+
+**214. [S] What is GRPO's length bias?** Averaging the loss within each response gives tokens weight A/|o|, so long wrong answers are penalised less per token; use a token-level mean.
+
+**215. [S] What does DAPO change?** Clip-higher, dynamic sampling of groups with mixed rewards, token-level loss, overlong shaping, no KL term.
+
+**216. [I] Why filter prompts by difficulty in RLVR?** Groups that are all right or all wrong have zero advantage and teach nothing.
+
+**217. [S] Does RL create new reasoning or sharpen existing ability?** pass@1 rises but pass@k at large k often falls relative to the base model, suggesting sharpening and narrowing; longer, exploratory RL and distillation may extend the frontier. Measure pass@k curves.
+
+**218. [I] PRM versus ORM?** Process reward models score steps (denser signal, better for search and reranking, harder to label, hackable); outcome models or verifiers score final answers.
+
+**219. [I] When does self-consistency fail?** When a wrong answer is more probable than the right one, voting amplifies it.
+
+**220. [I] What is budget forcing?** Controlling thinking length at inference by forcing the end of thinking or appending "Wait" to extend it.
+
+**221. [B] Why distil reasoning into small models rather than run RL on them?** Distillation from a stronger model's verified traces is cheaper and often better for small models.
+
+**222. [S] What is the training–inference mismatch problem in RL systems?** The inference engine and trainer compute slightly different probabilities, corrupting importance ratios; recompute log-probabilities or apply importance corrections.
+
+### Evaluation (Chapter 23)
+
+**223. [I] What is the standard error of a 500-question benchmark at 70% accuracy?** √(0.7 × 0.3 / 500) ≈ 2 points.
+
+**224. [I] Why use paired comparisons between models?** Shared question difficulty cancels, making the standard error of the difference smaller.
+
+**225. [S] How many questions detect a 2-point improvement?** About 7.84 × d / 0.02² for disagreement rate d: roughly 2,000 at d = 10%.
+
+**226. [I] Why compare models in bits per byte rather than per-token perplexity?** Tokenizers differ in token length; bits per byte normalises by text.
+
+**227. [S] How would you detect contamination in a closed model?** Perturbation gaps with significance tests, guided completion, likelihood tests such as Min-K% Prob, time-split items.
+
+**228. [I] What biases affect LLM judges and how do you control them?** Position (swap and average), length (length control), self-preference (different family, several judges); validate against humans.
+
+**229. [S] What are arena leaderboards' known problems?** Style and length bias, selection from testing private variants, unequal sampling, prompt distribution mismatch, overlapping intervals.
+
+**230. [I] What is IRT used for in LLM evaluation?** Modelling item difficulty and discrimination to select informative subsets, find bad items and compare models on a common scale.
+
+### Interpretability and alignment (Chapters 26, 27)
+
+**231. [I] What is an induction head?** A head that attends from token A to the token following an earlier A and copies it, composed with a previous-token head.
+
+**232. [I] How does activation patching work?** Run a corrupted input, replace one component's activation with its clean-run value, and see whether the behaviour returns.
+
+**233. [S] What is superposition, and how do SAEs address it?** More sparse features than dimensions stored as overlapping directions; SAEs learn an over-complete sparse dictionary to recover them.
+
+**234. [S] How do you evaluate an SAE?** Sparsity, reconstruction, downstream loss with the SAE spliced in, interpretability of features, usefulness against simple baselines.
+
+**235. [I] What is a steering vector?** A direction (for example a mean activation difference between contrasting prompts) added to the residual stream to change behaviour.
+
+**236. [I] How would you measure sycophancy?** Answer flips under pushback, with flip asymmetry tested by McNemar, plus opinion-tailoring and feedback-bias probes.
+
+**237. [S] What is weak-to-strong generalisation and PGR?** Training a strong model on a weak supervisor's labels; PGR is the fraction of the weak-to-ceiling gap recovered.
+
+**238. [S] Why is chain-of-thought monitoring useful and fragile?** Reasoning often reveals intent, so monitors catch misbehaviour; optimisation pressure on the reasoning can teach concealment.
+
+**239. [I] Zero of 100 dangerous-capability attempts succeeded. What can you claim?** The per-attempt rate is below about 3% at 95% confidence under that elicitation, not that the capability is absent.
+
+**240. [S] What would convince you that a safety mitigation works?** Measured on held-out attacks or environments, against adaptive adversaries, with intervals, without having trained on the evaluation, and robust when the model is optimised against it.
 
 ---
 

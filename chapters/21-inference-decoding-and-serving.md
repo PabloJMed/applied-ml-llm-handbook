@@ -222,6 +222,20 @@ A platform classifies 2 million merchants into categories with an LLM, re-runnin
 
 Multiplied, these levers give 5–10×. In an interview, the point is not the number but the breakdown: be able to say which lever gave how much, and what you traded (results arrive in hours; you need job monitoring and retries for failed items).
 
+## 21.11 Research-level serving topics
+
+**Roofline thinking.** A GPU has a peak compute rate (around 1,000 TFLOP/s dense bf16 on current data-centre parts) and a memory bandwidth (around 3–8 TB/s). Their ratio, roughly 150–300 FLOPs per byte, is the **arithmetic intensity** an operation needs to be compute-bound. Decoding one token for a batch of b sequences does about 2 FLOPs per parameter per sequence while reading each 2-byte bf16 parameter once: an intensity of about b FLOPs per byte. Small batches are therefore memory-bound by a wide margin, which is why batching, quantisation and speculative decoding all pay off, and why prefill (many tokens per weight read) is compute-bound.
+
+**Disaggregated prefill and decode.** Prefill is compute-bound and bursty; decode is memory-bound and steady. Running them on separate GPU pools, transferring the KV cache between them, lets each be sized and batched for its own bottleneck and stabilises time per output token. Large deployments increasingly use it.
+
+**Low-precision inference.** fp8 weights and activations are standard on recent GPUs with little quality loss; 4-bit formats with block scaling (MXFP4, NVFP4) cut memory and bandwidth further, and some open models are released directly in such formats. **KV-cache quantisation** (8-bit or lower) matters as much as weight quantisation at long context, since the cache can exceed the weights. Validate any quantisation on long-context and reasoning tasks, where errors accumulate.
+
+**Serving mixture-of-experts models.** All experts must be resident, so memory is set by total parameters while compute follows active ones. Large MoEs are served with expert parallelism across many GPUs, large batches (so each expert gets enough tokens) and careful load balancing; per-token cost is low but the minimum deployment is large.
+
+**Attention-side savings.** MLA and GQA shrink the KV cache; sliding-window and sparse attention bound it; prefix caching reuses it across requests with shared prompts (Chapters 11 and 22).
+
+**Serving reasoning models.** Outputs of thousands of thinking tokens make decode dominate cost and latency. Levers: reasoning-effort or budget settings, routing easy requests to non-thinking modes, speculative decoding (thinking text is often predictable), and the test-time compute strategies of Chapter 19 (parallel sampling and voting versus longer single chains), chosen per task by measured accuracy per dollar.
+
 ## Pitfalls
 
 - Measuring average latency only; the p99 is what users feel.

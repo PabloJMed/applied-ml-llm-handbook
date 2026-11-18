@@ -128,24 +128,24 @@ Each links to the chapter that has tested code. Target times assume practice; ai
 
 | Algorithm | Chapter | Target time |
 |---|---|---|
-| Linear regression (normal equation and gradient descent) | 4.1, 3.5 | 15 min |
+| Linear regression (normal equation and gradient descent) | 40.1, 3.5 | 15 min |
 | Logistic regression with mini-batch SGD / Adam | 3.5 | 20 min |
-| k-means (with k-means++ init) | 4.9 | 15 min |
-| kNN classifier | 4.6 | 10 min |
-| Decision tree split (Gini) and a small tree | 4.3 | 30–40 min |
-| Gradient boosting for squared loss | 4.5 | 20 min |
-| PCA via SVD | 4.10 | 10 min |
-| Naive Bayes (multinomial) | 4.8 | 15 min |
-| Precision, recall, F1, ROC-AUC, average precision | 5.1–5.2 | 10 min each |
-| NDCG@k, MRR, recall@k | 5.6, 26.9 | 10 min |
-| Bootstrap confidence interval | 5.9, 2.1 | 10 min |
+| k-means (with k-means++ init) | 40.9 | 15 min |
+| kNN classifier | 40.6 | 10 min |
+| Decision tree split (Gini) and a small tree | 40.3 | 30–40 min |
+| Gradient boosting for squared loss | 40.5 | 20 min |
+| PCA via SVD | 40.10 | 10 min |
+| Naive Bayes (multinomial) | 40.8 | 15 min |
+| Precision, recall, F1, ROC-AUC, average precision | 4.1–4.2 | 10 min each |
+| NDCG@k, MRR, recall@k | 4.6, 44.9 | 10 min |
+| Bootstrap confidence interval | 4.9, 2.1 | 10 min |
 | Train/test split by time, out-of-fold target encoding | 3.6, 3.8 | 15 min |
-| BM25 and an inverted index | 18.2, 26.3 | 25 min |
-| Cosine-similarity top-k, item-to-item CF | 25.2 | 10 min |
+| BM25 and an inverted index | 30.2, 44.3 | 25 min |
+| Cosine-similarity top-k, item-to-item CF | 43.2 | 10 min |
 | Scaled dot-product attention with causal mask | 10.2 | 15 min |
-| Softmax, cross-entropy, InfoNCE | 3.3, 17.2 | 10 min |
-| LoRA linear layer | 16.3 | 15 min |
-| Thompson sampling | 25.8 | 10 min |
+| Softmax, cross-entropy, InfoNCE | 3.3, 29.2 | 10 min |
+| LoRA linear layer | 20.3 | 15 min |
+| Thompson sampling | 43.8 | 10 min |
 
 **Insurance for classic algorithm questions:** two sum (hash map), top-k with a heap (`heapq.nlargest`), sliding window maximum or sums, merging intervals, binary search on a sorted array, BFS on a grid or graph, LRU cache (`OrderedDict`). Fifteen to twenty LeetCode Easy/Medium problems on these patterns is enough for a data-focused round.
 
@@ -227,6 +227,71 @@ What to test in ML code: shapes and dtypes; invariants (probabilities in [0, 1] 
 | OOP for ML | Rebuild a small scikit-learn-style library: an estimator, a transformer, a pipeline | One afternoon, then explain it aloud |
 | Mock interviews | A friend, interviewing.io-style services, or an LLM acting as interviewer with a timer | One per week from week 4 |
 
+
+## 35.9 From-scratch components for research roles
+
+Research-scientist coding rounds ask you to implement model components, usually in PyTorch, talking through shapes and checking as you go. The list below covers most questions; each links to the chapter with tested code.
+
+| Component | Chapter | Target time |
+|---|---|---|
+| Multi-head attention with causal mask, GQA and a KV cache | 10.3, 10.8 | 25 min |
+| RoPE | 10.4 | 15 min |
+| RMSNorm, SwiGLU, a pre-norm transformer block | 10.5–10.6 | 20 min |
+| Training loop for a mini-GPT | 10.10, 6.4 | 25 min |
+| BPE training and encoding | 9.3 | 25 min |
+| Temperature, top-k, top-p sampling; beam search | 21.2, below | 15 min each |
+| Numerically stable softmax and cross-entropy with ignored positions | below | 10 min |
+| LoRA layer | 20.3 | 15 min |
+| SFT loss masking and sequence packing | 18.2 | 15 min |
+| Bradley–Terry, DPO, PPO-clip and GRPO losses | 18.3–18.6, 19.3, below | 10 min each |
+| GAE | 18.4 | 10 min |
+| Top-k MoE router with load-balancing loss | 11.2 | 20 min |
+| Linear attention, recurrent and parallel forms | 11.4 | 20 min |
+| Unbiased pass@k | 13.9 | 5 min |
+| Ring all-reduce (simulated) | 17.3 | 15 min |
+| MinHash signatures | 16.5 | 15 min |
+| Sparse autoencoder (TopK) | 26.7 | 15 min |
+
+Four that have no home elsewhere, all checked in `code/ch35_check.py`:
+
+```python
+def stable_cross_entropy(logits, targets, ignore_index=-100):
+    mask = targets != ignore_index
+    logits, targets = logits[mask], targets[mask]
+    m = logits.max(-1, keepdim=True).values                      # subtract the max: no overflow
+    lse = m.squeeze(-1) + (logits - m).exp().sum(-1).log()
+    return (lse - logits.gather(-1, targets[:, None]).squeeze(-1)).mean()
+# matches F.cross_entropy on logits of size ~50 with ignored positions
+
+def top_p_filter(logits, p=0.9):
+    probs = logits.softmax(-1)
+    sorted_p, idx = probs.sort(descending=True)
+    keep = sorted_p.cumsum(-1) - sorted_p < p                    # mass before this token is still < p
+    out = torch.full_like(logits, float("-inf"))
+    out.scatter_(-1, idx, torch.where(keep, logits.gather(-1, idx), torch.tensor(float("-inf"))))
+    return out
+# probabilities [0.5, 0.3, 0.15, 0.05], p = 0.9: keeps the first three
+
+def beam_search(step_logprobs, beam=2, steps=3, eos=0):
+    beams = [((), 0.0)]
+    for _ in range(steps):
+        cand = []
+        for seq, score in beams:
+            if seq and seq[-1] == eos: cand.append((seq, score)); continue
+            for tok, lp in enumerate(step_logprobs(seq)):
+                cand.append((seq + (tok,), score + lp))
+        beams = sorted(cand, key=lambda c: c[1], reverse=True)[:beam]
+    return beams[0]
+# greedy takes the 0.5 token, then the best continuation: 0.175; beam search finds (2, 1) at 0.36
+
+def grpo_loss(logp_new, logp_old, rewards, mask, eps_lo=0.2, eps_hi=0.28):
+    adv = (rewards - rewards.mean())[:, None].expand_as(logp_new)   # Dr. GRPO-style: no std division
+    ratio = (logp_new - logp_old).exp()
+    obj = torch.minimum(ratio * adv, ratio.clamp(1 - eps_lo, 1 + eps_hi) * adv)
+    return -(obj * mask).sum() / mask.sum()                         # token-level mean
+```
+
+Interviewers probe the details: why subtract the max, what happens at p = 1, how beam search handles finished sequences and length bias, why the GRPO loss uses a token-level mean and asymmetric clipping (Chapter 19).
 
 ## Pitfalls
 

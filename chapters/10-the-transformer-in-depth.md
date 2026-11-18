@@ -265,6 +265,21 @@ class MiniGPT(nn.Module):
 
 The two phases in `generate`, **prefill** (process the whole prompt in parallel) and **decode** (one token at a time, memory-bound on reading weights and the cache), are the two phases you optimise when serving (Chapter 21).
 
+## 10.11 Long context: extending RoPE
+
+RoPE rotates pairs of dimensions by angles θ_i · position, with frequencies θ_i = base^(−2i/d), so dimension pairs have wavelengths from about 6 tokens to about 2π · base (around 63,000 tokens for base 10,000). A model trained on 4k tokens has never seen the rotation angles of positions beyond 4k in its low-frequency dimensions. Ways to extend context:
+
+- **Position interpolation (PI)**: divide all positions by the extension factor s, so a 32k context maps onto the trained 4k range. Simple, but it compresses the high-frequency dimensions too, blurring local word order; it needs fine-tuning.
+- **NTK-aware scaling**: increase the base instead (base' = base · s^(d/(d−2))), which stretches low frequencies a lot and high frequencies hardly at all. Works partly without fine-tuning.
+- **YaRN**: interpolate only the low-frequency dimensions, leave high-frequency ones untouched, ramp between them, and add a small temperature correction to attention logits. With brief fine-tuning it extends context 16–32× efficiently; it is a common choice in open models.
+- **Raising the base during training**: many recipes simply train the long-context phase (mid-training, Chapter 16) with a much larger RoPE base (for example 500,000 or more) on long documents.
+
+Context extension also needs data (real long documents, not just concatenated short ones), memory techniques (context parallelism, Chapter 17) and evaluation that checks the model *uses* the context: RULER-style tasks (multi-needle retrieval, variable tracking, aggregation) rather than only a single needle in a haystack.
+
+**Attention sinks.** Trained transformers put large attention weight on the first token (or a few special tokens) regardless of content: a place to "park" attention when no other token is relevant. Streaming and sliding-window inference must keep those first tokens in the cache, or quality collapses. Gated attention variants (a sigmoid gate on each head's output) reduce the need for sinks and the massive activations associated with them.
+
+**Stability additions** now common in recipes: QK-norm (normalise queries and keys before the dot product) and logit soft-capping; see Chapter 7. For compressed and sparse attention (MLA, sliding windows, sparse attention) and linear-time alternatives, see Chapter 11.
+
 ## Pitfalls
 
 - **Forgetting the √dₖ scaling** or the causal mask when implementing attention.

@@ -215,6 +215,20 @@ model.print_trainable_parameters()       # typically well under 1% of the total
 
 Managed alternatives: most LLM providers offer fine-tuning APIs for some of their models (upload JSONL conversations, get a fine-tuned model id), which removes infrastructure work at the cost of control.
 
+## 20.11 Beyond task fine-tuning: continued pretraining, merging and RL fine-tuning
+
+**Continued pretraining (domain adaptation).** To teach a model a new domain or language rather than a task, continue next-token training on raw domain text (billions of tokens), then redo instruction tuning. Mix in 10–30% general data to limit forgetting, re-warm the learning rate gently (a sudden high rate damages the model; a warm-up and decay similar to the original schedule's tail works better), and evaluate general abilities as well as the domain. LoRA learns less and forgets less than full fine-tuning here; for large knowledge injections full fine-tuning is usually needed.
+
+**Model merging.** Fine-tuned models that share a base can be combined in weight space without further training:
+
+- **Weight averaging ("model soups")**: average several fine-tunes of the same base trained with different hyperparameters; often better and more robust than the best single one.
+- **Task arithmetic**: a task vector is the difference between fine-tuned and base weights; adding several task vectors (scaled) to the base combines skills, subtracting one removes a behaviour.
+- **TIES and DARE**: reduce interference between task vectors by trimming small changes, resolving sign conflicts (TIES) or randomly dropping and rescaling changes (DARE) before adding them.
+
+Merging is cheap and widely used to combine specialised fine-tunes or checkpoints from different training runs; its results are empirical and need the same evaluation as any other model.
+
+**Reinforcement fine-tuning.** For tasks with checkable outcomes (structured extraction with a validator, code with tests, maths, classification with clear rubrics), fine-tuning with RL against a grader (Chapter 19) can beat SFT, especially with few labelled examples, because the model learns from its own attempts. Several providers offer it as a managed service with user-defined graders; the grader then becomes the specification and needs the same hardening as any verifier (Chapter 27).
+
 ## Pitfalls
 
 - **Fine-tuning to add knowledge** that changes or must be cited; use RAG.

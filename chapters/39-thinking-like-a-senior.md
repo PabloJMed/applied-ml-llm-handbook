@@ -102,6 +102,17 @@ Interviewers often ask "why this role" and "why now". A clear, honest answer hel
 
 Keep it under a minute; let them ask for more.
 
+## 39.8 Research judgement
+
+Seniority in research looks different from seniority in product engineering:
+
+- **Choosing problems**: you can explain why a direction matters now, what would make it fail, and what you would do instead (Chapter 34).
+- **Calibrated claims**: you say "this improves loss by 0.02 ± 0.005 at 1B, untested at 8B", not "this works".
+- **Killing your own ideas** early and without drama, when the evidence says so.
+- **Multiplying others**: shared infrastructure, evaluation suites, careful reviews of colleagues' experiments.
+- **Connecting research to decisions**: knowing which results would change what the lab trains next, and prioritising those.
+- **Compute stewardship**: spending large runs only after small-scale evidence justifies them.
+
 ## Pitfalls
 
 - Treating "senior" as "knows more algorithms".
