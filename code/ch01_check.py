@@ -64,3 +64,20 @@ print(f"reverse KL(q||p) fit: mean {rev[0]:.2f}, sd {np.exp(rev[1]):.2f}  (picks
 # 1.8 perplexity and bits: a model with loss 2.0 nats/token
 loss = 2.0
 print(f"loss {loss} nats/token = {loss/np.log(2):.2f} bits/token, perplexity {np.exp(loss):.2f}")
+
+# ---- second-edition worked examples ---------------------------------------------------------
+A2 = np.array([[3.0, 0.0], [4.0, 5.0]])
+U2, S2_, Vt2 = np.linalg.svd(A2)
+print("SVD of [[3,0],[4,5]]: singular values", S2_.round(3).tolist(), " rank-1 relative error",
+      round(float(np.linalg.norm(A2 - S2_[0] * np.outer(U2[:, 0], Vt2[0])) / np.linalg.norm(A2)), 3))
+d_in = d_out = 4096; r = 16
+print(f"LoRA on a 4096x4096 matrix at rank {r}: {r*(d_in+d_out):,} trainable vs {d_in*d_out:,} ({r*(d_in+d_out)/(d_in*d_out):.2%})")
+# Beta-binomial shrinkage: posterior mean (clicks + a) / (impressions + a + b) with a Beta(2, 38) prior
+for clicks, imps in ((3, 10), (30, 100), (300, 1000), (0, 5)):
+    print(f"{clicks}/{imps}: raw {clicks/imps:.3f}, smoothed {(clicks+2)/(imps+40):.3f}")
+# backprop by hand: L = (w*x + b - y)^2 with x=2, w=3, b=1, y=5
+x, w, b, y = 2.0, 3.0, 1.0, 5.0
+z = w * x + b; Lval = (z - y) ** 2; dL_dz = 2 * (z - y)
+print(f"forward z={z}, L={Lval}; dL/dz={dL_dz}, dL/dw={dL_dz*x}, dL/db={dL_dz}")
+for pc in (0.9, 0.5, 0.1, 0.01):
+    print(f"cross-entropy when the true class gets p={pc}: {-np.log(pc):.3f} nats")

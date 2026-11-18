@@ -81,3 +81,22 @@ groups = np.repeat(np.arange(6), 2)
 for tr, va in GroupKFold(n_splits=3).split(np.arange(12), groups=groups):
     assert not set(groups[tr]) & set(groups[va])
 print("group ok")
+
+# ---- second-edition worked examples ---------------------------------------------------------
+# leakage through a random split on drifting data: a time-trend feature looks predictive in-sample only
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import roc_auc_score
+rng = np.random.default_rng(3)
+n = 20000; t = np.arange(n)
+regime = (t // 2000) % 2                                   # behaviour flips every 2,000 rows (e.g. promo periods)
+x1 = rng.normal(size=n); signal = np.where(regime == 1, x1, -x1) * 0.8
+yv = (rng.random(n) < 1 / (1 + np.exp(-signal))).astype(int)
+Xv = np.column_stack([x1, t])                              # the timestamp is available as a feature
+idx = rng.permutation(n); tr, te = idx[:15000], idx[15000:]
+auc_random = roc_auc_score(yv[te], GradientBoostingClassifier(random_state=0).fit(Xv[tr], yv[tr]).predict_proba(Xv[te])[:, 1])
+auc_time = roc_auc_score(yv[15000:], GradientBoostingClassifier(random_state=0).fit(Xv[:15000], yv[:15000]).predict_proba(Xv[15000:])[:, 1])
+print(f"random split AUC {auc_random:.3f}; time split AUC {auc_time:.3f}")
+# ridge shrinkage on one feature: w_ridge = (x.y)/(x.x + lambda)
+xr = rng.normal(size=50); yr = 2 * xr + rng.normal(size=50)
+for lam in (0, 10, 50, 200):
+    print(f"lambda {lam}: ridge weight {xr @ yr / (xr @ xr + lam):.3f}")

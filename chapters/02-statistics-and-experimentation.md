@@ -22,6 +22,8 @@ Every model you ship is judged by an experiment, and in a delivery marketplace e
 
 **The sampling distribution.** A metric computed on a sample (a conversion rate, a mean order value) varies from sample to sample. Its standard deviation across samples is the **standard error**: for a mean, σ/√n; for a proportion, √(p(1−p)/n). The central limit theorem says the sampling distribution of a mean is approximately normal for large n, whatever the data's distribution.
 
+**Why √n.** If each observation has standard deviation σ, the sum of n independent observations has variance nσ² (variances add), so the mean, the sum divided by n, has variance σ²/n and standard deviation σ/√n. Precision improves only with the square root of the data: four times the users halve the uncertainty, and a hundred times the users cut it by ten. This one fact drives every sample-size calculation in this chapter.
+
 **A 95% confidence interval** is estimate ± 1.96 × standard error. Correct reading: if we repeated the experiment many times, 95% of intervals built this way would contain the true value. It is not "a 95% probability that the true value is in this interval" (a Bayesian credible interval says that).
 
 **The bootstrap** gives intervals for any statistic (medians, ratios, percentiles, model metrics) without formulas: resample the data with replacement many times, recompute the statistic, take percentiles. Resample the independent unit (users, not orders, if one user has many orders; Chapter 4.9).
@@ -74,6 +76,28 @@ two_prop_ztest(1000, 20000, 1080, 20000)
 
 An 8% relative lift that is not significant with 20,000 users per arm: the next section explains why, and how many users it would take.
 
+**A test you can always build yourself: the permutation test.** If the treatment did nothing, the labels "A" and "B" are arbitrary, so shuffling them should produce differences as large as the observed one quite often. Shuffle many times and count:
+
+```python
+def permutation_p_value(a, b, n_perm=10_000, seed=0):
+    rng = np.random.default_rng(seed)
+    observed = abs(b.mean() - a.mean())
+    pooled = np.concatenate([a, b]); count = 0
+    for _ in range(n_perm):
+        rng.shuffle(pooled)
+        count += abs(pooled[len(a):].mean() - pooled[:len(a)].mean()) >= observed
+    return count / n_perm
+# two groups of 200, observed difference 0.92: permutation p = 0.048, Welch t-test p = 0.045
+```
+
+It makes no distributional assumptions and works for any statistic (medians, ratios, model metrics), which makes it a good way to check a formula-based test, and a good answer when an interviewer asks how you would test something unusual.
+
+**What p-values look like across many experiments.** When there is no effect, a p-value is equally likely to fall anywhere between 0 and 1: 5% of experiments land below 0.05 by construction. When there is an effect, p-values pile up near zero, and how strongly depends on power.
+
+![Diagram](images/02-fig-1.png)
+
+*6,000 simulated experiments with 500 users per arm. Left: no effect, 5.0% below 0.05. Right: a true effect of 0.15 standard deviations, 66.7% below 0.05: even a real effect is missed a third of the time at this sample size.*
+
 ## 2.3 Power and sample size
 
 Before running a test, decide the **minimum detectable effect (MDE)**: the smallest effect worth detecting. Then compute the sample size that detects it with the desired power.
@@ -95,7 +119,15 @@ n_per_arm_proportion(0.05, 0.02)   # detect +2% relative: ~753,000 per arm
 n_per_arm_mean(25.0, 0.5)          # basket value sd 25 euros, detect +0.50: ~39,000 per arm
 ```
 
+**Where the formula comes from.** Picture two bell curves for the estimated difference: one centred at zero (the null) and one centred at the true effect δ, both with the same standard error. The test rejects when the estimate lands beyond 1.96 standard errors from zero. Power is the share of the second curve beyond that line. To get 80% power, the line must sit 0.84 standard errors *below* δ, so δ must equal (1.96 + 0.84) standard errors. Since the standard error shrinks like 1/√n, solving for n gives the formula above, with δ² in the denominator.
+
+![Diagram](images/02-fig-2.png)
+
+*Power against users per arm for a 5% baseline conversion. A 10% relative lift needs about 32k users per arm for 80% power, 5% about 125k, 2% about 760k.*
+
 The rule to remember: **halving the MDE quadruples the sample size.** This is why small improvements need large traffic, variance reduction (2.5) or more sensitive designs (interleaving, 2.8). Run for whole weeks to cover weekly cycles, and compute duration from traffic before launching, not after.
+
+**Underpowered tests exaggerate.** When power is low, the experiments that happen to reach significance are the ones where noise inflated the estimate. Simulating a true effect of 0.1 measured with a standard error of 0.1 (17% power): the significant positive results average 0.249, two and a half times the truth, and about 1% of significant results even have the wrong sign. This "winner's curse" is why an effect discovered in a small test usually shrinks in the follow-up, and why the honest response to "it was significant" is "with what power?".
 
 ## 2.4 A/B test design
 
@@ -126,6 +158,8 @@ def srm_p_value(n_a, n_b, expected_ratio=0.5):
 `Y_cuped = Y − θ(X − mean(X)), θ = cov(Y, X) / var(X)`
 
 Randomisation makes X independent of treatment, so the effect estimate stays unbiased while its variance shrinks by a factor of (1 − ρ²), where ρ is the correlation between X and Y.
+
+**Why it works, in one paragraph.** Much of the variation in what a user spends during the test is explained by what they spent before it: heavy users stay heavy. That variation is the same in both arms on average, but it adds noise to the comparison. CUPED subtracts the part of each user's outcome predicted by their history (θ is just the regression slope of Y on X), leaving the part that history cannot explain, which is where the treatment effect lives. Because X was measured before randomisation, the treatment cannot have changed it, so subtracting it cannot bias the effect.
 
 ```python
 theta = np.cov(post, pre)[0, 1] / np.var(pre, ddof=1)
@@ -159,6 +193,12 @@ The practical defence: one pre-registered primary metric, a small set of guardra
 ## 2.7 Sequential testing and peeking
 
 Checking results every day and stopping the first time p < 0.05 inflates false positives dramatically. In a simulated A/A test (no real difference) checked daily for 20 days, about 25% of runs reached "significance" at some point, five times the nominal 5%.
+
+![Diagram](images/02-fig-3.png)
+
+*Simulated A/A tests checked at evenly spaced looks, stopping at the first p < 0.05: 5% with one look, 15% with five, 26% with twenty, 32% with fifty.*
+
+The reason is that the running test statistic is a random walk: it wanders, and a test that is allowed to stop whenever the walk crosses ±1.96 will eventually see a crossing even when the true effect is zero. Sequential methods widen the boundary at early looks so that the total chance of a false crossing stays at 5%.
 
 Options:
 

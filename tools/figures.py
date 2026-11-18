@@ -247,6 +247,197 @@ def ch18():
     ax.set_title("DPO converges to π_ref · exp(r/β), the dotted lines")
     save(fig, "18-fig-3.png")
 
+# ---------------------------------------------------------------------------------------------
+def ch01():
+    rng = np.random.default_rng(0)
+    # 01-fig-1: cosine similarity between random vectors concentrates around 0 as dimension grows
+    fig, ax = plt.subplots(figsize=(W, 2.3))
+    bins = np.linspace(-1, 1, 81)
+    for d, c, ls in ((3, S2, DASH[1]), (64, S3, DASH[2]), (768, S1, DASH[0])):
+        a = rng.standard_normal((20000, d)); b = rng.standard_normal((20000, d))
+        cos = (a * b).sum(1) / np.linalg.norm(a, axis=1) / np.linalg.norm(b, axis=1)
+        h, e = np.histogram(cos, bins=bins, density=True)
+        ax.plot((e[:-1] + e[1:]) / 2, h, color=c, ls=ls)
+        pos = {3: (0.55, 1.1), 64: (0.2, 2.6), 768: (0.07, 9.0)}[d]
+        ax.text(*pos, f"d = {d}: sd {cos.std():.3f}", color=INK2, fontsize=8)
+        print(f"cosine of random vectors, d={d}: sd {cos.std():.3f} (1/sqrt(d) = {1/np.sqrt(d):.3f})")
+    ax.set_xlabel("cosine similarity of two random vectors"); ax.set_ylabel("density")
+    ax.set_title("In high dimensions, random vectors are almost orthogonal")
+    save(fig, "01-fig-1.png")
+
+    # 01-fig-2: precision of a detector as a function of prevalence
+    prev = np.logspace(-4, -0.3, 200)
+    fig, ax = plt.subplots(figsize=(W, 2.3))
+    for fpr, c, ls in ((0.05, S2, DASH[1]), (0.01, S1, DASH[0])):
+        prec = 0.95 * prev / (0.95 * prev + fpr * (1 - prev))
+        ax.plot(prev * 100, prec, color=c, ls=ls)
+        i = 120; ax.annotate(f"recall 95%, false-positive rate {fpr:.0%}", (prev[i] * 100, prec[i]),
+                             xytext=(6, -10 if fpr == 0.05 else 6), textcoords="offset points", color=INK2, fontsize=8)
+    for p in (0.001, 0.01, 0.1):
+        print(f"precision at prevalence {p:.1%}: fpr5% {0.95*p/(0.95*p+0.05*(1-p)):.3f}, fpr1% {0.95*p/(0.95*p+0.01*(1-p)):.3f}")
+    ax.set_xscale("log"); ax.set_xlabel("prevalence of positives (%)"); ax.set_ylabel("precision")
+    ax.set_xticks([0.01, 0.1, 1, 10]); ax.set_xticklabels(["0.01", "0.1", "1", "10"])
+    ax.set_title("The same detector, different base rates: precision collapses for rare events")
+    save(fig, "01-fig-2.png")
+
+
+def ch02():
+    from scipy import stats
+    rng = np.random.default_rng(0)
+    # 02-fig-1: distribution of p-values with no effect vs with a real effect
+    def pvals(effect, n=500, trials=6000):
+        a = rng.normal(0, 1, (trials, n)); b = rng.normal(effect, 1, (trials, n))
+        return stats.ttest_ind(a, b, axis=1).pvalue
+    p0, p1 = pvals(0.0), pvals(0.15)
+    fig, axes = plt.subplots(1, 2, figsize=(W, 2.1), sharey=True)
+    for ax, p, title in ((axes[0], p0, "No effect: p-values are uniform"), (axes[1], p1, "Real effect: p-values pile up near 0")):
+        ax.hist(p, bins=np.linspace(0, 1, 21), color=S1, edgecolor="white", linewidth=1)
+        ax.axvline(0.05, color=S2, lw=1, ls=DASH[1]); ax.set_title(title); ax.set_xlabel("p-value")
+        ax.grid(axis="x", visible=False)
+    axes[0].set_ylabel("experiments")
+    print(f"share p<0.05: null {np.mean(p0 < 0.05):.3f}, effect 0.15 sd with n=500/arm {np.mean(p1 < 0.05):.3f}")
+    fig.tight_layout(w_pad=1.5); save(fig, "02-fig-1.png")
+
+    # 02-fig-2: power against sample size for a 5% baseline conversion
+    n = np.logspace(3, 6.3, 300); za = stats.norm.ppf(0.975)
+    fig, ax = plt.subplots(figsize=(W, 2.3))
+    for mde, c, ls in ((0.10, S1, DASH[0]), (0.05, S2, DASH[1]), (0.02, S3, DASH[2])):
+        p1_, p2_ = 0.05, 0.05 * (1 + mde)
+        se = np.sqrt((p1_ * (1 - p1_) + p2_ * (1 - p2_)) / n)
+        power = stats.norm.cdf((p2_ - p1_) / se - za)
+        ax.plot(n, power, color=c, ls=ls)
+        k = np.searchsorted(power, 0.8)
+        ax.annotate(f"+{mde:.0%} lift: {n[k]/1000:,.0f}k", (n[k], 0.8), xytext=(-5, 5), ha="right",
+                    textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.axhline(0.8, color=MUTED, lw=0.7, ls=":")
+    ax.set_xscale("log"); ax.set_xlim(1000, 2.5e6); ax.set_xlabel("users per arm (labels: users needed for 80% power)"); ax.set_ylabel("power")
+    ax.set_title("Halving the effect you want to detect quadruples the users you need")
+    save(fig, "02-fig-2.png")
+
+    # 02-fig-3: peeking inflates false positives
+    looks = [1, 2, 5, 10, 20, 50]
+    rates = []
+    for k in looks:
+        hits = 0; trials = 3000; n_total = 10000
+        for _ in range(trials):
+            a = rng.normal(0, 1, n_total); b = rng.normal(0, 1, n_total)
+            checkpoints = np.linspace(n_total / k, n_total, k).astype(int)
+            ca, cb = np.cumsum(a), np.cumsum(b); ca2, cb2 = np.cumsum(a ** 2), np.cumsum(b ** 2)
+            for m in checkpoints:
+                ma, mb = ca[m - 1] / m, cb[m - 1] / m
+                va = ca2[m - 1] / m - ma ** 2; vb = cb2[m - 1] / m - mb ** 2
+                z = (mb - ma) / np.sqrt((va + vb) / m)
+                if abs(z) > 1.96: hits += 1; break
+        rates.append(hits / trials)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(looks, rates, color=S2, marker="o", ms=3.5)
+    for x, y in zip(looks, rates):
+        ax.annotate(f"{y:.0%}", (x, y), xytext=(0, 7), textcoords="offset points", ha="center", color=INK2, fontsize=7.5)
+    ax.axhline(0.05, color=MUTED, lw=0.7, ls=":"); ax.text(30, 0.02, "nominal 5%", color=MUTED, fontsize=7.5)
+    ax.set_xscale("log"); ax.set_xticks(looks); ax.set_xticklabels(looks); ax.set_ylim(0, max(rates) + 0.08)
+    ax.set_xlabel("number of looks, stopping at the first p < 0.05"); ax.set_ylabel("false positive rate")
+    ax.set_title("A/A tests (no real effect): every extra look adds false wins")
+    print("peeking false positive rates:", dict(zip(looks, [round(r, 3) for r in rates])))
+    save(fig, "02-fig-3.png")
+
+
+def ch03():
+    rng = np.random.default_rng(0)
+    # 03-fig-1: bias^2, variance and test error vs polynomial degree (repeated training sets)
+    f_true = lambda x: np.sin(2.5 * x)
+    x_test = np.linspace(-1, 1, 200); degrees = list(range(1, 10)); noise = 0.3
+    b2, var, test = [], [], []
+    for deg in degrees:
+        preds = []
+        for _ in range(300):
+            x = rng.uniform(-1, 1, 25); y = f_true(x) + rng.normal(0, noise, 25)
+            coef = np.polyfit(x, y, deg); preds.append(np.polyval(coef, x_test))
+        preds = np.clip(np.array(preds), -5, 5)
+        mean = preds.mean(0)
+        b2.append(np.mean((mean - f_true(x_test)) ** 2)); var.append(np.mean(preds.var(0)))
+        test.append(b2[-1] + var[-1] + noise ** 2)
+    fig, ax = plt.subplots(figsize=(W, 2.4))
+    for y, c, ls, lab in ((b2, S2, DASH[1], "bias²"), (var, S3, DASH[2], "variance"), (test, S1, DASH[0], "expected test error")):
+        ax.plot(degrees, y, color=c, ls=ls, marker="o", ms=3)
+        k = 6 if lab != "bias²" else 8
+        ax.annotate(lab, (degrees[k], min(y[k], 0.85)), xytext=(-6, 2), textcoords="offset points", ha="right", color=INK2, fontsize=8)
+    best = int(np.argmin(test)); ax.annotate(f"best: degree {degrees[best]}", (degrees[best], test[best]), xytext=(0, 8),
+                                             textcoords="offset points", ha="center", color=INK2, fontsize=7.5)
+    ax.axhline(noise ** 2, color=MUTED, lw=0.7, ls=":"); ax.text(1, noise ** 2 + 0.02, "irreducible noise", color=MUTED, fontsize=7.5)
+    ax.set_ylim(0, 0.9); ax.set_xlim(0.5, 9.5); ax.set_xticks(degrees)
+    ax.set_xlabel("polynomial degree (model flexibility)"); ax.set_ylabel("mean squared error")
+    ax.set_title("Flexibility trades bias for variance (25 training points, 300 resamples)")
+    print("bias-variance:", [(d, round(b, 3), round(v, 3)) for d, b, v in zip(degrees, b2, var)][:8], "best degree", degrees[best])
+    save(fig, "03-fig-1.png")
+
+    # 03-fig-2: gradient descent vs momentum on an elongated quadratic
+    A = np.array([1.0, 25.0])                         # curvatures along x and y
+    def run(lr, beta, steps=60):
+        w = np.array([-4.5, 1.2]); v = np.zeros(2); path = [w.copy()]
+        for _ in range(steps):
+            g = A * w; v = beta * v + g; w = w - lr * v; path.append(w.copy())
+        return np.array(path)
+    gd, mom = run(0.075, 0.0), run(0.03, 0.8)
+    xx, yy = np.meshgrid(np.linspace(-5, 1, 200), np.linspace(-1.6, 1.6, 200))
+    fig, ax = plt.subplots(figsize=(W, 2.4))
+    ax.contour(xx, yy, 0.5 * (A[0] * xx ** 2 + A[1] * yy ** 2), levels=[0.5, 2, 5, 10, 20], colors=GRID, linewidths=0.8)
+    ax.plot(gd[:30, 0], gd[:30, 1], color=S2, ls=DASH[1], marker="o", ms=2.5, lw=1.1)
+    ax.plot(mom[:30, 0], mom[:30, 1], color=S1, marker="o", ms=2.5, lw=1.1)
+    ax.text(-1.6, 1.25, "dashed: gradient descent, lr 0.075\nsolid: momentum 0.8, lr 0.03", color=INK2, fontsize=7.5, va="top")
+    ax.grid(False); ax.set_xlabel("w₁ (low curvature)"); ax.set_ylabel("w₂ (high curvature)")
+    ax.set_title("A narrow valley: momentum averages out the oscillation")
+    loss = lambda p: 0.5 * (A[0] * p[:, 0] ** 2 + A[1] * p[:, 1] ** 2)
+    print(f"loss after 30 steps: GD {loss(gd)[30]:.4f}, momentum {loss(mom)[30]:.4f}")
+    save(fig, "03-fig-2.png")
+
+
+def ch04():
+    from sklearn.datasets import make_classification
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import roc_curve, precision_recall_curve, roc_auc_score, average_precision_score
+    # 04-fig-1: ROC vs PR for two models under heavy imbalance
+    X, y = make_classification(n_samples=60000, n_features=20, n_informative=6, weights=[0.995], flip_y=0.001, class_sep=0.9, random_state=1)
+    Xtr, Xte, ytr, yte = X[:30000], X[30000:], y[:30000], y[30000:]
+    m1 = LogisticRegression(max_iter=2000).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    m2 = RandomForestClassifier(n_estimators=200, min_samples_leaf=3, n_jobs=-1, random_state=0).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    fig, axes = plt.subplots(1, 2, figsize=(W, 2.5))
+    for p, c, ls, name in ((m1, S2, DASH[1], "logistic regression"), (m2, S1, DASH[0], "random forest")):
+        fpr, tpr, _ = roc_curve(yte, p); pr, rc, _ = precision_recall_curve(yte, p)
+        axes[0].plot(fpr, tpr, color=c, ls=ls, label=f"{name} (AUC {roc_auc_score(yte, p):.3f})")
+        axes[1].plot(rc, pr, color=c, ls=ls, label=f"{name} (AP {average_precision_score(yte, p):.3f})")
+        print(f"{name}: ROC-AUC {roc_auc_score(yte, p):.3f}, AP {average_precision_score(yte, p):.3f}, positives {yte.mean():.4f}")
+    axes[0].plot([0, 1], [0, 1], color=MUTED, lw=0.7, ls=":")
+    axes[1].axhline(yte.mean(), color=MUTED, lw=0.7, ls=":")
+    axes[0].set_xlabel("false positive rate"); axes[0].set_ylabel("recall"); axes[0].set_title("ROC: both look strong")
+    axes[1].set_xlabel("recall"); axes[1].set_ylabel("precision"); axes[1].set_title("PR: the gap is visible")
+    axes[0].legend(fontsize=7, loc="lower right"); axes[1].legend(fontsize=6.5, loc="upper right")
+    fig.tight_layout(w_pad=2); save(fig, "04-fig-1.png")
+
+    # 04-fig-2: reliability diagram before and after Platt scaling
+    rng = np.random.default_rng(0)
+    true_p = rng.beta(1.2, 5, 40000); yy = (rng.random(40000) < true_p).astype(int)
+    raw = true_p ** 0.45                                # an over-confident, monotone distortion
+    cal = LogisticRegression().fit(np.log(raw[:20000] / (1 - raw[:20000] + 1e-9)).reshape(-1, 1), yy[:20000])
+    fixed = cal.predict_proba(np.log(raw[20000:] / (1 - raw[20000:] + 1e-9)).reshape(-1, 1))[:, 1]
+    def curve(p, y):
+        b = np.minimum((p * 10).astype(int), 9); xs, ys, ws = [], [], []
+        for k in range(10):
+            m = b == k
+            if m.sum() > 50: xs.append(p[m].mean()); ys.append(y[m].mean()); ws.append(m.mean())
+        ece = sum(w * abs(a - c) for a, c, w in zip(xs, ys, ws))
+        return xs, ys, ece
+    fig, ax = plt.subplots(figsize=(W * 0.62, 2.6))
+    ax.plot([0, 1], [0, 1], color=MUTED, lw=0.7, ls=":")
+    for p, y_, c, ls, name in ((raw[20000:], yy[20000:], S2, DASH[1], "raw scores"), (fixed, yy[20000:], S1, DASH[0], "after Platt scaling")):
+        xs, ys, ece = curve(p, y_); ax.plot(xs, ys, color=c, ls=ls, marker="o", ms=3)
+        ax.text(0.03 if name.startswith("after") else 0.42, 0.85 if name.startswith("after") else 0.12,
+                f"{'solid' if name.startswith('after') else 'dashed'}: {name}, ECE {ece:.3f}", color=INK2, fontsize=7.5)
+        print(f"{name}: ECE {ece:.3f}")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_xlabel("mean predicted probability"); ax.set_ylabel("observed frequency")
+    ax.set_title("Reliability diagram")
+    save(fig, "04-fig-2.png")
+
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]

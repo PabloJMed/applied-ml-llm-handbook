@@ -138,3 +138,15 @@ def by_slice(df, col, metric, min_rows=200):
             rows.append({col: key, "n": len(g), "positives": int(g["y"].sum()), "metric": metric(g)})
     return pd.DataFrame(rows).sort_values("metric")
 print(by_slice(df, "city", auc))
+
+# ---- second-edition worked examples ---------------------------------------------------------
+def dcg(rels):
+    return sum((2 ** r - 1) / np.log2(i + 2) for i, r in enumerate(rels))
+ranked = [3, 2, 0, 1]
+print(f"NDCG worked example: DCG {dcg(ranked):.3f}, ideal {dcg(sorted(ranked, reverse=True)):.3f}, NDCG {dcg(ranked)/dcg(sorted(ranked, reverse=True)):.3f}")
+swapped = [0, 2, 3, 1]
+print(f"best item moved to rank 3: NDCG {dcg(swapped)/dcg(sorted(swapped, reverse=True)):.3f}")
+# AUC as a pairwise probability, by brute force on a tiny example
+ys = np.array([1, 0, 1, 0, 0]); sc = np.array([0.9, 0.8, 0.4, 0.3, 0.1])
+pairs = [(i, j) for i in range(5) for j in range(5) if ys[i] == 1 and ys[j] == 0]
+print("AUC by counting pairs:", np.mean([sc[i] > sc[j] for i, j in pairs]), "of", len(pairs), "pairs")

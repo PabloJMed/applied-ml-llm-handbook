@@ -43,6 +43,16 @@ A model's expected error on new data splits into three parts:
 
 More flexible models lower bias and raise variance; more data lowers variance; regularisation trades a little bias for less variance.
 
+**Where the decomposition comes from.** Imagine training the same model many times, each time on a fresh training set drawn from the same source, and predicting at one input x. The predictions scatter around their average f̄(x). The expected squared error against the truth f(x) plus noise splits cleanly: (f̄(x) − f(x))² is the bias², how far the *average* model is from the truth; the scatter of predictions around f̄(x) is the variance; and the noise in the labels is the irreducible part. The cross terms vanish because the noise is independent of the training set.
+
+The figure makes it concrete. Polynomials of increasing degree are fitted to 25 noisy points from a sine curve, 300 times with fresh data each time:
+
+![Diagram](images/03-fig-1.png)
+
+*Bias² falls to almost zero by degree 3, while variance keeps climbing (0.03 at degree 3, 0.56 at degree 8); total expected error is lowest at degree 3. Computed in `tools/figures.py`.*
+
+A degree-1 or 2 model cannot bend enough to follow the sine (bias), a degree-8 model bends to follow each sample's noise (variance), and the best model is the simplest one flexible enough for the true pattern.
+
 **Diagnosing from learning curves** (training and validation error as training-set size grows):
 
 | What you see | Diagnosis | What helps |
@@ -68,6 +78,8 @@ The loss is what training optimises; choose it so its optimum is what the busine
 | Hinge | max(0, 1 − y·f) with y in {−1, 1} | Margin | SVMs |
 | Focal | −(1−pₜ)^γ log pₜ | Down-weights easy examples | Extreme imbalance, dense detection |
 | Ranking losses | Pairwise, listwise | Correct order | Search and recommendation (Chapter 44) |
+
+**Why each loss predicts what it predicts.** For a fixed input with uncertain outcome Y, the best constant prediction p minimises the expected loss. For squared error, E[(Y − p)²] = Var(Y) + (E[Y] − p)², minimised at p = E[Y]: the **mean**. For absolute error, moving p up by a small step costs the probability mass below p and saves the mass above it; the two balance where half the mass is on each side: the **median**. For the pinball loss at q, the costs are weighted q and 1 − q, so the balance point has a fraction q of the mass below it: the **q-th quantile**. This is why an ETA model trained with squared error is late half the time, and why a promise you want to meet 90% of the time should be trained with the 0.9 pinball loss.
 
 ```python
 import numpy as np
@@ -100,6 +112,8 @@ Regularisation limits model complexity to reduce variance.
 - **Model-specific:** tree depth, minimum samples per leaf and learning rate in boosting (Chapter 40); dropout and data augmentation in neural networks (Chapter 5).
 
 **Why L1 gives zeros:** geometrically, the L1 constraint region is a diamond with corners on the axes, and the loss contours usually first touch it at a corner, where some weights are zero. The L2 region is a circle with no corners.
+
+**How much L2 shrinks, in one dimension.** For a single feature, ridge regression gives w = (x·y) / (x·x + λ): the penalty simply adds λ to the denominator. On 50 points with a true slope of 2, the least-squares slope is 2.18; λ = 10 gives 1.79, λ = 50 gives 1.04 and λ = 200 gives 0.40. The penalty matters relative to x·x, which grows with the number of examples, so the same λ regularises less as data grows: regularisation is most useful exactly when data is scarce.
 
 Regularisation strength is a hyperparameter: tune it on validation data, and scale features first, since penalties on unscaled features punish features measured in small units unfairly.
 
@@ -148,7 +162,15 @@ def train(X, y, optimizer, lr, epochs=20, batch=64, seed=0):
     return w
 ```
 
-On synthetic data with true weights [2, −1, 0.5, 0, 0], all three recover about [1.94, −1.02, 0.56, 0.02, 0.1], close to scikit-learn's unregularised fit. This is a common coding-round task: "implement logistic regression with gradient descent". Know it cold.
+On synthetic data with true weights [2, −1, 0.5, 0, 0], all three recover about [1.94, −1.02, 0.56, 0.02, 0.1], close to scikit-learn's unregularised fit.
+
+**Why momentum helps.** Real loss surfaces are often shaped like long narrow valleys: steep across, shallow along. Plain gradient descent must use a learning rate small enough not to diverge across the steep direction, which makes it crawl along the shallow one, and it bounces between the valley walls. Momentum accumulates the consistent part of the gradient (along the valley) and lets the alternating part (across it) cancel out.
+
+![Diagram](images/03-fig-2.png)
+
+*Thirty steps on the loss ½(w₁² + 25 w₂²), whose curvature differs 25-fold between directions. After 30 steps, gradient descent reaches loss 0.100 and momentum 0.033.*
+
+The ratio between the steepest and shallowest curvature (the condition number, 25 here) is what makes optimisation hard, and adaptive methods such as Adam, which rescale each parameter by its own gradient size, attack the same problem from a different angle (Chapter 7). This is a common coding-round task: "implement logistic regression with gradient descent". Know it cold.
 
 ## 3.6 Train, validation and test splits
 
@@ -194,6 +216,8 @@ Leakage is information in training that will not be available at prediction time
 | Label-definition leakage | The label's window overlaps the feature window | Gaps equal to the label horizon |
 
 **Warning signs:** a single feature with enormous importance; validation scores far better than any published or previous result; offline-online gaps after launch. When results look too good, assume leakage until proven otherwise.
+
+**A worked leak.** Suppose customer behaviour flips every few weeks (promotion periods on and off), and the row's timestamp is available as a feature. With a random split, test rows come from the same periods as training rows, so a gradient-boosted model learns "in this time range, the relationship goes this way" and scores an AUC of 0.633. With an honest time split, the test period is new and the timestamp feature is useless: AUC 0.521, barely better than chance. Nothing in the model changed; only the split. The random-split number described a situation that will never occur in production: predicting a period you have already seen (the simulation is in `code/ch03_check.py`).
 
 ## 3.8 Feature engineering
 

@@ -96,3 +96,19 @@ ps = LogisticRegression().fit(x1.reshape(-1, 1), t).predict_proba(x1.reshape(-1,
 ps = np.clip(ps, 0.01, 0.99)
 ate = np.mean(t * y / ps) - np.mean((1 - t) * y / (1 - ps))
 print("naive", round(naive, 2), "ipw", round(ate, 2))
+
+# ---- second-edition worked examples ---------------------------------------------------------
+rng = np.random.default_rng(1)
+a = rng.normal(20, 5, 200); b = rng.normal(21, 5, 200)
+obs = b.mean() - a.mean()
+pooled = np.concatenate([a, b]); count = 0
+for _ in range(10000):
+    rng.shuffle(pooled)
+    count += abs(pooled[200:].mean() - pooled[:200].mean()) >= abs(obs)
+print(f"permutation test: observed diff {obs:.3f}, p = {count/10000:.4f}; Welch p = {stats.ttest_ind(b, a, equal_var=False).pvalue:.4f}")
+# winner's curse: significant results from underpowered tests exaggerate the effect
+true_effect, se = 0.1, 0.1                      # ~17% power
+est = rng.normal(true_effect, se, 200000)
+sig = est[np.abs(est / se) > 1.96]
+print(f"power {np.mean(np.abs(est/se) > 1.96):.2f}; mean significant estimate {sig[sig > 0].mean():.3f} vs true {true_effect} "
+      f"(x{sig[sig > 0].mean()/true_effect:.1f}); share of significant results with the wrong sign {np.mean(sig < 0):.3f}")

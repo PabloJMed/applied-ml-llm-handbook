@@ -91,6 +91,8 @@ def roc_auc(y_true, scores):
     return (ranks[y_true == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
 ```
 
+**AUC by counting pairs.** Five items with labels [1, 0, 1, 0, 0] and scores [0.9, 0.8, 0.4, 0.3, 0.1]: there are 2 × 3 = 6 (positive, negative) pairs. The positive scored 0.9 beats all three negatives; the positive scored 0.4 beats two of them (0.3 and 0.1) but not 0.8. Five of six pairs are ordered correctly, so AUC = 0.833. The rank formula above computes the same count without enumerating pairs, in O(n log n).
+
 **PR curve and average precision (PR-AUC).** Plot precision against recall. Average precision summarises it as the mean of the precision at each position where a positive appears in the sorted list:
 
 ```python
@@ -112,6 +114,12 @@ Both match scikit-learn's `roc_auc_score` and `average_precision_score` on a tes
 | Sensitive to | Ranking of positives vs negatives overall | Precision among the top-scored items |
 | Under heavy imbalance | Can look excellent (0.95) while precision at useful thresholds is poor, because the huge number of true negatives keeps FPR small | Shows the problem clearly |
 | Use when | Classes are roughly balanced, or you care about the whole ranking | Positives are rare and you act on the top of the list (fraud, moderation, rare-event detection) |
+
+The figure shows the difference on a dataset with 0.55% positives. A logistic regression and a random forest have ROC-AUCs of 0.885 and 0.942: both "good". Their average precisions are 0.520 and 0.732, which tells you the forest is far better exactly where a fraud team works: at the top of the list.
+
+![Diagram](images/04-fig-1.png)
+
+*ROC and precision–recall curves for the same two models on the same test set (computed in `tools/figures.py`). The dotted lines are random baselines: the diagonal for ROC, the positive rate (0.0055) for PR.*
 
 AUC is also blind to calibration: multiply all scores by 0.1 and AUC does not change, but any decision based on the probability does. That is why 4.3 exists.
 
@@ -160,6 +168,12 @@ p_iso = iso.predict(score_test)
 ```
 
 On a synthetic test with a badly calibrated score, both methods cut ECE from about 0.24 to about 0.02 without changing AUC, because both mappings are monotone.
+
+![Diagram](images/04-fig-2.png)
+
+*An over-confident score (dashed): cases scored 0.6 turn out positive only about 35% of the time. After Platt scaling fitted on a separate half of the data (solid), the points sit on the diagonal; ECE falls from 0.251 to 0.009.*
+
+**Why models are miscalibrated in the first place.** Boosted trees and neural networks are trained to minimise loss, and with enough capacity they push training-set probabilities towards 0 and 1, which makes them over-confident on new data. Resampling and class weights shift the base rate the model believes in. And temperature, label smoothing or a change in the population after training all move probabilities without changing rankings. Calibration is therefore a separate property to check every time probabilities are used as numbers.
 
 **Negative downsampling breaks calibration, predictably.** If you keep only a fraction w of negatives for training (common in ad click prediction), the model over-predicts. Correct with `q = p / (p + (1 − p) / w)` (worked design E.7).
 
@@ -240,6 +254,8 @@ Ranking metrics evaluate an ordered list per query or user, then average over qu
 | MRR | Mean of 1 / rank of the first relevant item | No | One right answer (navigational search, "did we find the restaurant") |
 | MAP | Mean over queries of average precision (4.2) | No | Several relevant items, all equally good |
 | NDCG@k | DCG with gains 2^rel − 1 and a 1/log₂(rank + 1) discount, divided by the ideal DCG | Yes | Default for graded relevance |
+
+**NDCG by hand.** A query returns four results with graded relevance [3, 2, 0, 1] (3 = perfect). With gains 2^rel − 1 and discount 1/log₂(rank + 1): DCG = 7/1 + 3/1.585 + 0/2 + 1/2.322 = 9.323. The ideal order [3, 2, 1, 0] gives 9.393, so NDCG = 0.993: only the last two items are swapped, and low positions are heavily discounted. Moving the best result from rank 1 to rank 3 instead ([0, 2, 3, 1]) drops NDCG to 0.620. The metric is designed to punish mistakes at the top, where users look.
 
 Two traps from the later chapters worth repeating: compute the ideal DCG from **all** known relevant items, not just the retrieved ones (Chapter 44.9), and do not evaluate against "the true item plus 100 random negatives" (Chapter 43.10). And for per-user ranking of a classifier's scores, **GAUC** (AUC computed per user, then averaged weighted by impressions) is what ad and feed teams often report, because a global AUC mixes up between-user differences with within-user ranking quality.
 
