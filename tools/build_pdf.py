@@ -28,9 +28,7 @@ FONTS = ROOT / "tools" / "fonts"
 OUT = ROOT / "AI-and-LLM-Scientist-Handbook.pdf"
 
 TITLE = "The AI & LLM Scientist Handbook"
-SUBTITLE = ("From the maths underneath to how large language models are pretrained, post-trained, "
-            "served, evaluated and understood: theory, working code, research craft and interviews, "
-            "in one place.")
+SUBTITLE = "A self-study guide for research scientists and ML engineers working with large language models"
 AUTHORS = "Pablo Medina & Claude Opus 5.5"
 EDITION = "Second edition · November 2026"
 REPO = "github.com/PabloJMed/applied-ml-llm-handbook"
@@ -128,6 +126,10 @@ h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-b
 .box p {{ margin-bottom: {s(0.45)}; }}
 
 .cover {{ page-break-after: always; }}
+.dedication {{ page-break-after: always; }}
+.dedication p {{ font-family: serif; font-style: italic; font-size: {s(1.15)}; line-height: 1.5; color: #3d3b37; text-align: center; margin: 0; }}
+.dedication p.top {{ padding-top: {s(16)}; }}
+.dedication p.sig {{ font-style: normal; font-family: sans; font-size: {s(0.82)}; color: #8a8882; margin: {s(0.6)} 0 {s(3.2)} 0; }}
 .cover-title {{ font-family: sans; font-weight: bold; font-size: {s(3.6)}; line-height: 1.08; color: #1a1a18; margin: {s(11)} 0 0 0; }}
 .cover-sub {{ font-family: serif; font-size: {s(1.22)}; line-height: 1.45; color: #4f4d48; margin: {s(2.6)} {s(2)} 0 0; }}
 .cover-author {{ font-family: sans; font-weight: bold; font-size: {s(1.45)}; color: #1a1a18; margin: {s(3.2)} 0 0 0; }}
@@ -303,6 +305,13 @@ def build_html(positions: list | None) -> str:
 <p class="cover-parts">{parts_list}</p>
 <p class="cover-edition">{EDITION}</p>
 </div>""")
+    out.append("""
+<div class="dedication">
+<p class="top">To whoever makes it past Chapter 13.<br>I see you.</p>
+<p class="sig">— Pablo</p>
+<p>To Claudia,<br>who would have done it in half the tokens.</p>
+<p class="sig">— Opus</p>
+</div>""")
 
     toc = ['<div class="toc"><h1 id="contents">Contents</h1><table>',
            f'<tr><td class="num"></td><td><a href="#ch-00">Overview: how to use this handbook</a></td><td class="pg">{pg("ch-00")}</td></tr></table>']
@@ -421,6 +430,8 @@ def main() -> int:
         page.wrap_contents()          # Story output leaves a flipped CTM; isolate it before adding content
         n = pno + 1
         W, H = page.rect.width, page.rect.height
+        if n == 2:
+            continue                  # dedication page: no number
         if n == 1:
             shape = page.new_shape()
             shape.draw_rect(page.rect); shape.finish(fill=COVER_BG, color=None)
@@ -448,7 +459,7 @@ def main() -> int:
     # ---- bookmarks: parts > chapters > sections
     key_by_id = {f"ch-{k}": k for k in order}
     part_of = {keys[0]: (f"Part {num} · {name}" if num else name) for num, name, keys in PARTS}
-    toc = [[1, "Cover", 1], [1, "Contents", 2]]
+    toc = [[1, "Cover", 1], [1, "Dedication", 2], [1, "Contents", 3]]
     chap_level = 1
     for level, text, page, anchor in sections:
         if level == 1 and anchor in key_by_id:
