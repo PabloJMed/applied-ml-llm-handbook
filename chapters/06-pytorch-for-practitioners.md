@@ -32,6 +32,8 @@ y.backward()
 print(x.grad)                   # tensor([7., 6.])  -> dy/dx0 = 2*2+3, dy/dx1 = 2*3
 ```
 
+**What autograd actually stores.** Every operation on a tensor that requires gradients adds a node to a graph and saves whatever it needs for its backward pass: a multiplication saves both inputs, a ReLU saves which entries were positive, a softmax saves its output. Those saved tensors are why training uses far more memory than inference: for a transformer, the activations saved for backward usually exceed the weights for long sequences (Chapter 17 does the arithmetic). After `.backward()` the graph is freed; `torch.no_grad()` never builds it. Activation checkpointing trades compute for memory by saving only some activations and recomputing the rest during the backward pass.
+
 Rules worth saying out loud in an interview:
 
 - `.backward()` only works on a scalar (or needs a `gradient=` argument). Losses are reduced to a scalar for that reason.
@@ -56,6 +58,8 @@ class ReorderModel(nn.Module):
     def forward(self, x):
         return self.net(x).squeeze(-1)   # logits, shape (B,)
 ```
+
+**The broadcasting bug, worked through.** A regression model returns predictions of shape (4, 1); the targets have shape (4,). `((pred - target) ** 2).mean()` does not fail: broadcasting stretches (4, 1) against (4,) into a (4, 4) matrix of every prediction minus every target, and the "loss" averages 16 numbers, 12 of which compare a prediction with someone else's target. The model trains towards predicting the mean of all targets and the loss curve looks plausible. Assert shapes at the loss (`assert pred.shape == target.shape`), or `squeeze` explicitly.
 
 Return **logits**, not probabilities, and use `BCEWithLogitsLoss` / `CrossEntropyLoss`: they fuse the sigmoid/softmax with the log for numerical stability. A plain Python list of layers is invisible to PyTorch; use `nn.ModuleList` or `nn.ModuleDict`. Non-trainable state that must move with the model (a running mean, a fixed embedding) goes in `self.register_buffer`.
 
@@ -148,6 +152,14 @@ with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
 - When memory runs out: smaller batch plus gradient accumulation, gradient checkpointing (recompute activations in backward), shorter sequences, 8-bit optimisers, or parameter-efficient fine-tuning.
 - `torch.compile(model)` often gives a free speed-up on recent GPUs; check it does not change results before trusting it.
 
+**Finding a learning rate in one run.** Before tuning anything else, run a learning-rate range test: start at a tiny rate, multiply it a little every step, and record the (smoothed) training loss until it blows up. The loss stays flat while the rate is too small to matter, falls fastest in the useful range, and diverges when the rate is too large. A good starting rate is about ten times below the point where the loss is lowest.
+
+![Diagram](images/06-fig-1.png)
+
+*Range test on a small MLP with SGD and momentum (computed in `tools/figures.py`): the loss is lowest near 0.62, so start training around 0.06.*
+
+The test takes one short run, and it is a quick defence against the most common reason a model "does not learn": a learning rate off by a factor of 100 in either direction.
+
 ## 6.6 Checkpointing
 
 Save `state_dict` s, not pickled models: they survive refactors of your class. Save the optimizer and scheduler too, or resumed training restarts Adam's moments from zero and the learning rate from the top.
@@ -203,6 +215,18 @@ the code, not the data.
 7. Compare with a simple baseline (logistic regression, LightGBM). On tabular data a well-tuned GBM usually wins (Chapter 40).
 
 **Scaling beyond one GPU.** The training loop here becomes distributed with DistributedDataParallel, then fully sharded data parallelism (FSDP2) when the model no longer fits, then tensor, pipeline and context parallelism for the largest models. Chapter 17 covers the memory and communication arithmetic; Chapter 7 covers the optimisers, schedules and numerical formats used at scale.
+
+## 6.10 Where the time goes
+
+A training step that is slower than it should be is almost always waiting on one of three things.
+
+**Waiting for data.** If the GPU finishes a batch before the next one is ready, it idles. Measure it directly: time how long the loop spends fetching the next batch versus running forward and backward. If data time is a large share, raise `num_workers` (parallel loading processes), set `pin_memory=True` (faster host-to-GPU copies), pre-tokenise and store data in a compact binary format instead of parsing text on the fly, and move augmentation onto the GPU.
+
+**Waiting for synchronisation.** GPU work is queued asynchronously: Python launches kernels and moves on. Anything that needs a result on the CPU forces the program to wait for the queue to drain: `.item()`, `.cpu()`, printing a tensor, a Python `if` on a tensor value. One `.item()` per step to log the loss is fine; one per sample inside a loop serialises everything. Log every N steps, and accumulate metrics on the GPU.
+
+**Doing too many small operations.** Each kernel launch has a fixed overhead of a few microseconds. Models built from many small elementwise operations (normalisations, activations, masking) are often limited by launch overhead and memory traffic rather than arithmetic. `torch.compile` fuses chains of such operations into fewer kernels and typically speeds up transformer training noticeably; fused kernels for attention (`F.scaled_dot_product_attention`) and optimisers (`fused=True` in AdamW) do the same for the heaviest parts.
+
+**A quick diagnosis routine.** Check GPU utilisation while training (`nvidia-smi` or the profiler); if it is well below 90%, find which of the three it is. Run `torch.profiler` for a dozen steps and read the table sorted by time: the top entries name the problem. Only then consider bigger levers such as larger batches, mixed precision or a different parallel layout (Chapter 17).
 
 ## Pitfalls
 

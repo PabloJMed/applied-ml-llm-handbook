@@ -65,6 +65,12 @@ Three phases appear in nearly every LLM run:
 | 900 | 3.81e-05 | 1.50e-04 |
 | 999 | 3.00e-05 | 1.50e-06 |
 
+![Diagram](images/07-fig-1.png)
+
+*The two schedules from the table, and a WSD branch decayed early from step 500 (dotted). A WSD run can produce a finished model from any checkpoint of its stable phase; a cosine run is only finished at its planned end.*
+
+**Why the loss drops when the learning rate decays.** With a large learning rate, SGD and Adam do not settle at the bottom of the loss valley; the gradient noise keeps them bouncing around it at a height that grows with the learning rate. Lowering the rate shrinks the bounce, and the loss falls quickly to the valley floor that the stable phase had already found. The stable phase does the exploring; the decay collects the result. This is also why the final decay is the best moment to switch to the highest-quality data (annealing, Chapter 16).
+
 WSD runs show a higher loss than cosine runs during the stable phase, then catch up and usually overtake during the decay. Comparing two runs mid-training with different schedules is therefore meaningless: compare at matched decayed checkpoints.
 
 ## 7.3 Batch size, gradient noise and the critical batch size
@@ -131,6 +137,12 @@ The check script shows the core problem. One Adam step on a three-layer MLP, sam
 | 64 | 0.110 | 0.029 |
 | 256 | 0.802 | 0.031 |
 | 1,024 | 5.639 | 0.030 |
+
+![Diagram](images/07-fig-2.png)
+
+*The same experiment extended to width 2,048 (log scales). Under the standard parametrisation the effect of one step grows roughly in proportion to width, from 0.11 at width 64 to 16 at width 2,048; under µP it stays near 0.03.*
+
+**Why the effect grows with width.** In a layer of width n, a weight update from Adam has roughly the same size for every weight, and each output unit sums n such contributions that all point the same way (they were computed from the same gradient signal). The change in the output therefore grows like n, while a random weight perturbation would only grow like √n. µP scales the learning rate by 1/n for these layers so that the summed change stays constant.
 
 Under SP, the same step moves the output 50× more at width 1,024 than at 64: a learning rate that is safe for the small model blows up the large one. Under µP the effect is constant, so the best learning rate found on a small proxy model transfers. This is **µTransfer**: tune on a 40M-parameter proxy, train the 10B model once. Several labs use µP or close variants; others fit learning-rate scaling laws instead (Chapter 13). Either way, "we tuned hyperparameters at small scale and they transferred" is a claim to check, not assume.
 

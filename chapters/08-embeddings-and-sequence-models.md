@@ -23,6 +23,8 @@ Code below was run with PyTorch on CPU; quoted outputs are from that run.
 
 A one-hot vector for a 50k vocabulary is 50k long, sparse, and says every pair of words is equally different. A learned embedding maps each id to a dense vector of, say, 300 dimensions where similar words end up close. `nn.Embedding(V, d)` is just a lookup table of shape `(V, d)`, mathematically the same as a one-hot vector times a weight matrix, but without building the one-hot.
 
+**One-hot times a matrix is a lookup.** Multiplying a one-hot row vector (all zeros except a 1 at position i) by a V × d matrix picks out row i. That is all an embedding layer does, and its gradient touches only the rows of the tokens in the batch, which is why embedding tables of millions of rows train efficiently with sparse updates.
+
 The idea that makes them learnable is the **distributional hypothesis**: words that appear in similar contexts have similar meanings. Every method in this section is a different way to turn co-occurrence into vectors.
 
 ## 8.2 word2vec
@@ -58,6 +60,8 @@ class SGNS(nn.Module):
 
 The famous analogy result (king − man + woman ≈ queen) is real but cherry-picked; do not oversell it in interviews. What matters more: SGNS was later shown to be implicitly factorising a shifted PMI (pointwise mutual information) matrix (Levy and Goldberg, 2014), which links it to the count-based methods below.
 
+**PMI in a worked example.** Pointwise mutual information compares how often two words appear together with how often they would by chance: PMI(w, c) = log₂ [P(w, c) / (P(w) P(c))]. In a corpus of 10,000 (word, context) pairs where "sushi" appears 100 times, "fish" 200 times and "the" 2,000 times: "sushi" next to "fish" 30 times gives log₂(0.003 / (0.01 × 0.02)) = log₂ 15 = 3.91 bits, a strong association. "the" next to "fish" 40 times is *more* frequent in raw counts, but 0.004 / (0.2 × 0.02) = 1, so PMI = 0: exactly what chance predicts. Raw co-occurrence counts are dominated by frequent words; PMI removes that, and SGNS embeddings end up with dot products close to PMI (shifted by log k for k negative samples).
+
 **Item2vec.** Replace sentences with sessions or baskets and words with items: you get item embeddings for "customers who ordered X also ordered Y" and as features for a ranker. This is a cheap, strong baseline for food and grocery catalogues.
 
 ## 8.3 GloVe and fastText
@@ -80,7 +84,13 @@ The problem is training. Backpropagation through time multiplies by `W_h` (and t
 - `c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t`;
 - output gate `o_t`, and `h_t = o_t ⊙ tanh(c_t)`.
 
-Because `c_t` is a sum rather than a repeated matrix product, gradients can flow across many steps when the forget gate stays near 1 (the same idea as residual connections in Chapter 5). **GRU** (Cho et al., 2014) merges the gates into two (update and reset) and drops the separate cell: fewer parameters, usually similar accuracy.
+![Diagram](images/08-fig-1.png)
+
+*How much the final hidden state depends on the input k steps earlier (norm of the gradient, averaged over 20 random sequences, randomly initialised layers of width 32). After 20 steps the vanilla RNN's gradient has fallen to 5 × 10⁻⁸ of its value at the last step; the LSTM's to 10⁻², a million times more signal.*
+
+Because `c_t` is a sum rather than a repeated matrix product, gradients can flow across many steps when the forget gate stays near 1 (the same idea as residual connections in Chapter 5). **One LSTM step by hand.** Take a single cell with old cell state c = 2.0. Suppose the gates come out as forget f = 0.9, input i = 0.2, output o = 0.5, and the candidate g = −1.0. Then c_new = 0.9 × 2.0 + 0.2 × (−1.0) = 1.6, and h = 0.5 × tanh(1.6) = 0.46. Most of the old memory survived (the forget gate kept 90% of it), a little new information was written, and the output gate exposed about half of the squashed state. Over 20 steps with f around 0.9, the old content decays as 0.9²⁰ ≈ 0.12: a slow, controllable fade, instead of the repeated multiplication by a weight matrix and a tanh derivative that destroys an RNN's signal (see the figure below).
+
+**GRU** (Cho et al., 2014) merges the gates into two (update and reset) and drops the separate cell: fewer parameters, usually similar accuracy.
 
 ```python
 class LSTMClassifier(nn.Module):

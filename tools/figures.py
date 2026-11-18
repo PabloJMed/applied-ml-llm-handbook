@@ -438,6 +438,139 @@ def ch04():
     ax.set_title("Reliability diagram")
     save(fig, "04-fig-2.png")
 
+# ---------------------------------------------------------------------------------------------
+def ch05():
+    import torch, torch.nn as nn
+    from sklearn.linear_model import LogisticRegression
+    rng = np.random.default_rng(0); torch.manual_seed(0)
+    # spiral data, 3 classes
+    n = 200; X, y = [], []
+    for c in range(3):
+        r = np.linspace(0.05, 1, n); t = np.linspace(c * 4, (c + 1) * 4, n) + rng.normal(0, 0.2, n)
+        X.append(np.c_[r * np.sin(t), r * np.cos(t)]); y += [c] * n
+    X = np.vstack(X); y = np.array(y)
+    lr = LogisticRegression(max_iter=2000).fit(X, y)
+    mlp = nn.Sequential(nn.Linear(2, 64), nn.ReLU(), nn.Linear(64, 3))
+    opt = torch.optim.Adam(mlp.parameters(), lr=0.02); Xt = torch.tensor(X, dtype=torch.float32); yt = torch.tensor(y)
+    for _ in range(1500):
+        loss = nn.functional.cross_entropy(mlp(Xt), yt); opt.zero_grad(); loss.backward(); opt.step()
+    xx, yy = np.meshgrid(np.linspace(-1.1, 1.1, 250), np.linspace(-1.1, 1.1, 250)); grid = np.c_[xx.ravel(), yy.ravel()]
+    cmap = matplotlib.colors.ListedColormap(["#d6e6f8", "#fbdccd", "#cdeee1"])
+    fig, axes = plt.subplots(1, 2, figsize=(W, 2.7))
+    for ax, pred, title in ((axes[0], lr.predict(grid), f"Logistic regression: {lr.score(X, y):.0%} accuracy"),
+                            (axes[1], mlp(torch.tensor(grid, dtype=torch.float32)).argmax(1).numpy(),
+                             f"MLP, 64 hidden units: {(mlp(Xt).argmax(1).numpy() == y).mean():.0%} accuracy")):
+        ax.contourf(xx, yy, pred.reshape(xx.shape), levels=[-0.5, 0.5, 1.5, 2.5], cmap=cmap)
+        for c, col, mk in ((0, S1, "o"), (1, S2, "s"), (2, S3, "^")):
+            ax.scatter(X[y == c, 0], X[y == c, 1], s=5, color=col, marker=mk, linewidths=0)
+        ax.set_title(title); ax.set_xticks([]); ax.set_yticks([]); ax.grid(False); ax.set_aspect("equal")
+        for sp in ax.spines.values(): sp.set_visible(False)
+    fig.tight_layout(w_pad=1.5); save(fig, "05-fig-1.png")
+
+    # 05-fig-2: activation scale through 20 ReLU layers under three initialisations
+    xin = rng.standard_normal((512, 256)); fig, ax = plt.subplots(figsize=(W, 2.3))
+    for name, std_fn, c, ls in (("std 0.01", lambda d: 0.01, S2, DASH[1]), ("std 1.0", lambda d: 1.0, S3, DASH[2]),
+                                ("He: std √(2/fan_in)", lambda d: np.sqrt(2 / d), S1, DASH[0])):
+        h = xin; stds = [h.std()]
+        for _ in range(20):
+            h = np.maximum(0, h @ rng.normal(0, std_fn(256), (256, 256))); stds.append(h.std())
+        ax.plot(range(21), stds, color=c, ls=ls, marker="o", ms=2.5)
+        label_end(ax, 20, stds[-1], f"{name}: {stds[-1]:.1e}", c)
+        print(f"init {name}: std after 20 layers {stds[-1]:.2e}")
+    ax.set_yscale("log"); ax.set_xlim(0, 30); ax.set_xticks([0, 5, 10, 15, 20])
+    ax.set_xlabel("layer"); ax.set_ylabel("std of activations"); ax.set_title("Only the right scale keeps the signal alive through depth")
+    save(fig, "05-fig-2.png")
+
+
+def ch06():
+    import torch, torch.nn as nn
+    torch.manual_seed(0)
+    # 06-fig-1: learning-rate range test on a small MLP
+    X = torch.randn(4096, 20); w = torch.randn(20); y = (X @ w + 0.5 * torch.randn(4096) > 0).long()
+    model = nn.Sequential(nn.Linear(20, 64), nn.ReLU(), nn.Linear(64, 2)); opt = torch.optim.SGD(model.parameters(), lr=1e-5, momentum=0.9)
+    lrs = np.logspace(-5, 1, 120); losses = []; smooth = None
+    for i, lr_ in enumerate(lrs):
+        for g in opt.param_groups: g["lr"] = lr_
+        idx = torch.randint(0, 4096, (64,))
+        loss = nn.functional.cross_entropy(model(X[idx]), y[idx]); opt.zero_grad(); loss.backward(); opt.step()
+        smooth = loss.item() if smooth is None else 0.9 * smooth + 0.1 * loss.item(); losses.append(smooth)
+        if smooth > 4 * min(losses): break
+    lrs = lrs[:len(losses)]; best = lrs[int(np.argmin(losses))]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(lrs, losses, color=S1); ax.set_xscale("log")
+    ax.axvline(best / 10, color=S2, lw=0.8, ls=DASH[1])
+    ax.annotate(f"loss lowest near lr = {best:.2g}\npick about 10× lower: {best/10:.2g}", (best / 10, min(losses)),
+                xytext=(-8, 12), textcoords="offset points", ha="right", color=INK2, fontsize=7.5)
+    ax.set_xlabel("learning rate (increased every step)"); ax.set_ylabel("smoothed training loss")
+    ax.set_title("A learning-rate range test in one pass")
+    print(f"LR range test: min loss at lr {best:.3g}")
+    save(fig, "06-fig-1.png")
+
+
+def ch07():
+    import torch, torch.nn as nn
+    # 07-fig-1: cosine vs WSD schedules
+    total = 1000; steps = np.arange(total)
+    def cosine(s, peak=3e-4, warm=100, final=0.1):
+        return np.where(s < warm, peak * s / warm, peak * (final + (1 - final) * 0.5 * (1 + np.cos(np.pi * (s - warm) / (total - warm)))))
+    def wsd(s, peak=3e-4, warm=100, frac=0.2):
+        ds = int(total * (1 - frac))
+        return np.where(s < warm, peak * s / warm, np.where(s < ds, peak, peak * (1 - (s - ds) / (total - ds))))
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    ax.plot(steps, cosine(steps) * 1e4, color=S2, ls=DASH[1]); ax.plot(steps, wsd(steps) * 1e4, color=S1)
+    br = 500; ds = 800
+    ax.plot([br, br + 100], [3, 0], color=S3, ls=DASH[2])
+    ax.annotate("cosine", (300, cosine(np.array([300]))[0] * 1e4), xytext=(-4, -12), textcoords="offset points", color=INK2, fontsize=8, ha="right")
+    ax.annotate("warmup–stable–decay", (650, 3.0), xytext=(0, 5), textcoords="offset points", color=INK2, fontsize=8, ha="center")
+    ax.annotate("a branch decayed\nfrom step 500", (550, 1.5), xytext=(10, 0), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.set_xlabel("training step"); ax.set_ylabel("learning rate (×10⁻⁴)"); ax.set_ylim(0, 3.6)
+    ax.set_title("Schedules: WSD stays at the peak and can be decayed from any checkpoint")
+    save(fig, "07-fig-1.png")
+
+    # 07-fig-2: one Adam step's effect on the output vs width, standard vs muP (same set-up as code/ch07_check.py)
+    def output_change(width, mup):
+        torch.manual_seed(1); x = torch.randn(256, 64)
+        l1 = nn.Linear(64, width, bias=False); l2 = nn.Linear(width, width, bias=False); l3 = nn.Linear(width, 1, bias=False)
+        nn.init.normal_(l1.weight, std=1 / np.sqrt(64)); nn.init.normal_(l2.weight, std=1 / np.sqrt(width))
+        nn.init.normal_(l3.weight, std=(1 / width) if mup else (1 / np.sqrt(width)))
+        net = nn.Sequential(l1, nn.ReLU(), l2, nn.ReLU(), l3)
+        opt = torch.optim.Adam([{"params": l1.parameters(), "lr": 1e-3},
+                                {"params": list(l2.parameters()) + list(l3.parameters()), "lr": 1e-3 * (64 / width if mup else 1)}])
+        out0 = net(x).detach(); loss = (net(x) - 1).pow(2).mean(); loss.backward(); opt.step()
+        return (net(x).detach() - out0).abs().mean().item()
+    widths = [64, 128, 256, 512, 1024, 2048]
+    sp = [output_change(w_, False) for w_ in widths]; mp = [output_change(w_, True) for w_ in widths]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(widths, sp, color=S2, ls=DASH[1], marker="o", ms=3); ax.plot(widths, mp, color=S1, marker="o", ms=3)
+    label_end(ax, widths[-1], sp[-1], "standard parametrisation", S2); label_end(ax, widths[-1], mp[-1], "µP", S1)
+    ax.set_xscale("log", base=2); ax.set_yscale("log"); ax.set_xticks(widths); ax.set_xticklabels(widths); ax.set_xlim(50, 9000)
+    ax.set_xlabel("width"); ax.set_ylabel("mean change in output")
+    ax.set_title("Same learning rate, one Adam step: µP keeps the update size constant")
+    print("muP:", [round(v, 3) for v in mp], "SP:", [round(v, 3) for v in sp])
+    save(fig, "07-fig-2.png")
+
+
+def ch08():
+    import torch, torch.nn as nn
+    torch.manual_seed(0)
+    # 08-fig-1: how much the last state depends on earlier inputs: vanilla RNN vs LSTM (random init, forget bias 1)
+    T, d = 60, 32
+    def grad_profile(cell):
+        x = torch.randn(1, T, d, requires_grad=True)
+        out, _ = cell(x); out[0, -1].sum().backward()
+        return x.grad[0].norm(dim=1).numpy()[::-1]          # index k = k steps before the end
+    rnn = nn.RNN(d, d, batch_first=True); lstm = nn.LSTM(d, d, batch_first=True)
+    with torch.no_grad():
+        lstm.bias_ih_l0[d:2 * d] = 1.0; lstm.bias_hh_l0[d:2 * d] = 0.0
+    g_rnn = np.mean([grad_profile(rnn) for _ in range(20)], 0); g_lstm = np.mean([grad_profile(lstm) for _ in range(20)], 0)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(range(T), g_rnn / g_rnn[0], color=S2, ls=DASH[1]); ax.plot(range(T), g_lstm / g_lstm[0], color=S1)
+    label_end(ax, 40, (g_rnn / g_rnn[0])[40], "vanilla RNN (tanh)", S2); label_end(ax, 40, (g_lstm / g_lstm[0])[40], "LSTM, forget-gate bias 1", S1, dy=9)
+    ax.set_yscale("log"); ax.set_xlabel("steps back from the last position"); ax.set_ylabel("gradient size (relative)")
+    ax.set_title("Gradients from far-back inputs vanish much faster in a plain RNN")
+    print(f"gradient after 20 steps: RNN {(g_rnn/g_rnn[0])[20]:.1e}, LSTM {(g_lstm/g_lstm[0])[20]:.1e}")
+    save(fig, "08-fig-1.png")
+
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]

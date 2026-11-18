@@ -22,7 +22,24 @@ Every deep model, from a two-tower recommender to an LLM, is built from the piec
 
 A **perceptron** computes a weighted sum and a threshold: a linear classifier. It cannot learn XOR or any non-linear boundary. Stacking linear layers does not help either: a product of linear maps is still linear. The fix is a **non-linear activation** between layers: a multi-layer perceptron (MLP) with one hidden layer can approximate any continuous function on a bounded domain, given enough units (the universal approximation theorem). Depth makes such approximations far more efficient in practice.
 
+**XOR by hand.** XOR outputs 1 when exactly one input is 1. No single line separates {(0,1), (1,0)} from {(0,0), (1,1)}, but two ReLU units do it. Let h₁ = ReLU(x₁ + x₂) and h₂ = ReLU(x₁ + x₂ − 1), and output h₁ − 2h₂:
+
+| x₁, x₂ | h₁ | h₂ | h₁ − 2h₂ |
+|---|---|---|---|
+| 0, 0 | 0 | 0 | 0 |
+| 0, 1 | 1 | 0 | 1 |
+| 1, 0 | 1 | 0 | 1 |
+| 1, 1 | 2 | 1 | 0 |
+
+The hidden layer bends the input space: h₂ only switches on in the corner where both inputs are 1, and subtracting it twice undoes h₁ there. Every ReLU network works this way: each unit adds a "hinge" along some direction, and the network builds a piecewise-linear function from many hinges. Training finds the hinges automatically.
+
 On a three-class spiral dataset that no straight line can separate, logistic regression reaches 53% training accuracy; a 64-unit one-hidden-layer MLP written from scratch below reaches 99%.
+
+![Diagram](images/05-fig-1.png)
+
+*Decision regions on the spiral data (a fresh sample, trained with PyTorch in `tools/figures.py`). The linear model can only cut the plane with straight lines; the MLP's 64 hinges follow the spirals.*
+
+**Why depth, not just width.** One hidden layer can approximate any function in principle, but it may need exponentially many units. Each extra layer can reuse and combine the features of the one before (edges into shapes into objects; characters into words into phrases), so deep networks represent the same functions with far fewer parameters, and they learn more general features. The price is that depth makes optimisation harder, which is what the rest of this chapter (initialisation, normalisation, residual connections) is about.
 
 ## 5.2 Backpropagation by hand
 
@@ -65,6 +82,10 @@ class MLP:
             p -= lr * g
 ```
 
+**Reading the backward pass.** Follow `backward` line by line and it is the chain rule from Chapter 1 with matrices. The error at the output, d = p − y, says how much each logit should move. The gradient of W₂ is hᵀd: each weight's gradient is the product of the activation feeding it and the error it contributes to. The error is sent back through the same weights (d W₂ᵀ) and gated by the ReLU's derivative, which is 1 where the unit was active and 0 where it was not. An inactive unit passes no gradient: the source of "dead" ReLUs when a unit is inactive for every input.
+
+**Vanishing gradients, in numbers.** Each layer multiplies the backward signal by its weights and by its activation's derivative. The sigmoid's derivative is at most 0.25, so ten sigmoid layers can shrink the gradient by 0.25¹⁰ ≈ 10⁻⁶ before it reaches the first layer, which therefore barely learns. ReLU's derivative is exactly 1 where active, which is a large part of why it replaced sigmoids in hidden layers; good initialisation (5.4) and residual connections (Chapter 10) handle the rest.
+
 Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. A central-difference check on a weight agrees with the analytic gradient to 1e-6 (Chapter 1.5). Writing this class from memory, with shapes right, is a classic interview exercise.
 
 ## 5.3 Activations
@@ -82,6 +103,12 @@ Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. 
 ## 5.4 Initialisation
 
 Weights must start small enough not to explode activations and large enough not to vanish them, layer after layer. A test pushing random data through 20 ReLU layers of width 256: with weights of standard deviation 0.01 the output's spread collapsed to about 1e-19; with standard deviation 1 it exploded to about 1e20; with **He initialisation** (std = √(2/fan_in)) it stayed around 0.7.
+
+![Diagram](images/05-fig-2.png)
+
+*Standard deviation of activations through 20 ReLU layers of width 256. Too small (0.01): the signal shrinks by roughly 10× per layer to 7 × 10⁻²⁰. Too large (1.0): it explodes to 10²¹. He initialisation holds it near 0.6.*
+
+**The derivation.** A unit sums fan_in inputs, each multiplied by a weight. If inputs and weights are independent with zero mean, the variance of the sum is fan_in × Var(w) × E[x²]. To keep the scale constant from layer to layer, set Var(w) = 1/fan_in (LeCun/Xavier). A ReLU zeroes half of its inputs, halving the second moment, so it needs twice as much: Var(w) = 2/fan_in (He). Anything else multiplies the scale by a constant factor per layer, and a constant factor raised to the 20th power is a disaster, as the figure shows.
 
 - **Xavier/Glorot** (std ≈ √(2/(fan_in + fan_out))) for tanh and sigmoid.
 - **He/Kaiming** (std = √(2/fan_in)) for ReLU-family activations.
@@ -105,7 +132,9 @@ def dropout(h, p, train=True, rng=np.random.default_rng()):
     return h * (rng.random(h.shape) > p) / (1 - p)  # inverted dropout: scale at train time, identity at test
 ```
 
-**Dropout** randomly zeroes activations during training, discouraging co-adaptation; inverted dropout rescales by 1/(1 − p) so nothing changes at inference. Other regularisers: weight decay (AdamW), early stopping, data augmentation, label smoothing.
+**Which axis gets normalised.** For a batch of activations shaped (batch, features), batch norm computes one mean and variance per *feature*, across the examples in the batch; layer norm computes one mean and variance per *example*, across its features. Batch norm therefore couples examples (an example's output depends on what else is in the batch, and inference must use stored running averages), while layer norm treats each example independently. That independence is why layer norm suits variable-length sequences and small or single-example batches, which is the normal situation when generating text.
+
+**Dropout** randomly zeroes activations during training, discouraging co-adaptation; inverted dropout rescales by 1/(1 − p) so nothing changes at inference. One way to see why it regularises: each training step uses a different random sub-network, all sharing weights, so the final network behaves like an average of exponentially many thinned networks, and no unit can rely on a specific partner being present. Other regularisers: weight decay (AdamW), early stopping, data augmentation, label smoothing.
 
 ## 5.6 Optimisers, schedules and mixed precision
 
