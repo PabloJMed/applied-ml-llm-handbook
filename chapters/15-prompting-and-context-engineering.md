@@ -1,6 +1,6 @@
 # 15 · Prompting and context engineering
 
-Part VI · Building with LLMs. Assumes you have used LLM APIs. Chapter 14 covers decoding and serving, Chapter 21 tools and agents, Chapter 22 evaluation, which every prompt change depends on. Worked design that builds on it: E.3 LLM taxonomy classifier.
+Part IV · Large language models. Assumes you have used LLM APIs. Chapter 14 covers decoding and serving, Chapter 21 tools and agents, Chapter 22 evaluation, which every prompt change depends on. Worked design that builds on it: E.3 LLM taxonomy classifier.
 
 ## Why it matters
 
@@ -13,7 +13,7 @@ Interviewers for LLM roles probe whether you treat prompts as engineering artefa
 - **Prompt anatomy**: role and task, context, instructions and constraints, examples, output format. Vendor guides show what works for each model family: [Claude prompt engineering guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview).
 - **Zero-shot and few-shot prompting**: asking with instructions only, or with worked examples in the prompt; the ability that made GPT-3 famous. [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165).
 - **Chain-of-thought**: asking the model to reason step by step before answering improves multi-step problems. [Chain-of-thought paper](https://arxiv.org/abs/2201.11903).
-- **Self-consistency**: sample several reasoning paths and take the majority answer. [Self- consistency paper](https://arxiv.org/abs/2203.11171).
+- **Self-consistency**: sample several reasoning paths and take the majority answer. [Self-consistency paper](https://arxiv.org/abs/2203.11171).
 - **Structured output**: asking for JSON that matches a schema, enforced by constrained decoding where available (Chapter 14).
 - **Context engineering**: choosing what goes into the context window (instructions, retrieved documents, memory, tool results) and in what order; models use the start and end of long contexts best. [Lost in the Middle](https://arxiv.org/abs/2307.03172).
 - **Prompt optimisation**: treating prompts as parameters tuned against a metric. [DSPy](https://arxiv.org/abs/2310.03714).
@@ -152,7 +152,7 @@ class PromptRegistry:
         return version
 ```
 
-In a team, use a prompt-management or LLM-observability tool (Langfuse, LangSmith, Braintrust and similar) or simply prompts in git plus an evaluation script in CI. **Iterate witherror analysis, not intuition:** run the set, read the failures, group them into categories, fix the biggest category, re-run. This loop is the core of applied LLM work (Chapter 22).
+In a team, use a prompt-management or LLM-observability tool (Langfuse, LangSmith, Braintrust and similar) or simply prompts in git plus an evaluation script in CI. **Iterate with error analysis, not intuition:** run the set, read the failures, group them into categories, fix the biggest category, re-run. This loop is the core of applied LLM work (Chapter 22).
 
 **Automatic prompt optimisation.** Tools such as DSPy (Chapter 20) treat prompts and few-shot examples as parameters and optimise them against a metric on your evaluation set. Useful once you have a good set and a reliable metric; useless without them.
 
@@ -177,8 +177,7 @@ To benefit, the prefix must be **byte-identical**: stable content first (the dia
 
 ```python
 def monthly_cost(calls, static_tokens, dynamic_tokens, output_tokens,
-                 usd_per_m_in, usd_per_m_out, cache_read_factor=None,
-cache_hit_rate=0.0):
+                 usd_per_m_in, usd_per_m_out, cache_read_factor=None, cache_hit_rate=0.0):
     if cache_read_factor is None:
         input_cost = calls * (static_tokens + dynamic_tokens) * usd_per_m_in / 1e6
     else:
@@ -209,7 +208,7 @@ There is no complete fix today; models cannot reliably separate instructions fro
 | Input and output filtering | Classifiers for known injection patterns; checks that outputs do not leak system prompts, secrets or other users' data |
 | Red-teaming and monitoring | An injection test set run on every release; alerts on unusual tool use |
 
-The interview-ready principle: **never let the model be the only thing standing betweenuntrusted text and a consequential action.** Chapter 24 covers jailbreaks and wider safety.
+The interview-ready principle: **never let the model be the only thing standing between untrusted text and a consequential action.** Chapter 24 covers jailbreaks and wider safety.
 
 ## Pitfalls
 
@@ -249,7 +248,7 @@ Questions 1–4 are basic, 5–9 intermediate, 10–13 senior.
 
 **10. Design defences for an assistant that reads customer emails and can issue refunds.** The model drafts; refunds go through a policy engine with limits in code; refunds above a threshold need human approval; email content is treated as untrusted data (quarantined reader model producing structured fields); tools scoped per customer; injection red-team set in CI; monitoring of refund rates.
 
-**11. Your classification prompt scores 88% on the eval set. How do you improve itsystematically?** Error analysis: read and categorise the failures (ambiguous labels, missing context, format errors, genuinely hard cases); fix the largest category first (often definitions or examples); re-run; check slices for regressions. Consider dynamic few-shot, a stronger model only for low-confidence cases, or fine-tuning if the error pattern is consistent.
+**11. Your classification prompt scores 88% on the eval set. How do you improve it systematically?** Error analysis: read and categorise the failures (ambiguous labels, missing context, format errors, genuinely hard cases); fix the largest category first (often definitions or examples); re-run; check slices for regressions. Consider dynamic few-shot, a stronger model only for low-confidence cases, or fine-tuning if the error pattern is consistent.
 
 **12. A new model version is released. How do you decide whether to switch?** Run the full evaluation set with the current prompt and with light prompt adjustments; compare quality per slice, latency and cost; check structured-output reliability and safety tests; shadow-test on production traffic; switch with a flag and monitor.
 
@@ -274,7 +273,7 @@ Questions 1–4 are basic, 5–9 intermediate, 10–13 senior.
 - Simon Willison's writing on prompt injection and the dual-LLM pattern (simonwillison.net).
 - Hamel Husain's posts on evaluation-driven prompt iteration.
 
-**Links:** [Claude prompt engineering guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview) · [Lilian Weng: Prompt Engineering](https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/) · [Chain-of- thought](https://arxiv.org/abs/2201.11903) · [Eugene Yan: Patterns for LLM systems](https://eugeneyan.com/writing/llm-patterns/). Other titles above can be found by searching their title.
+**Links:** [Claude prompt engineering guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview) · [Lilian Weng: Prompt Engineering](https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/) · [Chain-of-thought](https://arxiv.org/abs/2201.11903) · [Eugene Yan: Patterns for LLM systems](https://eugeneyan.com/writing/llm-patterns/). Other titles above can be found by searching their title.
 
 ## Done when
 

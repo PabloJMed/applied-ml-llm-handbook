@@ -107,7 +107,7 @@ A checklist that covers what interviewers probe:
 4. **Sample size and duration** from the MDE (2.3); at least one or two full weeks.
 5. **Checks during the test:** sample ratio mismatch, guardrail breaches, data quality. No peeking at the primary metric to decide early (2.7).
 6. **Analysis:** effect with confidence interval, segments defined in advance, multiple-testing awareness (2.6).
-7. **Decision and documentation.Sample ratio mismatch (SRM):** if you planned a 50/50 split and got 50,500 vs 49,500 users, a chi-square test gives p ≈ 0.0016: the assignment or logging is broken (bots, redirects, crashes in one arm), and the results cannot be trusted until the cause is found. Check SRM on every test.
+7. **Decision and documentation. Sample ratio mismatch (SRM):** if you planned a 50/50 split and got 50,500 vs 49,500 users, a chi-square test gives p ≈ 0.0016: the assignment or logging is broken (bots, redirects, crashes in one arm), and the results cannot be trusted until the cause is found. Check SRM on every test.
 
 ```python
 def srm_p_value(n_a, n_b, expected_ratio=0.5):
@@ -258,7 +258,7 @@ Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
 
 **13. The A/B test shows +3% orders but the effect disappears after full rollout. Why?** Novelty; interference (treatment took supply from control, inflating the difference); a winner's-curse overestimate from an underpowered test; seasonality; or a changed mix of users at full rollout.
 
-**14. How would you measure the effect of a loyalty programme that was launchedwithout an experiment?** Difference-in-differences against comparable cities or users not yet eligible, matched or propensity-weighted comparisons on observed confounders, checking pre-trends, and sensitivity analyses for unobserved confounding; ideally, randomise the next expansion.
+**14. How would you measure the effect of a loyalty programme that was launched without an experiment?** Difference-in-differences against comparable cities or users not yet eligible, matched or propensity-weighted comparisons on observed confounders, checking pre-trends, and sensitivity analyses for unobserved confounding; ideally, randomise the next expansion.
 
 **15. How do you target vouchers to maximise incremental orders?** Uplift modelling on randomised voucher data (T- or X-learner, causal forests), ranking users by predicted incremental effect rather than predicted ordering probability; evaluate with Qini curves and a holdout test.
 

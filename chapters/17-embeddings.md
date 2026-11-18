@@ -30,8 +30,7 @@ An embedding turns text (or an item, a user, an image) into a vector so that sim
 import torch
 
 def mean_pool(token_embeddings, attention_mask):
-    """token_embeddings: (B, T, d); attention_mask: (B, T) with 1 for real
-tokens."""
+    """token_embeddings: (B, T, d); attention_mask: (B, T) with 1 for real tokens."""
     mask = attention_mask.unsqueeze(-1).float()
     return (token_embeddings * mask).sum(1) / mask.sum(1).clamp(min=1e-9)
 ```
@@ -109,8 +108,7 @@ model = SentenceTransformer("intfloat/multilingual-e5-base")
 train = Dataset.from_dict({"anchor": queries, "positive": positives, "negative": hard_negatives})
 loss = losses.MultipleNegativesRankingLoss(model)          # InfoNCE with in-batch + given negatives
 args = SentenceTransformerTrainingArguments(
-    output_dir="emb-ft", per_device_train_batch_size=128, learning_rate=2e-5,
-num_train_epochs=1,
+    output_dir="emb-ft", per_device_train_batch_size=128, learning_rate=2e-5, num_train_epochs=1,
     batch_sampler="no_duplicates")                          # avoid accidental duplicate positives in a batch
 SentenceTransformerTrainer(model=model, args=args, train_dataset=train, loss=loss).train()
 ```
@@ -119,7 +117,7 @@ SentenceTransformerTrainer(model=model, args=args, train_dataset=train, loss=los
 
 ## 17.5 Matryoshka embeddings
 
-Storing 1,024-dimensional float vectors for 100 million items is expensive. **Matryoshkarepresentation learning** (Kusupati et al., 2022) trains embeddings so that their **prefixes** are good embeddings too: the first 64, 128, 256 dimensions each work on their own. The loss is simply the contrastive loss summed over several prefix lengths:
+Storing 1,024-dimensional float vectors for 100 million items is expensive. **Matryoshka representation learning** (Kusupati et al., 2022) trains embeddings so that their **prefixes** are good embeddings too: the first 64, 128, 256 dimensions each work on their own. The loss is simply the contrastive loss summed over several prefix lengths:
 
 ```python
 def matryoshka_loss(q, d, dims=(64, 128, 256, 768), temperature=0.05):
@@ -206,7 +204,7 @@ Questions 1–4 basic, 5–9 intermediate, 10–12 senior.
 
 **10. Design embeddings for restaurant similarity at a delivery company.** Define similarity by behaviour (co-ordering, substitution) as well as content; train a two-tower or item-item contrastive model on co-order pairs with content features (menu text embeddings, cuisine, price) for cold start; logQ correction for popularity; evaluate on held-out substitution and "also ordered" pairs; Matryoshka or PQ for cheap serving.
 
-**11. Your fine-tuned embedding model beats the base model offline but RAG answers didnot improve. Why?** The RAG bottleneck may be elsewhere (chunking, re-ranking, generation); the evaluation set may differ from real questions; gains may sit in queries that were already answered well; the index may not have been rebuilt consistently. Check end-to-end and per-stage metrics.
+**11. Your fine-tuned embedding model beats the base model offline but RAG answers did not improve. Why?** The RAG bottleneck may be elsewhere (chunking, re-ranking, generation); the evaluation set may differ from real questions; gains may sit in queries that were already answered well; the index may not have been rebuilt consistently. Check end-to-end and per-stage metrics.
 
 **12. How would you build a multilingual retrieval system for Arabic and English?** A multilingual embedding model plus language-specific BM25; per-language and cross-lingual evaluation sets; transliteration variants; fine-tuning on translated and code-switched pairs if needed; language-aware boosting; native-speaker review of failures.
 

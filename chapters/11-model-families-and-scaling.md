@@ -91,7 +91,7 @@ The result is a shared embedding space: zero-shot classification by comparing an
 
 **Kaplan et al. (2020)** found that loss falls as a smooth power law in parameters N, data D and compute C, over many orders of magnitude, and concluded that for a fixed compute budget you should mostly grow the model.
 
-**Chinchilla (Hoffmann et al., 2022)** redid the analysis with learning-rate schedules matched to each run's length and found that N and D should grow in equal proportion: about **20 training tokens per parameter**. With training compute C ≈ 6·N·D FLOPs:
+**Chinchilla (Hoffmann et al., 2022)** redid the analysis with learning-rate schedules matched to each run's length and found that N and D should grow in equal proportion: about **20 training tokens per parameter**. (A 2024 replication by Besiroglu et al. found problems with one of the paper's three fits; the ~20 tokens per parameter rule survived, the exact constants should be treated as approximate.) With training compute C ≈ 6·N·D FLOPs:
 
 ```python
 import math
@@ -103,8 +103,7 @@ def chinchilla(C):
 # C = 1e24 -> N = 91.3B params, D = 1,826B tokens
 
 # Their fitted loss L(N, D) = E + A/N^a + B/D^b (E=1.69, A=406.4, B=410.7, a=0.34, b=0.28):
-# Chinchilla 70B on 1.4T tokens -> 1.937;  Gopher 280B on 300B tokens ->
-1.993
+# Chinchilla 70B on 1.4T tokens -> 1.937;  Gopher 280B on 300B tokens -> 1.993
 ```
 
 Same compute, four times fewer parameters, lower loss: Gopher was undertrained. The fitted constants are approximate and specific to that setup; quote the 20 tokens per parameter rule and C ≈ 6ND, not the decimals.
@@ -118,10 +117,9 @@ Same compute, four times fewer parameters, lower loss: Gopher was undertrained. 
 | Situation | Usually the right first choice |
 |---|---|
 | Fixed labels, high volume, tight latency (query intent, review tagging) | Fine-tuned encoder (DeBERTa, XLM-R) or a small LLM distilled from a large one |
-| Retrieval and semantic search | Bi-encoder embedding model + cross- encoder reranker |
+| Retrieval and semantic search | Bi-encoder embedding model + cross-encoder reranker |
 | Open-ended generation, reasoning, tool use | Large LLM via API |
 | Many tasks, few labels, need it next week | Large LLM with good prompts; collect its outputs as labels |
-| Situation | Usually the right first choice |
 | Same task at scale, after the prototype works | Distil into a small model; keep the large one as teacher and fallback |
 | Data must stay in-house or cost per call must be near zero | Open-weight model self-hosted (Chapter 14) |
 

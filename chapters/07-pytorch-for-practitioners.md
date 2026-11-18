@@ -1,4 +1,4 @@
-# 07 · PyTorch for practitioners
+# 7 · PyTorch for practitioners
 
 ## Why it matters
 
@@ -117,8 +117,7 @@ for epoch in range(20):
     if val < best:
         best = val
         torch.save({"model": model.state_dict(), "opt": opt.state_dict(),
-                    "sched": sched.state_dict(), "epoch": epoch, "val": val},
-"best.pt")
+                    "sched": sched.state_dict(), "epoch": epoch, "val": val}, "best.pt")
 # run on 4,000 synthetic rows: best val loss 0.3973, at epoch 9
 ```
 
@@ -143,7 +142,7 @@ with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
     out = model(torch.randn(4, 10))
 ```
 
-- Memory budget for training with AdamW in mixed precision is roughly 16 bytes per parameter (weights, gradients, two Adam moments, fp32 master copy) plus activations. A 1B model is about 16 GB before activations: this arithmetic is why LoRA and QLoRA (Chapter 12) exist.
+- Memory budget for training with AdamW in mixed precision is roughly 16 bytes per parameter (weights, gradients, two Adam moments, fp32 master copy) plus activations. A 1B model is about 16 GB before activations: this arithmetic is why LoRA and QLoRA (Chapter 16) exist.
 - When memory runs out: smaller batch plus gradient accumulation, gradient checkpointing (recompute activations in backward), shorter sequences, 8-bit optimisers, or parameter-efficient fine-tuning.
 - `torch.compile(model)` often gives a free speed-up on recent GPUs; check it does not change results before trusting it.
 

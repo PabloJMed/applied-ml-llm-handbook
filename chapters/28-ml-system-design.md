@@ -1,4 +1,4 @@
-# Chapter 28 · ML system design: the method
+# 28 · ML system design: the method
 
 This chapter teaches the method you use in every design round. The ten worked designs are in Appendix E. Try each one yourself, timed, before reading its answer.
 
@@ -57,7 +57,7 @@ If the interviewer says "you decide", state an assumption out loud and write it 
 
 ## Step 2 · Frame it as an ML problem
 
-Translate the business goal into four things: the **ML objective**, the **label**, the **predictiontarget at serving time**, and the **metrics**. This is where most candidates lose the round, because a wrong framing makes every later step wrong.
+Translate the business goal into four things: the **ML objective**, the **label**, the **prediction target at serving time**, and the **metrics**. This is where most candidates lose the round, because a wrong framing makes every later step wrong.
 
 **Ask first: does this need ML?** A rule or a sorted list is sometimes the right answer for a first version. Saying so, then explaining when ML starts to pay off, is a strong senior signal.
 
@@ -66,7 +66,7 @@ Translate the business goal into four things: the **ML objective**, the **label*
 | Business ask | ML task | Label | Offline metric | Online metric |
 |---|---|---|---|---|
 | Order more from the home feed | Rank restaurants per user | Ordered (or clicked) after an impression | NDCG@10, recall@50 for retrieval | Orders per session, conversion |
-| Find dishes in search | Rank items for a query | Clicked or ordered after the query | NDCG@10, MRR | Search conversion, null- result rate |
+| Find dishes in search | Rank items for a query | Clicked or ordered after the query | NDCG@10, MRR | Search conversion, null-result rate |
 | Classify merchants into a taxonomy | Multi-class (or multi-label) classification | Human-labelled sample; LLM labels checked by humans | Macro F1, per-class precision | Filter usage, search success on filtered queries |
 | Publish only safe reviews | Binary classification with a threshold | Moderator decisions | Precision at fixed recall, PR-AUC | Complaints, moderation cost |
 | Delivery time estimate | Regression | Actual delivery time | MAE, share within ±5 min | Cancellation rate, customer contacts |
@@ -104,7 +104,6 @@ Group features by entity, then say how fresh each group needs to be. This struct
 | Group | Examples (restaurant feed) | Freshness |
 |---|---|---|
 | User | Order history, favourite cuisines, price sensitivity, user embedding | Daily batch, plus real-time session events |
-| Group | Examples (restaurant feed) | Freshness |
 | Item | Cuisine, rating, price level, prep time, item embedding | Daily, plus real-time availability (open, busy) |
 | Context | Time of day, weekday, weather, location, device | Request time |
 | User × item | Past orders from this restaurant, distance, similarity of embeddings | Mixed |
@@ -160,9 +159,8 @@ Always start with a baseline, then climb a ladder of complexity, and say what ea
 |---|---|---|---|
 | 0 | Heuristic: popularity in your area, distance, rating | No training, easy to explain, a fair baseline | Ignores the individual user |
 | 1 | Logistic regression on hand-built features | Fast, calibrated, interpretable | Misses feature interactions |
-| 2 | Gradient-boosted trees (LightGBM, XGBoost) | The strong default for tabular ranking; handles interactions and missing values | Struggles with very high- cardinality IDs and raw sequences |
+| 2 | Gradient-boosted trees (LightGBM, XGBoost) | The strong default for tabular ranking; handles interactions and missing values | Struggles with very high-cardinality IDs and raw sequences |
 | 3 | Deep model with embeddings (two-tower for retrieval, DLRM or DCN for ranking) | Learns from IDs and sequences, shares signal across users | More data, infrastructure and tuning |
-| Rung | Model | Why stop here | Why go further |
 | 4 | Sequence and transformer models over user history (e.g. SASRec), or LLM-based components | Captures order and intent within a session | Cost and latency; gains are often small at mid scale |
 
 At a mid-sized marketplace, rung 2 for ranking plus rung 3 (a two-tower model) for retrieval is a credible, defensible design.
@@ -205,7 +203,7 @@ Evaluation is where you show you know offline numbers can lie. Cover three layer
 - An A/B test with a primary metric, a minimum detectable effect, and a duration long enough to cover weekly cycles (usually at least one or two full weeks).
 - In two-sided marketplaces, users in treatment and control compete for the same couriers and restaurants, which biases a simple user-level A/B test. Mention **switchback** tests (randomise by city and time slot) or geo experiments when supply is shared.
 - For ranking, **interleaving** (mixing results from both models in one list) detects differences with far less traffic.
-- Variance reduction (CUPED) shortens tests. This is your home ground; use it.
+- Variance reduction (CUPED) shortens tests (Chapter 2).
 
 **Guardrails.** Latency, error rate, cancellations, delivery time, revenue per order, diversity, and complaints. The model should win the primary metric without breaking any of these.
 
@@ -291,11 +289,11 @@ The eight steps still apply to an LLM design (a classifier, a RAG assistant, a j
 | Step | What changes for LLM systems |
 |---|---|
 | Clarify | Ask about volume and latency early: they decide between real-time calls, batch jobs, or a small distilled model. Ask what a wrong answer costs: a bad summary is annoying, a bad refund decision is expensive |
-| Frame | Decide the adaptation level, cheapest first: prompting, then retrieval (RAG), then fine-tuning (LoRA), then training a small model on LLM- generated labels. Say why you stop where you stop |
+| Frame | Decide the adaptation level, cheapest first: prompting, then retrieval (RAG), then fine-tuning (LoRA), then training a small model on LLM-generated labels. Say why you stop where you stop |
 | Data | The key dataset is the **evaluation set**: a few hundred real, labelled examples covering the hard cases, built before optimising anything. Training data may be synthetic or LLM-labelled, but checked against human labels |
 | Features | Becomes **context**: what goes into the prompt (instructions, retrieved documents, user and item attributes, examples) and in what order |
-| Model | Model choice is a cost, latency and quality trade- off: a large model for hard cases, a small one for volume, often both in a cascade (cheap model first, escalate when unsure). Use structured output (JSON schema) so downstream code does not parse free text |
-| Evaluation | Offline: task metrics on the eval set, plus LLM-as- judge for open-ended outputs, with the judge itself checked against human labels. Online: A/B test on the business metric. Error analysis by hand comes first and never stops |
+| Model | Model choice is a cost, latency and quality trade-off: a large model for hard cases, a small one for volume, often both in a cascade (cheap model first, escalate when unsure). Use structured output (JSON schema) so downstream code does not parse free text |
+| Evaluation | Offline: task metrics on the eval set, plus LLM-as-judge for open-ended outputs, with the judge itself checked against human labels. Online: A/B test on the business metric. Error analysis by hand comes first and never stops |
 | Serving | Batch where possible (cheaper, often half price), caching of repeated prompts, timeouts, retries with backoff, rate limits, and a non-LLM fallback |
 | Monitoring | Trace each call: input, output, tokens, latency, cost. Sample outputs for review, track judge scores over time, and watch for provider model updates that silently change behaviour |
 
@@ -348,13 +346,13 @@ These are the follow-ups interviewers use to probe a design. Answer each aloud i
 
 **10. Your LLM pipeline costs too much. What do you do? (S)** Measure where tokens go first. Then, in rough order of effort: shorten prompts and outputs, cache repeated calls, use batch APIs, route easy cases to a smaller model, and finally distil into a small fine-tuned model trained on the large model's outputs. Re-check quality on the eval set at each step.
 
-**11. A key feature is computed differently in training and serving. How would you catchit? (S)** Log the features actually used at serving time and compare their distributions with the training features (train/serve skew checks). Better still, compute features once in a feature store used by both paths, so the logic cannot diverge.
+**11. A key feature is computed differently in training and serving. How would you catch it? (S)** Log the features actually used at serving time and compare their distributions with the training features (train/serve skew checks). Better still, compute features once in a feature store used by both paths, so the logic cannot diverge.
 
 **12. What would you build first, with a team of two and three months? (S)** A baseline with good logging: a simple retrieval (popularity plus "ordered before"), a gradient-boosted ranker on solid features, an offline evaluation pipeline and an A/B framework. Deep models and LLM components come after the data and evaluation loop works, because without them I cannot tell whether anything better is actually better.
 
 ## Practice
 
-System design is practised by designing, out loud and against a clock. Do these in order, each in 40–45 minutes, written or spoken, then paste it in the chat for a review against this chapter.
+System design is practised by designing, out loud and against a clock. Do these in order, each in 40–45 minutes, written or spoken, then review it against this chapter.
 
 1. **Warm-up, framing only (15 min each):** write the four framing items (objective, label, offline metric, online metric) for: "recommend add-on items at checkout", "detect fake restaurant reviews", "estimate courier arrival time".
 2. **Week 1:** design a food-delivery app's restaurant recommendation feed, untimed. Use the eight steps as headings.
@@ -372,7 +370,7 @@ System design is practised by designing, out loud and against a clock. Do these 
 - [Eugene Yan, System design for recommendations and search](https://eugeneyan.com/writing/system-design-for-discovery/): how real companies split batch and online work.
 - Covington, Adams and Sargin, *Deep Neural Networks for YouTube Recommendations* (RecSys 2016): the classic two-stage design, short and readable.
 
-Chapter numbers are from memory; check them against each book's contents.
+Check chapter numbers against each book's current edition.
 
 ## Done when
 

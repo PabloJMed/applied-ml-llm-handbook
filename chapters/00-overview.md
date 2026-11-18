@@ -1,4 +1,4 @@
-# Applied ML & LLM Handbook
+# Overview
 
 A self-study guide for data scientists and ML engineers preparing for senior applied ML and LLM roles: the theory, the code, the system design and the interview, in one place. Examples come from food delivery and marketplaces, but every chapter applies to any product company.
 
@@ -33,16 +33,15 @@ Parts I–III are the base: the maths, statistics, classic models and deep learn
 |---|---|---|
 | 1 | The maths you actually use | Vectors, dot products and cosine similarity; matrix multiplication; eigenvectors, SVD and low-rank approximation (the basis of LoRA and matrix factorisation); probability, Bayes, common distributions; MLE and MAP; gradients and the chain rule; entropy, cross-entropy and KL divergence |
 | 2 | Statistics and experimentation | Sampling, confidence intervals, the bootstrap; hypothesis tests and p-values; power and sample size; A/B test design, guardrail metrics, novelty effects; CUPED; multiple testing; sequential testing; interleaving for ranking; switchback tests in marketplaces; causal inference basics (DiD, IPW, uplift) |
-| Ch | Title | What it covers |
 | 3 | ML fundamentals | Framing a problem as ML; bias-variance; loss functions; regularisation (L1, L2, early stopping); optimisation (GD, SGD, momentum, Adam); train/validation/test, cross-validation, time-based splits; leakage; feature engineering; class imbalance; calibration |
-| 4 | Classic models | Linear and logistic regression; decision trees; random forests; gradient boosting (XGBoost, LightGBM, CatBoost); kNN; SVMs; naive Bayes; k- means; PCA. Each with intuition, maths, a from- scratch implementation and when to use it |
-| 5 | Evaluation and metrics | Classification (precision, recall, F1, ROC-AUC, PR- AUC, log loss, calibration curves); regression (MAE, RMSE, MAPE); ranking (precision@k, recall@k, MAP, MRR, NDCG); offline vs online metrics; slicing; confidence intervals on metrics |
+| 4 | Classic models | Linear and logistic regression; decision trees; random forests; gradient boosting (XGBoost, LightGBM, CatBoost); kNN; SVMs; naive Bayes; k-means; PCA. Each with intuition, maths, a from-scratch implementation and when to use it |
+| 5 | Evaluation and metrics | Classification (precision, recall, F1, ROC-AUC, PR-AUC, log loss, calibration curves); regression (MAE, RMSE, MAPE); ranking (precision@k, recall@k, MAP, MRR, NDCG); offline vs online metrics; slicing; confidence intervals on metrics |
 
 ### Part II — Deep learning
 
 | Ch | Title | What it covers |
 |---|---|---|
-| 6 | Neural network fundamentals | Perceptron to MLP; backpropagation by hand; activations; initialisation; batch and layer normalisation; dropout; optimisers and learning- rate schedules; mixed precision; debugging a model that won't learn |
+| 6 | Neural network fundamentals | Perceptron to MLP; backpropagation by hand; activations; initialisation; batch and layer normalisation; dropout; optimisers and learning-rate schedules; mixed precision; debugging a model that won't learn |
 | 7 | PyTorch for practitioners | Tensors and autograd; nn.Module; the training loop; Dataset and DataLoader; GPU basics; checkpointing; reproducibility |
 | 8 | Embeddings and sequence models | word2vec, GloVe, fastText; RNN, LSTM, GRU; seq2seq; the first attention mechanism (Bahdanau) and why it led to transformers |
 
@@ -51,8 +50,8 @@ Parts I–III are the base: the maths, statistics, classic models and deep learn
 | Ch | Title | What it covers |
 |---|---|---|
 | 9 | Text and tokenisation | Normalisation; BPE, WordPiece, unigram and SentencePiece; vocabulary trade-offs; multilingual and code-switching issues; token counting and cost |
-| 10 | The transformer in depth | Scaled dot-product and multi-head attention; positional encodings (sinusoidal, learned, RoPE, ALiBi); residuals and pre- vs post-LayerNorm; feed- forward blocks and SwiGLU; encoder, decoder and encoder-decoder; complexity and the KV cache; attention variants (MQA, GQA, FlashAttention, sliding window). Code: attention from scratch and a mini-GPT |
-| 11 | Model families and scaling | BERT and masked LM; GPT and causal LM; T5; sentence transformers; mixture of experts; vision- language models (CLIP and successors); scaling laws (Kaplan, Chinchilla); small vs large models in practice |
+| 10 | The transformer in depth | Scaled dot-product and multi-head attention; positional encodings (sinusoidal, learned, RoPE, ALiBi); residuals and pre- vs post-LayerNorm; feed-forward blocks and SwiGLU; encoder, decoder and encoder-decoder; complexity and the KV cache; attention variants (MQA, GQA, FlashAttention, sliding window). Code: attention from scratch and a mini-GPT |
+| 11 | Model families and scaling | BERT and masked LM; GPT and causal LM; T5; sentence transformers; mixture of experts; vision-language models (CLIP and successors); scaling laws (Kaplan, Chinchilla); small vs large models in practice |
 | 12 | NLP tasks with modern tools | Text classification (an LLM merchant classifier as a worked case); NER and extraction; sentiment; topic modelling (LDA to BERTopic); summarisation; translation; task metrics (BLEU, ROUGE, BERTScore) and their limits |
 
 ## Contents, Parts IV–VII
@@ -67,7 +66,7 @@ Parts IV–VII are the core of the book and the largest share of it: how LLMs wo
 | 14 | Inference, decoding and serving | Greedy, beam, temperature, top-k, top-p, min-p; repetition penalties; constrained and structured decoding; speculative decoding; KV cache and continuous batching; quantisation (int8, int4, GPTQ, AWQ); serving engines (vLLM, TGI); latency, throughput and cost arithmetic; batch APIs (cutting an offline LLM job's cost as a worked case) |
 | 15 | Prompting and context engineering | Zero- and few-shot; chain of thought; structured output (JSON schema, function calling); prompt templates and versioning; long context and its failure modes; prompt caching; prompt injection and defences |
 | 16 | Fine-tuning and parameter-efficient methods | When to prompt, retrieve or fine-tune; full fine-tuning; LoRA in depth (the low-rank update, rank and alpha, target modules, merging); QLoRA; adapters; prefix-tuning and prompt tuning; instruction data; synthetic data; catastrophic forgetting; evaluating a fine-tune. Code: LoRA from scratch, then with Hugging Face PEFT |
-| 17 | Embeddings and representation learning | Sentence embeddings; contrastive learning and InfoNCE; hard negatives; fine- tuning an embedding model; Matryoshka embeddings; multilingual embeddings; benchmarks (MTEB) and why your own evaluation matters more |
+| 17 | Embeddings and representation learning | Sentence embeddings; contrastive learning and InfoNCE; hard negatives; fine-tuning an embedding model; Matryoshka embeddings; multilingual embeddings; benchmarks (MTEB) and why your own evaluation matters more |
 
 **Chapter 13a · Infrastructure primer.** Servers, CPUs and GPUs, HTTP APIs, Docker, Kubernetes, storage, queues and streams, batch vs online inference, capacity planning and observability, explained from zero for readers who have never deployed a model. Read it before Chapters 14 and 29.
 
@@ -75,7 +74,7 @@ Parts IV–VII are the core of the book and the largest share of it: how LLMs wo
 
 | Ch | Title | What it covers |
 |---|---|---|
-| 18 | Information retrieval | Inverted index; TF-IDF and BM25; dense retrieval (DPR); approximate nearest neighbour (HNSW, IVF, product quantisation); vector databases; hybrid search and reciprocal rank fusion; re- ranking with cross-encoders; late interaction (ColBERT); query understanding and rewriting; retrieval metrics |
+| 18 | Information retrieval | Inverted index; TF-IDF and BM25; dense retrieval (DPR); approximate nearest neighbour (HNSW, IVF, product quantisation); vector databases; hybrid search and reciprocal rank fusion; re-ranking with cross-encoders; late interaction (ColBERT); query understanding and rewriting; retrieval metrics |
 | 19 | Retrieval-augmented generation | The RAG pipeline end to end; chunking strategies; metadata and filtering; query transformation (multi-query, HyDE); context assembly and ordering; citations and grounding; GraphRAG; agentic RAG; common failure modes and fixes |
 | 20 | Frameworks and tooling | LangChain (core abstractions, LCEL, retrievers, tools); LangGraph (state graphs for agents); LlamaIndex; DSPy (programming prompts as modules); the Hugging Face stack; when a framework helps and when plain Python is better |
 
@@ -89,7 +88,7 @@ Parts IV–VII are the core of the book and the largest share of it: how LLMs wo
 
 | Ch | Title | What it covers |
 |---|---|---|
-| 22 | LLM evaluation | Benchmarks vs application evals; error analysis as the starting point; building an eval set; reference- based metrics (exact match, token F1, BLEU, ROUGE, BERTScore); LLM-as-judge (pointwise, pairwise, rubric-based); judge biases (position, verbosity, self-preference) and how to calibrate judges against human labels (agreement, Cohen's kappa); sample sizes and confidence intervals; online evaluation and A/B tests for LLM features; tooling |
+| 22 | LLM evaluation | Benchmarks vs application evals; error analysis as the starting point; building an eval set; reference-based metrics (exact match, token F1, BLEU, ROUGE, BERTScore); LLM-as-judge (pointwise, pairwise, rubric-based); judge biases (position, verbosity, self-preference) and how to calibrate judges against human labels (agreement, Cohen's kappa); sample sizes and confidence intervals; online evaluation and A/B tests for LLM features; tooling |
 | 23 | RAG and agent evaluation | Retrieval metrics vs generation metrics; context precision and recall; faithfulness and answer relevance; RAGAS-style evaluation and its pitfalls; evaluating multi-step agents |
 | 24 | Safety and responsible AI | Hallucination; toxicity and bias; PII handling; prompt injection and jailbreaks; red-teaming; content moderation (a review moderation pipeline as a worked case); the EU AI Act at a practitioner level |
 
@@ -101,8 +100,8 @@ Parts VIII–X turn knowledge into interview performance: the recommender and se
 
 | Ch | Title | What it covers |
 |---|---|---|
-| 25 | Recommender systems | Framing (what to optimise, implicit vs explicit feedback); collaborative filtering and matrix factorisation; the multi-stage architecture (candidate generation, ranking, re-ranking); two- tower retrieval; ranking models (GBDT, DLRM, DCN, sequential models such as SASRec); cold start; exploration and bandits; position bias and inverse propensity scoring; offline replay and its limits; LLMs in recommendation (LLM judges, semantic IDs, generative retrieval) |
-| 26 | Search ranking and learning to rank | Pointwise, pairwise and listwise losses; LambdaMART; query, document and query- document features; marketplace search (availability, distance, delivery time); query autocomplete and spelling; evaluating search |
+| 25 | Recommender systems | Framing (what to optimise, implicit vs explicit feedback); collaborative filtering and matrix factorisation; the multi-stage architecture (candidate generation, ranking, re-ranking); two-tower retrieval; ranking models (GBDT, DLRM, DCN, sequential models such as SASRec); cold start; exploration and bandits; position bias and inverse propensity scoring; offline replay and its limits; LLMs in recommendation (LLM judges, semantic IDs, generative retrieval) |
+| 26 | Search ranking and learning to rank | Pointwise, pairwise and listwise losses; LambdaMART; query, document and query-document features; marketplace search (availability, distance, delivery time); query autocomplete and spelling; evaluating search |
 | 27 | Marketplace and logistics ML | Demand forecasting (from baselines to gradient boosting and deep models); ETA prediction; supply-demand balancing and network rebalancing (optimisation basics: linear programming, assignment); pricing and incentives at a conceptual level; experiments in two-sided marketplaces |
 
 ### Part IX — ML systems and production
@@ -110,7 +109,6 @@ Parts VIII–X turn knowledge into interview performance: the recommender and se
 | Ch | Title | What it covers |
 |---|---|---|
 | 28 | ML system design | The answer framework (clarify, frame, data, features, model, evaluation, serving, monitoring); back-of-the-envelope maths; then 10 worked designs: restaurant feed, dish and restaurant search, LLM taxonomy classifier, RAG support assistant, review moderation and summarisation, LLM judge for relevance, ad click prediction, demand forecasting for quick commerce, fraud detection, an agentic customer-service flow |
-| Ch | Title | What it covers |
 | 29 | MLOps and LLMOps | Feature stores; training pipelines; model registry; CI/CD for models; shadow, canary and A/B deployment; monitoring and drift; LLM observability (tracing chained calls, tokens, cost); prompt and model versioning |
 | 30 | Data for ML | SQL patterns for ML (windows, sessionisation, point-in-time joins); pandas at scale; Spark basics; data quality and contracts; labelling strategies and inter-annotator agreement; synthetic data |
 
@@ -157,8 +155,8 @@ Two books are worth owning; everything else here is free or optional. Each chapt
 
 | Book | Used in chapters | Cost |
 |---|---|---|
-| *Machine Learning System Design Interview*, Aminian and Xu | 25, 26, 28 | Bought for phase 1 |
-| *AI Engineering*, Chip Huyen (2024) | 14, 15, 16, 19, 21, 22, 29 | Bought for phase 1 |
+| *Machine Learning System Design Interview*, Aminian and Xu | 25, 26, 28 | Worth buying first |
+| *AI Engineering*, Chip Huyen (2024) | 14, 15, 16, 19, 21, 22, 29 | Worth buying first |
 | *Designing Machine Learning Systems*, Chip Huyen (2022) | 3, 28, 29, 30 | Optional |
 | *An Introduction to Statistical Learning*, James, Witten, Hastie, Tibshirani | 3, 4, 5 | Free PDF from the authors |
 | [*Dive into Deep Learning*](https://d2l.ai/), Zhang et al. | 6, 7, 8, 10 | Free online |
@@ -181,7 +179,6 @@ Two books are worth owning; everything else here is free or optional. Each chapt
 | Paper | Chapter |
 |---|---|
 | [Attention Is All You Need](https://arxiv.org/abs/1706.03762) (2017) | 10 |
-| Paper | Chapter |
 | [BERT](https://arxiv.org/abs/1810.04805) (2018) | 11 |
 | [Sentence-BERT](https://arxiv.org/abs/1908.10084) (2019) | 17 |
 | [Dense Passage Retrieval](https://arxiv.org/abs/2004.04906) (2020) | 18 |
@@ -198,7 +195,7 @@ Two books are worth owning; everything else here is free or optional. Each chapt
 | [Judging LLM-as-a-Judge](https://arxiv.org/abs/2306.05685) (2023) | 22 |
 | Deep Neural Networks for YouTube Recommendations, Covington et al. (RecSys 2016) | 25 |
 
-Links were written from memory and not re-checked today; the arXiv IDs are the papers' standard identifiers.
+The arXiv IDs are the papers' standard identifiers.
 
 ---
 

@@ -33,8 +33,7 @@ Delivery companies are logistics businesses with an app on top. Demand forecasts
 import numpy as np, pandas as pd, lightgbm as lgb
 
 def add_features(df):
-    """df: one row per (zone, hour) with ts and orders, sorted by zone and
-ts."""
+    """df: one row per (zone, hour) with ts and orders, sorted by zone and ts."""
     df = df.copy()
     df["hour"], df["dow"] = df.ts.dt.hour, df.ts.dt.dayofweek
     g = df.groupby("zone")["orders"]
@@ -111,8 +110,7 @@ from scipy.optimize import linprog
 n = len(supply)
 A_ub, b_ub = [], []
 for i in range(n):
-    row = np.zeros(n * n); row[i * n:(i + 1) * n] = 1; A_ub.append(row);
-b_ub.append(supply[i])
+    row = np.zeros(n * n); row[i * n:(i + 1) * n] = 1; A_ub.append(row); b_ub.append(supply[i])
 for j in range(n):
     row = np.zeros(n * n); row[j::n] = -1; A_ub.append(row); b_ub.append(-need[j])
 res = linprog(dist.flatten(), A_ub=np.array(A_ub), b_ub=np.array(b_ub), bounds=(0, None), method="highs")
@@ -175,9 +173,9 @@ Questions 1–4 basic, 5–9 intermediate, 10–13 senior.
 
 **10. Design ETA prediction for a new city with little data.** Global model trained on all cities with city-level features; routing-engine travel times as features; prep-time priors by cuisine and restaurant size; wider quantiles initially; fast feedback loop; monitor late rate daily.
 
-**11. A new dispatch algorithm reduces average pickup time in simulation. How do youlaunch it?** Check simulation assumptions against real data, then a switchback test across cities and time slots measuring delivery time, late rate, courier utilisation and earnings, cancellations; guardrails; gradual rollout.
+**11. A new dispatch algorithm reduces average pickup time in simulation. How do you launch it?** Check simulation assumptions against real data, then a switchback test across cities and time slots measuring delivery time, late rate, courier utilisation and earnings, cancellations; guardrails; gradual rollout.
 
-**12. How do forecast errors translate into business cost, and how would you choose theloss?** Under-forecast causes late deliveries and lost orders; over-forecast causes idle courier pay or wasted stock. Estimate both costs, and choose the quantile q = cost_under / (cost_under + cost_over) (the newsvendor result) as the forecast target.
+**12. How do forecast errors translate into business cost, and how would you choose the loss?** Under-forecast causes late deliveries and lost orders; over-forecast causes idle courier pay or wasted stock. Estimate both costs, and choose the quantile q = cost_under / (cost_under + cost_over) (the newsvendor result) as the forecast target.
 
 **13. How would you decide delivery fees by zone and time?** Estimate elasticities with randomised experiments; model demand and supply responses; optimise fees for marketplace-level objectives (orders delivered on time, contribution, fairness) under constraints; test with switchbacks; watch long-term retention.
 

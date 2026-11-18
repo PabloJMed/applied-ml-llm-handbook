@@ -76,7 +76,7 @@ Without the KL term the policy finds **reward hacking**: outputs that score well
 
 ## 13.4 DPO and friends
 
-**Direct Preference Optimization** (Rafailov et al., 2023) shows that the KL-constrained RLHF objective has a closed-form optimal policy, and rewrites the reward in terms of the policy itself. The result is a classification-style loss on preference pairs, no reward model and no sampling:
+**Direct Preference Optimization** (Rafailov et al., 2023) shows that the KL-constrained RLHF objective has a closed-form optimal policy, and rewrites the reward in terms of the policy itself. The result is a classification-style loss on preference pairs, no reward model and, in its offline form, no sampling during training:
 
 ```python
 def dpo_loss(pc, pr, rc, rr, beta=0.1):
@@ -101,7 +101,7 @@ Human labels are slow and expensive. **RLAIF** uses an LLM to produce the prefer
 
 ## 13.6 Reasoning models and RL with verifiable rewards
 
-Since late 2024 the biggest gains have come from RL on tasks whose answers can be checked automatically: maths with a known answer, code with unit tests, tool-use tasks with a checkable end state. The reward is simply "correct or not" (plus format), so there is no reward model to hack. The model learns to produce long chains of thought, check its work and backtrack. Examples: OpenAI o1/o3, DeepSeek-R1, and the extended-thinking modes of Claude and Gemini.
+Since late 2024 the biggest gains have come from RL on tasks whose answers can be checked automatically: maths with a known answer, code with unit tests, tool-use tasks with a checkable end state. The reward is a programmatic check, "correct or not" (plus format), so there is no learned reward model to over-optimise. Verifiers can still be gamed, though: models learn to special-case unit tests, exploit lenient answer-matchers or satisfy the format without the substance, so the checker needs as much care as the policy. The model learns to produce long chains of thought, check its work and backtrack. Examples: OpenAI o1/o3, DeepSeek-R1, and the extended-thinking modes of Claude and Gemini.
 
 **GRPO** (Group Relative Policy Optimization, from DeepSeekMath, used for R1) drops PPO's value model: sample a group of answers per prompt and use each answer's reward relative to its group as the advantage.
 
@@ -135,7 +135,6 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
 | Symptom | Likely origin |
 |---|---|
 | Knows facts up to a date, not after | Pre-training data cut-off |
-| Symptom | Likely origin |
 | Weak in Gulf Arabic dialects | Pre-training mixture |
 | Follows formats, uses the chat template | SFT |
 | Verbose, flattering, over-agrees with the user | Reward hacking in RLHF / preference data biased towards long answers |
@@ -169,7 +168,7 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
 8. You need a cheap model to tag 50M menu items. Describe a distillation plan and how you would check it.
 9. A fine-tuned assistant became sycophantic. Which stage do you suspect and how would you fix it?
 
-Short answers: (5) The optimal policy of KL-constrained reward maximisation is the reference reweighted by exp(reward/beta); invert it to express reward through log-probability ratios, plug into Bradley-Terry, and the reward model disappears. Beta controls how far the policy may move from the reference. (6) PPO is flexible but costly and unstable; DPO is simple and stable for pairwise data; KTO handles unpaired binary feedback, so it fits moderator thumbs. (7) SFT on some reasoning traces, then RL (GRPO) with a correctness reward; answers can be checked automatically, so the reward cannot be gamed and training scales. (9) The preference stage: labellers or reward models preferred agreeable answers. Add pairs where the correct answer disagrees with the user, raise beta or KL, and evaluate on a sycophancy set.
+Short answers: (5) The optimal policy of KL-constrained reward maximisation is the reference reweighted by exp(reward/beta); invert it to express reward through log-probability ratios, plug into Bradley-Terry, and the reward model disappears. Beta controls how far the policy may move from the reference. (6) PPO is flexible but costly and unstable; DPO is simple and stable for pairwise data; KTO handles unpaired binary feedback, so it fits moderator thumbs. (7) SFT on some reasoning traces, then RL (GRPO) with a correctness reward; answers can be checked automatically, so there is no learned reward model to exploit and training scales; the verifiers still need hardening against reward hacking (tests special-cased, lenient answer-matching). (9) The preference stage: labellers or reward models preferred agreeable answers. Add pairs where the correct answer disagrees with the user, raise beta or KL, and evaluate on a sycophancy set.
 
 ## Practice
 

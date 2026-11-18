@@ -1,6 +1,6 @@
 # 1 · The maths you actually use
 
-Part I · Foundations. Phase 2 chapter: the maths behind the rest of the book, limited to what practitioners use. Every idea here shows up later: cosine similarity in retrieval, SVD in matrix factorisation and LoRA, Bayes in naive Bayes and calibration, cross-entropy and KL in every model you train.
+Part I · Foundations. The maths behind the rest of the book, limited to what practitioners use. Every idea here shows up later: cosine similarity in retrieval, SVD in matrix factorisation and LoRA, Bayes in naive Bayes and calibration, cross-entropy and KL in every model you train.
 
 ## Why it matters
 
@@ -15,12 +15,12 @@ You do not need a maths degree to be a strong applied ML engineer, but you need 
 - **Bayes' rule and base rates**: how to update a probability with evidence, and why rare events produce many false alarms. [Bayes' theorem](https://en.wikipedia.org/wiki/Bayes%27_theorem).
 - **MLE and MAP**: choose parameters that make the data most likely; MAP adds a prior, which is where regularisation comes from. [Maximum likelihood estimation](https://en.wikipedia.org/wiki/Maximum_likelihood_estimation), [MAP estimation](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation).
 - **Gradient and chain rule**: the direction of steepest increase, and how derivatives compose through layers; together they give gradient descent and backpropagation. [Gradient descent](https://en.wikipedia.org/wiki/Gradient_descent).
-- **Entropy, cross-entropy, KL divergence**: measures of uncertainty and of the gap between two distributions; cross-entropy is the standard classification loss. [Kullback– Leibler divergence](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence).
+- **Entropy, cross-entropy, KL divergence**: measures of uncertainty and of the gap between two distributions; cross-entropy is the standard classification loss. [Kullback–Leibler divergence](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence).
 - **Whole-subject reference**: [Mathematics for Machine Learning](https://mml-book.github.io/) (Deisenroth, Faisal and Ong), free online.
 
 ## 1.1 Vectors, dot products and cosine similarity
 
-A vector is a list of numbers; in ML, a point in a feature or embedding space. The **dotproduct** a·b = Σaᵢbᵢ measures alignment weighted by length; **cosine similarity** a·b / (‖a‖‖b‖) measures only the angle: 1 for the same direction, 0 for orthogonal, −1 for opposite.
+A vector is a list of numbers; in ML, a point in a feature or embedding space. The **dot product** a·b = Σaᵢbᵢ measures alignment weighted by length; **cosine similarity** a·b / (‖a‖‖b‖) measures only the angle: 1 for the same direction, 0 for orthogonal, −1 for opposite.
 
 ```python
 import numpy as np
@@ -67,7 +67,6 @@ This single idea explains **matrix factorisation** for recommendations (Chapter 
 | Bernoulli / binomial | Yes/no outcomes, counts of successes | Clicks, conversions; logistic regression's likelihood |
 | Categorical / multinomial | One of k outcomes | Next-token prediction; softmax classifiers |
 | Poisson | Counts of events in an interval | Orders per hour, demand forecasting |
-| Distribution | Models | Used for |
 | Normal (Gaussian) | Sums of many small effects | Measurement noise, the CLT, regression errors |
 | Log-normal | Products of factors; skewed positive values | Basket values, delivery durations |
 | Beta | A probability itself | Prior for click rates; Thompson sampling |
@@ -136,7 +135,7 @@ Where KL appears: the RLHF penalty that keeps a fine-tuned policy close to the r
 
 **2. [B] What is the SVD and its main use?** A = UΣVᵀ; truncating to the top k singular values gives the best rank-k approximation: PCA, matrix factorisation, compression, LoRA's intuition.
 
-**3. [I] A test is 95% sensitive with a 5% false positive rate; prevalence is 1%. What shareof positives are real?** About 16%: 0.95 × 0.01 / (0.95 × 0.01 + 0.05 × 0.99).
+**3. [I] A test is 95% sensitive with a 5% false positive rate; prevalence is 1%. What share of positives are real?** About 16%: 0.95 × 0.01 / (0.95 × 0.01 + 0.05 × 0.99).
 
 **4. [I] Relate L2 regularisation to Bayesian inference.** It is MAP estimation with a zero-mean Gaussian prior on the weights; L1 corresponds to a Laplace prior.
 

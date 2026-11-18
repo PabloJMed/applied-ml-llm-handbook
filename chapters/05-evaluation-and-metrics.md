@@ -79,7 +79,7 @@ Other common rules: a fixed precision floor ("at least 90% of flags must be real
 
 Precision and recall depend on the threshold. To judge the **ranking** of scores itself, sweep every threshold and summarise the curve.
 
-**ROC curve and ROC-AUC.** Plot recall (TPR) against the false positive rate for every threshold. The area under it has a clean meaning: **the probability that a random positivegets a higher score than a random negative.** 0.5 is random, 1.0 is perfect. That meaning gives a one-line implementation through ranks (the Mann-Whitney U statistic):
+**ROC curve and ROC-AUC.** Plot recall (TPR) against the false positive rate for every threshold. The area under it has a clean meaning: **the probability that a random positive gets a higher score than a random negative.** 0.5 is random, 1.0 is perfect. That meaning gives a one-line implementation through ranks (the Mann-Whitney U statistic):
 
 ```python
 import pandas as pd
@@ -111,7 +111,6 @@ Both match scikit-learn's `roc_auc_score` and `average_precision_score` on a tes
 | Baseline of a random model | Always 0.5 | The positive rate (0.01 for 1% fraud) |
 | Sensitive to | Ranking of positives vs negatives overall | Precision among the top-scored items |
 | Under heavy imbalance | Can look excellent (0.95) while precision at useful thresholds is poor, because the huge number of true negatives keeps FPR small | Shows the problem clearly |
-|  | ROC-AUC | PR-AUC |
 | Use when | Classes are roughly balanced, or you care about the whole ranking | Positives are rare and you act on the top of the list (fraud, moderation, rare-event detection) |
 
 AUC is also blind to calibration: multiply all scores by 0.1 and AUC does not change, but any decision based on the probability does. That is why 5.3 exists.
@@ -166,8 +165,7 @@ On a synthetic test with a badly calibrated score, both methods cut ECE from abo
 
 ```python
 def correct_downsampling(p, w):
-    """p: prediction from a model trained with a fraction w of negatives
-kept."""
+    """p: prediction from a model trained with a fraction w of negatives kept."""
     return p / (p + (1 - p) / w)
 ```
 
@@ -187,8 +185,7 @@ Example: with true labels `[0,0,0,0,0,0,1,1,2,2]` and predictions `[0,0,0,0,0,1,
 from sklearn.metrics import f1_score, classification_report, confusion_matrix
 
 f1_score(y_true, y_pred, average="macro")
-print(classification_report(y_true, y_pred))   # per-class precision, recall,
-F1, support
+print(classification_report(y_true, y_pred))   # per-class precision, recall, F1, support
 confusion_matrix(y_true, y_pred)               # which classes get confused with which
 ```
 
@@ -202,9 +199,8 @@ Other tools: **top-k accuracy** (is the true class in the top k predictions? Use
 |---|---|---|---|
 | MAE | mean(\|ŷ − y\|) | In the target's units; robust to outliers; optimal prediction is the median | ETA error in minutes; easy to explain |
 | RMSE | √mean((ŷ − y)²) | Punishes large errors more; optimal prediction is the mean | Large misses are disproportionately costly |
-| MAPE | mean(\|ŷ − y\| / \|y\|) | Scale-free, but explodes near zero and punishes over- forecasts more than under-forecasts | Rarely; only with targets far from zero |
+| MAPE | mean(\|ŷ − y\| / \|y\|) | Scale-free, but explodes near zero and punishes over-forecasts more than under-forecasts | Rarely; only with targets far from zero |
 | WAPE | Σ\|ŷ − y\| / Σ\|y\| | Scale-free and stable with small values | Demand forecasting across many items or zones |
-| Metric | Formula | Properties | Use when |
 | Bias | mean(ŷ − y) | Direction of error | Always report next to an error metric |
 | Pinball (quantile) loss | mean(max(q·(y − ŷ), (q − 1)·(y − ŷ))) | Evaluates a quantile forecast | P90 demand for courier staffing, P90 ETA promises |
 | R² | 1 − SSE / SST | Share of variance explained | Explanatory analysis; poor for comparing forecasts across datasets |
@@ -254,7 +250,6 @@ Two traps from the later chapters worth repeating: compute the ideal DCG from **
 | Level | Example: restaurant feed | Who owns it |
 |---|---|---|
 | Business (north star) | Orders per active user per week; retention | The product team |
-| Level | Example: restaurant feed | Who owns it |
 | Online product metric | Feed conversion (sessions with an order from the feed), plus guardrails: delivery time, cancellations, partner concentration | You and the product team, in A/B tests |
 | Offline model metric | NDCG@10 on next-day orders; calibration of p(order) | You, every training run |
 
@@ -297,7 +292,7 @@ by_slice(df, "city", lambda g: roc_auc_score(g["y"], g["p"]))
 
 "Model B has AUC 0.912 vs 0.909" means nothing without an interval. Metrics computed on a finite test set are estimates.
 
-**The bootstrap** works for any metric: resample the test set with replacement many times, recompute the metric each time, and take the 2.5th and 97.5th percentiles. **Resample theright unit:** if one user contributes many rows, rows are not independent, so resample users (or queries, or sessions), not rows. Row-level resampling gives intervals that are too narrow.
+**The bootstrap** works for any metric: resample the test set with replacement many times, recompute the metric each time, and take the 2.5th and 97.5th percentiles. **Resample the right unit:** if one user contributes many rows, rows are not independent, so resample users (or queries, or sessions), not rows. Row-level resampling gives intervals that are too narrow.
 
 ```python
 def bootstrap_ci(df, metric, n_boot=1000, by="user", seed=0):
@@ -362,7 +357,7 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 
 **7. What is calibration and when does it matter?** Predicted probabilities match observed frequencies. It matters whenever the probability is used as a number: multiplying p(order) by basket value, comparing p(click) × bid across ads, setting expected-cost thresholds, or combining heads of a multi-task model. Measure with a reliability diagram and ECE; fix with Platt, isotonic or temperature scaling on held-out data.
 
-**8. You trained on 10% of negatives. What happens to the predictions and how do you fixthem?** They are inflated, because the model saw positives ten times more often than reality. Correct with q = p / (p + (1 − p) / w) with w = 0.1. Ranking (AUC) is unaffected, because the correction is monotone.
+**8. You trained on 10% of negatives. What happens to the predictions and how do you fix them?** They are inflated, because the model saw positives ten times more often than reality. Correct with q = p / (p + (1 − p) / w) with w = 0.1. Ranking (AUC) is unaffected, because the correction is monotone.
 
 **9. Micro, macro or weighted F1 for a 300-class dish taxonomy?** Macro (and per-class) if the long tail matters, because micro is dominated by the frequent classes. Report micro too as an overall volume view, plus a confusion analysis of the most confused class pairs.
 
@@ -372,7 +367,7 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 
 **12. Model B beats model A by 0.003 AUC. Do you ship it?** Not on that alone. Get a confidence interval on the difference with a paired bootstrap over users. Check slices, calibration and latency cost. Then ask whether offline AUC gains have historically translated into online gains for this system; if yes and the difference is significant, run an A/B test.
 
-**13. Your offline metric improved but the A/B test shows no change. What are possiblereasons?** Proxy mismatch (clicks vs orders), offline candidate set different from production, leakage or train-serve skew, feedback-loop bias in offline labels, an effect too small for the test's power, or segments moving in opposite directions. Investigate each with data, not opinions.
+**13. Your offline metric improved but the A/B test shows no change. What are possible reasons?** Proxy mismatch (clicks vs orders), offline candidate set different from production, leakage or train-serve skew, feedback-loop bias in offline labels, an effect too small for the test's power, or segments moving in opposite directions. Investigate each with data, not opinions.
 
 **14. How do you build the metric set for a new ML feature?** Start from the business goal (north star), choose an online primary metric that reflects it and is sensitive enough to move in a test, add guardrails and counter-metrics, then pick an offline metric and validate that it predicts the online one. Write them down before building the model.
 

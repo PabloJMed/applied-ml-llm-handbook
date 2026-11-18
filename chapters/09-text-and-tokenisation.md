@@ -1,4 +1,4 @@
-# 09 · Text and tokenisation
+# 9 · Text and tokenisation
 
 ## Why it matters
 
@@ -101,8 +101,7 @@ tok = Tokenizer(models.BPE(unk_token="[UNK]"))
 tok.normalizer = normalizers.NFKC()
 tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
 trainer = trainers.BpeTrainer(vocab_size=400, special_tokens=["[UNK]", "[PAD]"],
-
-initial_alphabet=pre_tokenizers.ByteLevel.alphabet())
+                              initial_alphabet=pre_tokenizers.ByteLevel.alphabet())
 tok.train_from_iterator(menu_texts, trainer)
 
 tok.encode("chicken shawarma").tokens   # ['chicken', 'Ġshawarma']   2 tokens
@@ -132,17 +131,18 @@ Arabic-specific normalisation that helps search and classical NLP (be careful wi
 import re, unicodedata
 
 def normalise_ar(s):
-    s = unicodedata.normalize("NFKC", s)                 # also splits ligatures: "ال" >- "ﻻ"
-    s = re.sub(r"[ً-ْـ]", "", s)         # diacritics (harakat) and tatweel
-    s = re.sub(r"[آأإ]", "ا", s)    # alef variants -> bare alef
-    s = s.replace("ي" ,"ى").replace("ه" ,"ة")  # alef maqsura, ta marbuta
+    s = unicodedata.normalize("NFKC", s)               # splits ligatures (U+FEFB -> lam + alef)
+    s = re.sub(r"[\u064B-\u0652\u0640]", "", s)        # diacritics (harakat) and tatweel
+    s = re.sub(r"[\u0622\u0623\u0625]", "\u0627", s)  # alef variants -> bare alef
+    s = s.replace("\u0649", "\u064A")                  # alef maqsura -> ya
+    s = s.replace("\u0629", "\u0647")                  # ta marbuta -> ha
     return s
 
-normalise_ar("َشاَوْرَما")   # -> "شاورما"
-normalise_ar("أكلة")     # -> "اكله"
+normalise_ar("شَاوَرْمَا")   # gives "شاورما"
+normalise_ar("أكلة")        # gives "اكله"
 ```
 
-Code-switching and Arabizi (Arabic in Latin letters, with digits for sounds: 3 = = 2 ,ح = 7 ,ع ء) are common in Gulf search queries and reviews. Options, in order of cost: character n-gram features (fastText, Chapter 8) that tolerate spelling variants; a transliteration step for the most frequent terms; a multilingual embedding model evaluated on your own query logs; or fine-tuning on labelled mixed-language data. Always split your evaluation set by language and script so a good English score cannot hide a poor Arabic one.
+Code-switching and Arabizi (Arabic in Latin letters, with digits for sounds: 3 stands for ع (ayn), 7 for ح (ha) and 2 for ء (hamza)) are common in Gulf search queries and reviews. Options, in order of cost: character n-gram features (fastText, Chapter 8) that tolerate spelling variants; a transliteration step for the most frequent terms; a multilingual embedding model evaluated on your own query logs; or fine-tuning on labelled mixed-language data. Always split your evaluation set by language and script so a good English score cannot hide a poor Arabic one.
 
 ## 9.7 Tokens and money
 

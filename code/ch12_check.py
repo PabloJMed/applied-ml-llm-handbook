@@ -13,10 +13,15 @@ texts = [
     "farmacia central ibuprofeno paracetamol", "supermercado dia leche pan huevos", "kebab istanbul doner durum",
     "pizza express pepperoni four cheese", "smash burgers bacon double", "ramen bar tonkotsu gyoza",
     "parafarmacia crema solar vitaminas", "fruteria manzanas platanos", "pharmacy plus aspirin bandages",
-] * 10
+]
 labels = ["restaurant", "restaurant", "restaurant", "pharmacy", "grocery", "restaurant",
-          "restaurant", "restaurant", "restaurant", "pharmacy", "grocery", "pharmacy"] * 10
-X_tr, X_te, y_tr, y_te = train_test_split(texts, labels, test_size=0.3, random_state=0, stratify=labels)
+          "restaurant", "restaurant", "restaurant", "pharmacy", "grocery", "pharmacy"]
+# Evaluate on names the model has never seen. (Duplicating the list before a random split
+# would put copies of training rows in the test set: the leakage Chapter 3.7 warns about.)
+X_tr, y_tr = texts, labels
+X_te = ["pizzeria roma diavola", "burger bros onion rings", "farmacia norte aspirina",
+        "supermercado eroski arroz aceite", "thai garden pad thai", "pharmacy express vitamins"]
+y_te = ["restaurant", "restaurant", "pharmacy", "grocery", "restaurant", "pharmacy"]
 
 clf = make_pipeline(
     make_union(

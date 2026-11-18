@@ -39,7 +39,7 @@ When RAG answers are wrong, the cause is usually upstream of the LLM: the docume
 
 | Strategy | How | Good for | Watch out |
 |---|---|---|---|
-| Fixed size with overlap | Every N tokens, overlapping by M | Quick baseline | Splits sentences, tables and lists mid- way |
+| Fixed size with overlap | Every N tokens, overlapping by M | Quick baseline | Splits sentences, tables and lists mid-way |
 | Recursive, by structure | Split on headings, then paragraphs, then sentences, packing up to a size | Most documents: the sensible default | Needs reasonably structured input |
 | Semantic | Split where embedding similarity between adjacent sentences drops | Long unstructured text | More compute; gains are often small |
 | Small-to-big (parent-child) | Retrieve small chunks for precision, return their larger parent section to the LLM | Answers that need surrounding context | Bigger contexts, more tokens |
@@ -56,8 +56,7 @@ def n_tokens(text):
     return len(text.split())          # stand-in; use the model's tokenizer in practice
 
 def split_markdown_sections(doc):
-    """Split on headings, keeping the heading path as context for each
-section."""
+    """Split on headings, keeping the heading path as context for each section."""
     sections, path, buf = [], [], []
     for line in doc.splitlines():
         m = re.match(r"^(#{1,6})\s+(.*)", line)
@@ -74,8 +73,7 @@ section."""
     return [(p, t) for p, t in sections if t]
 
 def chunk_text(text, max_tokens=300, overlap=40):
-    """Pack paragraphs (sentences for long paragraphs) into chunks up to
-max_tokens, with overlap."""
+    """Pack paragraphs (sentences for long paragraphs) into chunks up to max_tokens, with overlap."""
     units = []
     for para in [p for p in text.split("\n\n") if p.strip()]:
         if n_tokens(para) <= max_tokens:
@@ -211,7 +209,7 @@ What to do with a failed check depends on the stakes: regenerate, drop the unsup
 
 ## 19.7 GraphRAG
 
-Standard RAG retrieves passages similar to the question. It struggles with **globalquestions** that need the whole corpus ("what are the main themes in this year's complaints?") and with **multi-hop questions** across entities ("which partners affected by the March policy change also had late-delivery escalations?").
+Standard RAG retrieves passages similar to the question. It struggles with **global questions** that need the whole corpus ("what are the main themes in this year's complaints?") and with **multi-hop questions** across entities ("which partners affected by the March policy change also had late-delivery escalations?").
 
 **GraphRAG** (Microsoft, 2024) builds a knowledge graph offline: an LLM extracts entities and relationships from every chunk, groups the graph into communities, and writes a summary per community. Global questions are answered from community summaries (map-reduce); local questions combine graph neighbours with text chunks.
 
@@ -232,8 +230,7 @@ Instead of one fixed retrieve-then-generate pass, an agent (Chapter 21) decides:
 | Retrieval misses paraphrased questions | Dense model weak in domain; vocabulary mismatch | Hybrid search; multi-query; fine-tune embeddings |
 | Retrieval misses exact codes and names | Dense-only retrieval | Add BM25 |
 | Correct passage retrieved but answer still wrong | Too many distractors; passage in the middle; model ignores it | Fewer, re-ranked passages; ordering; stronger instructions; better model |
-| Confident answers to out- of-scope questions | No abstain path | Explicit "don't know" instruction; retrieval-score threshold; evaluation on out- of-scope questions |
-| Symptom | Likely cause | Fix |
+| Confident answers to out-of-scope questions | No abstain path | Explicit "don't know" instruction; retrieval-score threshold; evaluation on out-of-scope questions |
 | Outdated answers | Stale chunks kept after updates | Content hashing, deletes, effective dates in metadata |
 | Answers mix rules from different countries | Missing metadata filters | Filter by country and audience from the session |
 | Invented citations | Model fabricates ids | Validate ids; constrain citation format |
@@ -277,7 +274,7 @@ Questions 1–4 basic, 5–9 intermediate, 10–13 senior.
 
 **10. Design a RAG assistant for rider policies in 10 countries and 3 languages.** Ingestion with country, language, audience and effective-date metadata; structure-aware chunks with headings; hybrid retrieval filtered by the rider's country and language from the session; multilingual embeddings and re-ranker; citations and abstain path; per-country, per-language evaluation sets; freshness checks when policies change; escalation to support for low-confidence answers.
 
-**11. Your RAG demo scored well, but users complain after launch. What happened, andwhat do you do?** The demo questions were not real questions: users ask vaguer, multi-part, out-of-scope and follow-up questions. Collect real queries and failures, label them, build an evaluation set from them, and run error analysis by stage (retrieval, assembly, generation).
+**11. Your RAG demo scored well, but users complain after launch. What happened, and what do you do?** The demo questions were not real questions: users ask vaguer, multi-part, out-of-scope and follow-up questions. Collect real queries and failures, label them, build an evaluation set from them, and run error analysis by stage (retrieval, assembly, generation).
 
 **12. How do you decide between a bigger context window and better retrieval?** Compare on the evaluation set: answer quality, cost per question and latency for "top 5 passages" vs "top 50" vs whole documents. Better retrieval usually wins on cost and often on quality, because distractors hurt.
 

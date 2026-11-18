@@ -1,6 +1,6 @@
 # 16 · Fine-tuning and parameter-efficient methods
 
-Part VI · Building with LLMs. Assumes Chapter 10 (transformers) and Chapter 1's SVD and low-rank ideas. Chapter 13 covers how base models are trained and aligned; Chapter 22 how to evaluate the result.
+Part IV · Large language models. Assumes Chapter 10 (transformers) and Chapter 1's SVD and low-rank ideas. Chapter 13 covers how base models are trained and aligned; Chapter 22 how to evaluate the result.
 
 ## Why it matters
 
@@ -118,7 +118,6 @@ The PEFT family, roughly in historical order:
 | Method | What is trained | Notes |
 |---|---|---|
 | Adapters (Houlsby et al., 2019) | Small bottleneck MLPs inserted after attention and FFN in each layer | Effective; adds inference latency because extra layers run in sequence |
-| Method | What is trained | Notes |
 | Prefix-tuning (Li and Liang, 2021) | Trainable key and value vectors prepended at every layer | Strong for generation tasks; often reparameterised with an MLP for stable training |
 | Prompt tuning (Lester et al., 2021) | A few trainable embedding vectors (a soft prompt) prepended to the input only | Fewest parameters; works well for very large models, weaker for small ones |
 | P-tuning v2 (Liu et al., 2021) | Deep prompt tuning at every layer, like prefix-tuning, for understanding tasks | Narrows the gap to fine-tuning on smaller models |
@@ -129,16 +128,14 @@ The PEFT family, roughly in historical order:
 
 ```python
 class SoftPrompt(nn.Module):
-    """n_tokens trainable vectors prepended to a frozen model's input
-embeddings."""
+    """n_tokens trainable vectors prepended to a frozen model's input embeddings."""
     def __init__(self, n_tokens, d_model, init_from=None):
         super().__init__()
         init = (init_from[:n_tokens].clone() if init_from is not None      # e.g. embeddings of real words
                 else torch.randn(n_tokens, d_model) * 0.02)
         self.prompt = nn.Parameter(init)
 
-    def forward(self, token_embeds):
-# (B, T, d)
+    def forward(self, token_embeds):  # (B, T, d)
         B = token_embeds.shape[0]
         return torch.cat([self.prompt.unsqueeze(0).expand(B, -1, -1), token_embeds], dim=1)
 ```
@@ -200,8 +197,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 model_id = "<an open instruction-tuned model>"
 bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                         bnb_4bit_compute_dtype=torch.bfloat16,
-bnb_4bit_use_double_quant=True)
+                         bnb_4bit_compute_dtype=torch.bfloat16, bnb_4bit_use_double_quant=True)
 model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=bnb, device_map="auto")
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = prepare_model_for_kbit_training(model)
@@ -255,7 +251,7 @@ Questions 1–4 basic, 5–9 intermediate, 10–13 senior.
 
 **10. You need a classifier for 50 million merchant descriptions a month. Plan it.** Label a stratified sample with a strong LLM (batch API), audit a few hundred by hand, fine-tune a small encoder or a small LLM with LoRA on the LLM labels, compare with TF-IDF and prompted baselines, route low-confidence cases to the LLM, monitor drift and re-label periodically.
 
-**11. Your fine-tuned model scores higher on the task but users complain it got worse.What happened?** The evaluation set may not represent real traffic; general abilities or tone regressed; it overfits training phrasing; the chat template or decoding settings differ in production. Compare on production samples and run the regression suite.
+**11. Your fine-tuned model scores higher on the task but users complain it got worse. What happened?** The evaluation set may not represent real traffic; general abilities or tone regressed; it overfits training phrasing; the chat template or decoding settings differ in production. Compare on production samples and run the regression suite.
 
 **12. How would you serve 20 different LoRA adapters efficiently?** One base model in GPU memory with multi-LoRA serving (adapters loaded per request and batched together), adapters cached by popularity, merged models only for the highest-traffic adapters.
 

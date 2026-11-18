@@ -1,6 +1,6 @@
 # 18 · Information retrieval
 
-Part V · Retrieval and RAG. Builds on Chapter 26 (BM25, reciprocal rank fusion and learning to rank are coded there) and Chapter 25 (two-tower training). Leads into Chapter 19 (RAG), where retrieval is the part that most often decides whether the answer is right. Chapter 17 covers embedding models themselves.
+Part V · Retrieval and RAG. Draws on Chapter 26 (BM25, reciprocal rank fusion and learning to rank are coded there; read it alongside) and Chapter 25 (two-tower training). Leads into Chapter 19 (RAG), where retrieval is the part that most often decides whether the answer is right. Chapter 17 covers embedding models themselves.
 
 ## Why it matters
 
@@ -185,11 +185,10 @@ scores, ids = index.search(Q, 10)
 | Exact (flat) | Perfect recall, simple | Linear cost | Under a few hundred thousand vectors, or as ground truth |
 | HNSW | Best recall at low latency; the default in most vector databases | Memory for vectors plus links; deletes and rebuilds are awkward | Fits in RAM, latency matters |
 | IVF | Fast to build, simple to shard | Recall depends on n_probe and on clusters fitting the data | Large collections, batch rebuilds |
-| Index | Strength | Weakness | Choose when |
-| IVF-PQ | 10–30× less memory | Lossy: needs re- ranking with full vectors | Hundreds of millions of vectors |
+| IVF-PQ | 10–30× less memory | Lossy: needs re-ranking with full vectors | Hundreds of millions of vectors |
 | Disk-based (DiskANN) | Billions of vectors on SSD | More engineering | Collections far bigger than RAM |
 
-In an interview, the senior answer always includes: **measure ANN recall against exactsearch** on a sample of real queries, and tune the knob (`efSearch`, `n_probe`) to the recall your application needs.
+In an interview, the senior answer always includes: **measure ANN recall against exact search** on a sample of real queries, and tune the knob (`efSearch`, `n_probe`) to the recall your application needs.
 
 ## 18.5 Vector databases and filtering
 
@@ -238,8 +237,7 @@ def minmax(scores):
     return {d: (s - lo) / (hi - lo) if hi > lo else 1.0 for d, s in scores.items()}
 
 def convex_fusion(sparse, dense, alpha=0.5):
-    """sparse, dense: dict doc_id -> raw score for one query. alpha: weight
-on dense."""
+    """sparse, dense: dict doc_id -> raw score for one query. alpha: weight on dense."""
     s, d = minmax(sparse), minmax(dense)
     docs = set(s) | set(d)
     fused = {doc: alpha * d.get(doc, 0.0) + (1 - alpha) * s.get(doc, 0.0) for doc in docs}
@@ -259,7 +257,7 @@ Tune `alpha` on your evaluation set (18.9). Bruch et al. (2023) compared fusion 
 - **Domain.** Off-the-shelf re-rankers are trained on web search (MS MARCO). Fine-tuning on your own judged pairs often gives the biggest single gain in a RAG pipeline.
 - **LLM re-rankers** (Chapter 26.8) give strong quality on small lists but add cost and latency; they are a good label source for training a cheaper re-ranker.
 
-**Late interaction (ColBERT).** Encode the query and each document into one vector **pertoken**, precompute the document token vectors, and score with **MaxSim**: for each query token, take its best-matching document token, then sum over query tokens.
+**Late interaction (ColBERT).** Encode the query and each document into one vector **per token**, precompute the document token vectors, and score with **MaxSim**: for each query token, take its best-matching document token, then sum over query tokens.
 
 ```python
 import torch
@@ -282,7 +280,6 @@ The user's words are often a poor search query, especially in chat. Chapter 26.2
 | Multi-query expansion | Generates several paraphrases, retrieves for each, fuses with RRF | Covers vocabulary the user did not use |
 | Self-query (filter extraction) | Extracts structured filters from the question | "policies changed this year for riders" → filter year = 2026, audience = riders |
 | Routing | Chooses the source: vector index, SQL database, an API | "Where is my order?" goes to the orders API, not the policy index |
-| Technique | What it does | Example |
 | HyDE | Generates a hypothetical answer and embeds it instead of the question | Covered in Chapter 19 |
 
 A rewrite step with structured output:
@@ -343,8 +340,7 @@ def evaluate_retriever(retrieve, eval_set, k=10):
     return {"recall@k": np.mean(recalls), "mrr@k": np.mean(rrs)}
 
 # Compare configurations on the same set:
-# for name, fn in {"bm25": bm25_search, "dense": dense_search, "hybrid":
-hybrid_search,
+# for name, fn in {"bm25": bm25_search, "dense": dense_search, "hybrid": hybrid_search,
 #                  "hybrid+rerank": hybrid_rerank}.items():
 #     print(name, evaluate_retriever(fn, eval_set))
 ```
@@ -391,9 +387,9 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 
 **11. How would you evaluate the retrieval part of a RAG system?** A labelled set of real queries with relevant passages, extended with careful synthetic queries; recall@k at the context size the LLM gets, plus MRR or NDCG for ordering; compare BM25, dense, hybrid and re-ranked configurations, by segment, with bootstrap intervals; separately measure ANN recall and latency.
 
-**12. RAG answers are wrong for 20% of questions. How do you find out whether retrievalis the cause?** For a sample of failures, check whether a relevant passage was in the retrieved set (manually or with an LLM judge). If not, it is a retrieval failure: look at query type, language, chunking, missing documents, filters. If yes, it is a generation or context-assembly failure. Quantify the split before fixing anything.
+**12. RAG answers are wrong for 20% of questions. How do you find out whether retrieval is the cause?** For a sample of failures, check whether a relevant passage was in the retrieved set (manually or with an LLM judge). If not, it is a retrieval failure: look at query type, language, chunking, missing documents, filters. If yes, it is a generation or context-assembly failure. Quantify the split before fixing anything.
 
-**13. Design retrieval for a multilingual help centre with 50,000 articles in Arabic andEnglish.** Hybrid: BM25 with language-specific analysers plus a multilingual embedding model; filter by country and audience; cross-encoder re-ranking of the top 50 with a multilingual re-ranker; conversational rewriting for follow-ups. At this size, HNSW in pgvector or a dedicated store is plenty. Evaluate per language with native-speaker labels; check cross-lingual retrieval (Arabic query, English article).
+**13. Design retrieval for a multilingual help centre with 50,000 articles in Arabic and English.** Hybrid: BM25 with language-specific analysers plus a multilingual embedding model; filter by country and audience; cross-encoder re-ranking of the top 50 with a multilingual re-ranker; conversational rewriting for follow-ups. At this size, HNSW in pgvector or a dedicated store is plenty. Evaluate per language with native-speaker labels; check cross-lingual retrieval (Arabic query, English article).
 
 **14. You must switch to a new embedding model. How do you do it safely?** Build a second index with the new model in parallel, evaluate it on the same set (recall, latency, size), shadow-test on live queries, then switch reads with a flag and keep the old index for rollback. Never mix vectors from two models in one index.
 

@@ -2,7 +2,7 @@
 
 ## Why it matters
 
-Job ads list LangChain, LangGraph, LlamaIndex and Hugging Face, and interviewers ask about them, but what they really test is judgement: when a framework saves time, when it hides bugs, and whether you could build the same thing in plain Python. Framework APIs change every few months, so this chapter teaches the concepts and shapes, not exact signatures. **All framework snippets here are untested sketches: check the currentdocumentation before using them.** The plain-Python code was run.
+Job ads list LangChain, LangGraph, LlamaIndex and Hugging Face, and interviewers ask about them, but what they really test is judgement: when a framework saves time, when it hides bugs, and whether you could build the same thing in plain Python. Framework APIs change every few months, so this chapter teaches the concepts and shapes, not exact signatures. **All framework snippets here are untested sketches: check the current documentation before using them.** The plain-Python code was run.
 
 ## Key concepts
 
@@ -18,10 +18,9 @@ Job ads list LangChain, LangGraph, LlamaIndex and Hugging Face, and interviewers
 | Tool | What it is for | Core abstraction |
 |---|---|---|
 | LangChain | Glue for LLM apps: model wrappers, prompts, retrievers, tools, output parsers | Runnables composed with LCEL (`prompt \| model \|` `parser`) |
-| LangGraph | Stateful, multi-step agents and workflows with loops, branching, human-in-the- loop, persistence | A graph of nodes that read and update a typed state |
-| Tool | What it is for | Core abstraction |
+| LangGraph | Stateful, multi-step agents and workflows with loops, branching, human-in-the-loop, persistence | A graph of nodes that read and update a typed state |
 | LlamaIndex | Data ingestion and retrieval for RAG: loaders, chunking, indexes, query engines | Documents → nodes → index → query engine |
-| DSPy | Programming (not prompting) LLM pipelines; optimises prompts and few- shot examples against a metric | Signatures and modules, compiled by optimisers |
+| DSPy | Programming (not prompting) LLM pipelines; optimises prompts and few-shot examples against a metric | Signatures and modules, compiled by optimisers |
 | Hugging Face | Models, datasets, tokenizers, training, PEFT, serving | `transformers`, `datasets`, `peft`, `trl`, `accelerate`, Hub |
 | Provider SDKs | Direct calls to OpenAI, Anthropic, Google, etc. | Messages, tools, structured outputs |
 | Instructor / Pydantic AI | Typed structured outputs and light agents | Pydantic models as the contract |
@@ -32,8 +31,7 @@ Job ads list LangChain, LangGraph, LlamaIndex and Hugging Face, and interviewers
 LangChain's useful core is small: a common interface (`invoke`, `batch`, `stream`, async variants) for models, prompts, retrievers and parsers, and the pipe operator to compose them.
 
 ```python
-# Sketch, check current docs. Packages are split: langchain-core, langchain-
-openai, ...
+# Sketch, check current docs. Packages are split: langchain-core, langchain- openai, ...
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough

@@ -1,4 +1,4 @@
-# 08 · Embeddings and sequence models
+# 8 · Embeddings and sequence models
 
 ## Why it matters
 
@@ -30,7 +30,7 @@ Two variants (Mikolov et al., 2013):
 - **Skip-gram**: from a centre word, predict each word in a window around it. Better for rare words.
 - **CBOW**: from the average of the context words, predict the centre word. Faster.
 
-The full softmax over the vocabulary is expensive, so the practical version uses **negativesampling** (SGNS): for each real (centre, context) pair, push their dot product up; for k random "noise" words, push it down. Noise words are drawn from unigram frequency raised to the 0.75 power, which samples rare words a bit more often than their raw frequency. Frequent words such as "the" are also subsampled.
+The full softmax over the vocabulary is expensive, so the practical version uses **negative sampling** (SGNS): for each real (centre, context) pair, push their dot product up; for k random "noise" words, push it down. Noise words are drawn from unigram frequency raised to the 0.75 power, which samples rare words a bit more often than their raw frequency. Frequent words such as "the" are also subsampled.
 
 ```python
 import torch, torch.nn as nn, torch.nn.functional as F
@@ -90,8 +90,7 @@ class LSTMClassifier(nn.Module):
 
     def forward(self, x, lengths):       # x: (B, T) padded ids, lengths: (B,)
         packed = nn.utils.rnn.pack_padded_sequence(
-            self.emb(x), lengths.cpu(), batch_first=True,
-enforce_sorted=False)
+            self.emb(x), lengths.cpu(), batch_first=True, enforce_sorted=False)
         _, (h_n, _) = self.lstm(packed)  # h_n: (2 directions, B, h)
         return self.head(torch.cat([h_n[0], h_n[1]], dim=-1))
 ```

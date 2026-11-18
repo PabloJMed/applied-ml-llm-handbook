@@ -14,7 +14,7 @@ Learning to rank (LTR) is the core technique behind search ranking, and the same
 - **Learning to rank (pointwise, pairwise, listwise)**: training a model to order results, with losses on single items, pairs or whole lists. [Learning to rank](https://en.wikipedia.org/wiki/Learning_to_rank).
 - **LambdaMART**: boosted trees trained with pairwise gradients weighted by the change in NDCG; the standard strong baseline. [From RankNet to LambdaRank to LambdaMART](https://www.microsoft.com/en-us/research/publication/from-ranknet-to-lambdarank-to-lambdamart-an-overview/); available as the `lambdarank` objective in [LightGBM](https://lightgbm.readthedocs.io/en/latest/).
 - **Relevance labels**: human judgements or behaviour (clicks, add-to-cart, orders) turned into graded labels.
-- **Position bias and unbiased learning to rank**: top results get clicked partly because they are on top; correct with inverse propensity weighting. [Unbiased Learning-to- Rank with Biased Feedback](https://arxiv.org/abs/1608.04468).
+- **Position bias and unbiased learning to rank**: top results get clicked partly because they are on top; correct with inverse propensity weighting. [Unbiased Learning-to-Rank with Biased Feedback](https://arxiv.org/abs/1608.04468).
 - **Offline ranking metrics and online tests**: NDCG and MRR offline, then interleaving or A/B tests online (Chapters 5 and 29).
 - **Multilingual and transliterated queries**: spelling variants, mixed scripts and per-language vocabularies.
 - **Textbook**: [Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/).
@@ -43,7 +43,7 @@ Food-delivery queries are short (one or two words), often misspelled, often in s
 | Spelling correction | "piza" → "pizza", "suhsi" → "sushi" | Edit distance against a vocabulary weighted by popularity; learned from reformulations (users who typed A then B) |
 | Intent classification | Restaurant name, dish, cuisine, grocery item, vague need | Text classifier (fine-tuned small encoder, or an LLM labelling data for one) |
 | Entity extraction | "vegan", "under €10", "near me", a brand | Dictionaries plus NER; LLMs for long-tail phrasing |
-| Query expansion | "chips" → "fries"; "poke" → "poke bowl" | Synonym lists mined from co- clicks; embeddings |
+| Query expansion | "chips" → "fries"; "poke" → "poke bowl" | Synonym lists mined from co-clicks; embeddings |
 
 **Spelling correction from scratch** (the Norvig approach): generate all strings within one or two edits and pick the most popular known word.
 
@@ -85,7 +85,7 @@ class Autocomplete:
 
     def suggest(self, prefix, k=5):
         lo = bisect.bisect_left(self.queries, prefix)
-        hi = bisect.bisect_left(self.queries, prefix + "ಽ")
+        hi = bisect.bisect_left(self.queries, prefix + "\uffff")
         return sorted(self.queries[lo:hi], key=self.counts.get, reverse=True)[:k]
 
 ac = Autocomplete({"pizza": 900, "pizza margherita": 300, "pizzeria napoli": 120, "poke": 500})
@@ -132,14 +132,13 @@ In production this is an inverted index in Elasticsearch, OpenSearch or Solr, wi
 
 **Semantic retrieval** embeds the query and the documents with a bi-encoder (the two-tower model of Chapter 25, with a text encoder for the query) and searches with ANN. Train it on (query, ordered item) pairs from search logs with in-batch negatives, starting from a pretrained multilingual sentence encoder. Chapter 17 covers embedding models in depth.
 
-**Hybrid retrieval** runs both and fuses the lists. Scores from BM25 and cosine similarity are on different scales, so the simplest robust fusion uses only ranks: **reciprocal rank fusion(RRF)**.
+**Hybrid retrieval** runs both and fuses the lists. Scores from BM25 and cosine similarity are on different scales, so the simplest robust fusion uses only ranks: **reciprocal rank fusion (RRF)**.
 
 ```python
 from collections import defaultdict
 
 def rrf(rankings, k=60):
-    """rankings: lists of doc ids, best first. k=60 is the value from the
-original paper."""
+    """rankings: lists of doc ids, best first. k=60 is the value from the original paper."""
     scores = defaultdict(float)
     for ranking in rankings:
         for rank, doc in enumerate(ranking, start=1):
@@ -301,15 +300,13 @@ def dcg_at_k(rels, k):
     return float(np.sum((2 ** rels - 1) / np.log2(np.arange(2, len(rels) + 2))))
 
 def ndcg_at_k(rels_in_ranked_order, k, all_rels=None):
-    """all_rels: grades of ALL known relevant docs for the query, so missed
-docs lower the score."""
+    """all_rels: grades of ALL known relevant docs for the query, so missed docs lower the score."""
     pool = all_rels if all_rels is not None else rels_in_ranked_order
     ideal = dcg_at_k(sorted(pool, reverse=True), k)
     return dcg_at_k(rels_in_ranked_order, k) / ideal if ideal > 0 else 0.0
 
 def mrr(first_relevant_ranks):
-    """1-based rank of the first relevant result per query, or None if there
-was none."""
+    """1-based rank of the first relevant result per query, or None if there was none."""
     return float(np.mean([1.0 / r if r else 0.0 for r in first_relevant_ranks]))
 
 ndcg_at_k([0, 3, 2, 0, 1], k=5)   # ~0.67
@@ -326,7 +323,6 @@ A common bug: computing the ideal DCG only from the retrieved list. Then a syste
 |---|---|
 | Search conversion | Share of searches that end in an order: the primary metric |
 | Zero-result rate | Share of queries with no results |
-| Metric | What it tells you |
 | Reformulation rate | Share of searches followed by another search: a sign the first one failed |
 | Abandonment | Searches with no click at all |
 | Position of first click or order | Lower is better: relevant results are near the top |
@@ -379,7 +375,7 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 
 **14. How would you add LLMs to restaurant search?** Start offline: LLM-generated labels to train and evaluate the ranker, menu enrichment for better matching, synonym and transliteration mining. Online, use them for query understanding of long natural-language queries ("something light and vegan under €12") turned into filters plus a semantic query. Keep the high-traffic ranking path on LambdaMART and distilled cross-encoders for latency and cost.
 
-**15. Your new ranker wins offline on NDCG but loses an interleaving test. Why might thatbe?** The offline labels and online behaviour disagree: the golden set over-represents head queries; labels judge topical relevance while users also weigh ETA, price and fees; the offline candidate set ignores availability; or the new model is worse at navigational queries, where one failure is very visible. Look at per-segment interleaving results and at the queries where the two rankers disagree most.
+**15. Your new ranker wins offline on NDCG but loses an interleaving test. Why might that be?** The offline labels and online behaviour disagree: the golden set over-represents head queries; labels judge topical relevance while users also weigh ETA, price and fees; the offline candidate set ignores availability; or the new model is worse at navigational queries, where one failure is very visible. Look at per-segment interleaving results and at the queries where the two rankers disagree most.
 
 ## Practice
 
@@ -388,7 +384,7 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 set of menus you write yourself, then compare with the `rank_bm25` package.
 
 2. **Learning to rank on a public dataset.** Download MSLR-WEB10K (Microsoft's LTR dataset, pre-split into folds with query groups). Train LightGBM with `objective="binary"` (pointwise) and `objective="lambdarank"` and compare NDCG@10. *Good solution:* a short table, and an explanation of why lambdarank wins at the top.
-3. **Losses by hand.** Implement the RankNet, ListNet and LambdaRank losses from 26.5– 26.6 and train a linear scorer with each on MSLR features. Plot NDCG@10 per epoch.
+3. **Losses by hand.** Implement the RankNet, ListNet and LambdaRank losses from 26.5–26.6 and train a linear scorer with each on MSLR features. Plot NDCG@10 per epoch.
 4. **Hybrid retrieval.** On the Amazon ESCI shopping-queries dataset (query-product pairs graded Exact, Substitute, Complement, Irrelevant), retrieve with BM25 and with a sentence-transformers model, fuse with RRF, and compare Recall@100 and NDCG@10 for each. *Good solution:* hybrid beats both; you can show queries where each single method fails.
 5. **Re-rank with a cross-encoder** on the top 50 from exercise 4 and measure the NDCG gain and the extra latency per query.
 6. **Spelling and autocomplete.** Build the spelling corrector and autocomplete from 26.2 on a list of dish names, and write five test cases each, including one that must not be corrected.

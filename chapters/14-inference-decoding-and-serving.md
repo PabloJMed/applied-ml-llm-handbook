@@ -1,6 +1,6 @@
 # 14 · Inference, decoding and serving
 
-Part III · Prerequisites: Chapter 10 (the transformer) and Chapter 13a (infrastructure primer). Written to be readable without any serving experience.
+Part IV · Prerequisites: Chapter 10 (the transformer) and Chapter 13a (infrastructure primer). Written to be readable without any serving experience.
 
 ## Why it matters
 
@@ -89,7 +89,7 @@ For classification, constrain the output to the label set and read the label pro
 
 ## 14.4 Why serving LLMs is a memory problem: the KV cache
 
-Inside each attention layer, every token produces a **key** and a **value** vector; to generate the next token, the model compares its new query with the keys of *all* earlier tokens. Recomputing all of those at every step would be wasteful, so they are stored: the **KVcache**. It grows by one entry per layer for every token, for every request being served.
+Inside each attention layer, every token produces a **key** and a **value** vector; to generate the next token, the model compares its new query with the keys of *all* earlier tokens. Recomputing all of those at every step would be wasteful, so they are stored: the **KV cache**. It grows by one entry per layer for every token, for every request being served.
 
 How big is it?
 
@@ -111,12 +111,12 @@ The model weights for 8 billion parameters in 16-bit precision are 8e9 × 2 byte
 
 *Prefill fills the KV cache; decode reads it every step. Continuous batching refills a slot as soon as a request finishes.*
 
-- **Prefill** processes the whole prompt in one parallel pass and fills the KV cache. Lots of computation, done efficiently: the GPU's maths units are busy. It sets **time to firsttoken (TTFT)**, which grows with prompt length.
+- **Prefill** processes the whole prompt in one parallel pass and fills the KV cache. Lots of computation, done efficiently: the GPU's maths units are busy. It sets **time to first token (TTFT)**, which grows with prompt length.
 - **Decode** then produces one token per step. Each step does little maths but must read *all* the model weights and the whole cache from GPU memory. The GPU waits on memory, not on maths. It sets **time per output token (TPOT)**.
 
-A rough single-user speed limit for decode: memory bandwidth / bytes read per token. With 2 TB/s of bandwidth and 16 GB of weights, about 2e12 / 16e9 = **125 tokens persecond**, at best. End-to-end latency for one answer ≈ TTFT + output tokens × TPOT; a 300-token answer at 8 ms per token takes 2.4 s after the first token. That is why **streaming** tokens to the user matters: perceived latency becomes TTFT.
+A rough single-user speed limit for decode: memory bandwidth / bytes read per token. With 2 TB/s of bandwidth and 16 GB of weights, about 2e12 / 16e9 = **125 tokens per second**, at best. End-to-end latency for one answer ≈ TTFT + output tokens × TPOT; a 300-token answer at 8 ms per token takes 2.4 s after the first token. That is why **streaming** tokens to the user matters: perceived latency becomes TTFT.
 
-The key insight for serving: during decode, reading the weights once can serve **manyusers at the same time**. Batch 32 users together and each weight read produces 32 tokens instead of one. Throughput rises almost linearly with batch size, until the cache fills GPU memory or the maths units saturate. **Prefix caching** reuses the cache of a shared beginning (the system prompt, few-shot examples, a long document) across requests; API providers sell this as "prompt caching" at a discount. Put the stable part of the prompt first so it can be reused.
+The key insight for serving: during decode, reading the weights once can serve **many users at the same time**. Batch 32 users together and each weight read produces 32 tokens instead of one. Throughput rises almost linearly with batch size, until the cache fills GPU memory or the maths units saturate. **Prefix caching** reuses the cache of a shared beginning (the system prompt, few-shot examples, a long document) across requests; API providers sell this as "prompt caching" at a discount. Put the stable part of the prompt first so it can be reused.
 
 ## 14.6 Serving engines: what vLLM and friends actually do
 
@@ -127,7 +127,7 @@ A serving engine is the program that loads the model on GPUs and answers request
 3. **Chunked prefill.** A huge prompt is processed in pieces so it does not freeze other users' decode steps.
 4. **Optimised kernels** (FlashAttention, fused operations) and **parallelism** across several GPUs when the model does not fit on one (tensor parallelism splits each layer across GPUs).
 
-The main options: **vLLM** (the default open-source choice), **SGLang**, **Hugging Face TGI**, **NVIDIA TensorRT-LLM** (fastest, more setup), **llama.cpp / Ollama** (CPUs and laptops).
+The main options: **vLLM** (the default open-source choice), **SGLang**, **Hugging Face TGI** (in maintenance mode since 2025), **NVIDIA TensorRT-LLM** (fastest, more setup), **llama.cpp / Ollama** (CPUs and laptops).
 
 ```bash
 # Serve an open model with an OpenAI-compatible API (check current vLLM docs for flags)

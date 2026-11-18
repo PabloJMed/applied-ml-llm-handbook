@@ -1,10 +1,10 @@
 # 31 · The ML coding interview
 
-Part X · The interview. Pulls together the from-scratch code across the book: Chapters 3, 4, 5, 10, 16, 18 and 25 contain most of the implementations listed here. At many product companies the ML coding round is data handling, ML code and object-oriented design rather than algorithm puzzles (check recent candidate reports for your target company); this chapter prepares for that, with a little classic algorithm practice as insurance.
+Part X · Interview craft. Pulls together the from-scratch code across the book: Chapters 3, 4, 5, 10, 16, 18 and 25 contain most of the implementations listed here. At many product companies the ML coding round is data handling, ML code and object-oriented design rather than algorithm puzzles (check recent candidate reports for your target company); this chapter prepares for that, with a little classic algorithm practice as insurance.
 
 ## Why it matters
 
-In your readiness assessment, coding was the decisive gap: the area most likely to fail an otherwise strong loop. The good news is that ML coding rounds reward practice more than talent: the same twenty or so patterns come up again and again. This chapter lists them, gives you working code for the most common ones, and a plan for practising with autocomplete off until they are automatic.
+For many experienced data scientists, coding is the decisive gap: the area most likely to fail an otherwise strong loop. The good news is that ML coding rounds reward practice more than talent: the same twenty or so patterns come up again and again. This chapter lists them, gives you working code for the most common ones, and a plan for practising with autocomplete off until they are automatic.
 
 ## Key concepts
 
@@ -22,7 +22,7 @@ In your readiness assessment, coding was the decisive gap: the area most likely 
 | Data manipulation | A pandas DataFrame or SQL tables of orders, users, events; questions like "top 3 restaurants per city by repeat rate" | Fluency with groupby, joins, windows, time; correctness on edge cases |
 | ML from scratch | "Implement k-means / logistic regression / AUC / a decision tree split" | Understanding of the algorithm; clean NumPy; vectorisation |
 | ML code and OOP | "Design classes for a training pipeline", "write a feature transformer", "extend this model class" | Abstractions, readability, testability, sensible interfaces |
-| Applied mini- project | A small dataset and an hour: clean, featurise, train, evaluate | End-to-end judgement: baseline first, correct split, honest evaluation |
+| Applied mini-project | A small dataset and an hour: clean, featurise, train, evaluate | End-to-end judgement: baseline first, correct split, honest evaluation |
 | Debugging or code review | Code with bugs or leakage | Reading code, spotting leakage and silent errors |
 | Classic algorithms | Arrays, hash maps, heaps, two pointers, BFS | Basic data structures and complexity |
 
@@ -55,10 +55,8 @@ top2 = (orders.sort_values(["user_id", "amount"], ascending=[True, False])
               .groupby("user_id").head(2))
 
 # 2. Share within group (transform keeps the original shape)
-spend = orders.groupby(["user_id", "restaurant"], as_index=False)
-["amount"].sum()
-spend["share"] = spend["amount"] / spend.groupby("user_id")
-["amount"].transform("sum")
+spend = orders.groupby(["user_id", "restaurant"], as_index=False)["amount"].sum()
+spend["share"] = spend["amount"] / spend.groupby("user_id")["amount"].transform("sum")
 
 # 3. Time since previous event per user (shift / diff within group)
 o = orders.sort_values(["user_id", "ts"]).copy()
@@ -134,7 +132,6 @@ Each links to the chapter that has tested code. Target times assume practice; ai
 | Logistic regression with mini-batch SGD / Adam | 3.5 | 20 min |
 | k-means (with k-means++ init) | 4.9 | 15 min |
 | kNN classifier | 4.6 | 10 min |
-| Algorithm | Chapter | Target time |
 | Decision tree split (Gini) and a small tree | 4.3 | 30–40 min |
 | Gradient boosting for squared loss | 4.5 | 20 min |
 | PCA via SVD | 4.10 | 10 min |
@@ -162,8 +159,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 
 class LogisticRegressionGD(BaseEstimator, ClassifierMixin):
-    """Hyperparameters in __init__ (stored as-is), learned state with a
-trailing underscore."""
+    """Hyperparameters in __init__ (stored as-is), learned state with a trailing underscore."""
     def __init__(self, lr=0.1, n_iter=500, l2=0.0):
         self.lr, self.n_iter, self.l2 = lr, n_iter, l2
 
@@ -227,12 +223,10 @@ What to test in ML code: shapes and dtypes; invariants (probabilities in [0, 1] 
 | pandas | LeetCode "Introduction to Pandas" and "30 Days of Pandas" study plans; StrataScratch Python questions | Both study plans, then 20 StrataScratch questions |
 | SQL | LeetCode "SQL 50"; DataLemur; StrataScratch | SQL 50 plus 15 window-function questions |
 | ML from scratch | Deep-ML (deep-ml.com); the table in 31.5 | 30 Deep-ML problems; every row of 31.5 twice |
-| Skill | Where | Amount before the interview |
 | Classic algorithms | LeetCode Easy/Medium on arrays, hash maps, heaps, sliding window, BFS | 15–20 problems |
 | OOP for ML | Rebuild a small scikit-learn-style library: an estimator, a transformer, a pipeline | One afternoon, then explain it aloud |
-| Mock interviews | A friend, interviewing.io-style services, or ask me to run a mock with a timer | One per week from week 4 |
+| Mock interviews | A friend, interviewing.io-style services, or an LLM acting as interviewer with a timer | One per week from week 4 |
 
-The learning plan's coding track already schedules these day by day; this table is the reference.
 
 ## Pitfalls
 
@@ -250,7 +244,7 @@ The learning plan's coding track already schedules these day by day; this table 
 
 1. **Daily (25–40 minutes):** two pandas or SQL problems, or one from-scratch algorithm from 31.5, timed, autocomplete off.
 2. **Weekly:** one applied mini-project in 60 minutes on a fresh Kaggle dataset (baseline, time split, one model, honest evaluation, five-line summary).
-3. **Weekly from week 4:** one mock coding round with someone watching, or with me as interviewer.
+3. **Weekly from week 4:** one mock coding round with someone watching, or with an LLM as interviewer.
 4. **Before the interview:** rewrite every algorithm in 31.5 once more from a blank file.
 5. **Keep an error log:** every bug or blank moment, what the fix was; re-read it before each mock.
 

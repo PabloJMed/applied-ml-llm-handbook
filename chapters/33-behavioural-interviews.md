@@ -1,6 +1,6 @@
 # 33 · Behavioural interviews
 
-Part X · The interview. No prerequisites. Chapter 34 covers the senior mindset these stories should show.
+Part X · Interview craft. No prerequisites. Chapter 34 covers the senior mindset these stories should show.
 
 ## Why it matters
 
@@ -100,11 +100,10 @@ Chapter 24.7 has a full reference design for this kind of system.
 | A difficult technical decision or trade-off | 1 or 2 |
 | Working with another team; influencing without authority | 3 |
 | A disagreement with a colleague or stakeholder | 3 or 5 |
-| Question | Best story |
 | Learning something new quickly; handling change | 4 |
 | A failure or mistake | 5 |
 | Ambiguous requirements | 2 or 4 |
-| Explaining something technical to a non- technical audience | 2 |
+| Explaining something technical to a non-technical audience | 2 |
 | Prioritising under pressure; saying no | 1, 2 or 4 (add what you deprioritised) |
 | Why this company, why this role | Prepared answer (33.6) |
 

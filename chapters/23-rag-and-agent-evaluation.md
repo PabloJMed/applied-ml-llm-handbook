@@ -1,6 +1,6 @@
 # 23 · RAG and agent evaluation
 
-Part VII · Evaluation and safety. Applies Chapter 22's methods to Chapter 19 (RAG) and Chapter 21 (agents). Worked designs that depend on it: E.4 RAG support assistant and E.10 agentic customer-service flow.
+Part VII · Evaluating LLM systems. Applies Chapter 22's methods to Chapter 19 (RAG) and Chapter 21 (agents). Worked designs that depend on it: E.4 RAG support assistant and E.10 agentic customer-service flow.
 
 ## Why it matters
 
@@ -59,8 +59,7 @@ Measure these **at the context the LLM actually receives** (after re-ranking and
 
 ```python
 def faithfulness(answer, context, extract_claims, is_supported):
-    """extract_claims and is_supported are LLM-judge (or NLI) calls in
-practice."""
+    """extract_claims and is_supported are LLM-judge (or NLI) calls in practice."""
     claims = extract_claims(answer)
     if not claims:
         return None, []
@@ -85,8 +84,7 @@ import numpy as np
 def abstention_report(should_answer, did_answer, correct):
     sa, da, c = (np.asarray(x, dtype=bool) for x in (should_answer, did_answer, correct))
     return {
-        "correct_when_answered": c[sa & da].mean() if (sa & da).any() else
-None,
+        "correct_when_answered": c[sa & da].mean() if (sa & da).any() else None,
         "wrongly_abstained": (~da[sa]).mean() if sa.any() else None,    # missed answers
         "wrongly_answered": da[~sa].mean() if (~sa).any() else None,    # answered out of scope
     }
@@ -110,12 +108,11 @@ Use them as scaffolding: borrow the metric definitions, swap in calibrated judge
 
 Agents take several steps, call tools and change the world (Chapter 21). Evaluate at three levels:
 
-**1. Outcome (task success).** Did the agent achieve the goal? Best checked on the **finalstate** of a sandboxed environment rather than on the agent's words: the voucher issued equals the policy amount, the ticket is closed, nothing else changed. This is the approach of agent benchmarks such as τ-bench (simulated customer-service tasks with a database and policies).
+**1. Outcome (task success).** Did the agent achieve the goal? Best checked on the **final state** of a sandboxed environment rather than on the agent's words: the voucher issued equals the policy amount, the ticket is closed, nothing else changed. This is the approach of agent benchmarks such as τ-bench (simulated customer-service tasks with a database and policies).
 
 ```python
 def check_end_state(state, expected):
-    """Compare the final environment state with the expected outcome; ignore
-unspecified fields."""
+    """Compare the final environment state with the expected outcome; ignore unspecified fields."""
     return {k: state.get(k) == v for k, v in expected.items()}
 
 check_end_state({"voucher_issued": 8.0, "ticket_status": "resolved"},
@@ -127,8 +124,7 @@ check_end_state({"voucher_issued": 8.0, "ticket_status": "resolved"},
 
 ```python
 def tool_call_scores(expected, actual):
-    """expected / actual: lists of (tool_name, args_dict). Order-aware
-matching via LCS."""
+    """expected / actual: lists of (tool_name, args_dict). Order-aware matching via LCS."""
     same = lambda a, b: a[0] == b[0] and a[1] == b[1]
     n, m = len(expected), len(actual)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
@@ -159,7 +155,7 @@ For the RAG assistant (E.4) and the agentic flow (E.10), a suite that would sati
 | Component metrics | Context recall and precision at the final context | Tool-call accuracy against reference trajectories |
 | Judged metrics (calibrated) | Faithfulness, correctness vs references, abstention | Trajectory reasonableness, message quality |
 | End-to-end | Correct answers on real questions, per slice | Task success on end state, over repeated runs |
-| Safety | Injection in documents, out-of- scope questions | Injection in tool output, permission escalation, refund abuse |
+| Safety | Injection in documents, out-of-scope questions | Injection in tool output, permission escalation, refund abuse |
 | Online | Resolution without escalation, re-contact rate, user feedback | Automation rate, human override rate, payouts per contact |
 
 Run the offline suite in CI on every prompt, retrieval or model change, and the online metrics plus sampled judging on production daily.

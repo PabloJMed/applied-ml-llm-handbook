@@ -1,4 +1,4 @@
-# Appendix B · Cheat sheets
+# B · Cheat sheets
 
 One page per area, for the night before. Everything here is a reminder of something explained properly in a chapter; if a line does not make sense, go back to that chapter rather than memorising it.
 
@@ -87,7 +87,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 
 - Start with error analysis (read 50–100 traces, group failure modes), then code checks, then calibrated binary judges with critiques.
 - Judge calibration: kappa, TPR, TNR vs human labels; compare with human-human agreement. Biases: position, verbosity, self-preference.
-- Intervals: 100 cases ≈ ±7 points; compare systems paired (McNemar) on the same cases.
+- Intervals: 100 cases ≈ ±7 points near 85%, ±10 near 50%; compare systems paired (McNemar) on the same cases.
 - RAG metrics: context recall/precision (at final context), faithfulness (claim-level), answer relevance, correctness, abstention (wrongly answered rate).
 - Agents: end-state success, trajectory rules, efficiency, robustness, pass^k over repeated runs, safety tests.
 - Safety: grounding and abstention against hallucination; PII minimisation and redaction; moderation with policy definitions, per-language metrics, human appeals; EU AI Act risk tiers and transparency duties.

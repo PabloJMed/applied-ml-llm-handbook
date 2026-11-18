@@ -1,6 +1,6 @@
 # 25 · Recommender systems
 
-Part VIII · Recommender and search systems. Prerequisites: Chapter 5 (classic ML, gradient boosting) and Chapter 7 (embeddings) help, but this chapter stands on its own. Worked designs that build on it: E.1 Restaurant feed and E.6 LLM judge for reco relevance.
+Part VIII · Recommender and search systems. Prerequisites: Chapter 4 (classic models, gradient boosting) and Chapters 8 and 17 (embeddings) help, but this chapter stands on its own. Worked designs that build on it: E.1 Restaurant feed and E.6 LLM judge for reco relevance.
 
 ## Why it matters
 
@@ -17,7 +17,7 @@ In interviews for marketplace and consumer-app roles, the ML depth and architect
 - **Two-tower models**: separate user and item encoders, trained with in-batch negatives, served with nearest-neighbour search (Chapter 18).
 - **Ranking models with feature crosses**: combining memorisation and generalisation. [Wide & Deep](https://arxiv.org/abs/1606.07792).
 - **Cold start**: new users and items with no history; handled with content features, popularity and exploration. [Cold start](https://en.wikipedia.org/wiki/Cold_start_(recommender_systems)).
-- **Exploration and bandits**: showing some uncertain items to learn about them. [Multi- armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit).
+- **Exploration and bandits**: showing some uncertain items to learn about them. [Multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit).
 - **Feedback loops, position bias and diversity**: a recommender trains on what it showed; correct for it and protect variety and fairness.
 
 ## 25.1 Framing the problem
@@ -31,7 +31,7 @@ In interviews for marketplace and consumer-app roles, the ML depth and architect
 | Explicit | Ratings, reviews, thumbs up/down | Clear preference signal | Rare; biased towards extreme opinions; the people who rate are not typical |
 | Implicit | Impressions, clicks, orders, reorders, dwell time | Abundant; reflects real behaviour | Noisy; no clear negative; a missing interaction can mean "not seen" or "not available", not "dislike" |
 
-Most production systems run on implicit feedback. The hard question is always **whatcounts as a negative**:
+Most production systems run on implicit feedback. The hard question is always **what counts as a negative**:
 
 - *Impressed but not clicked or ordered:* the best negatives for ranking, because the user saw the item and chose something else.
 - *Never shown:* "probably not interested" at best. Used as sampled negatives for retrieval, never as true labels.
@@ -86,8 +86,7 @@ A random split leaks the future into training (the model sees next week's orders
 import numpy as np
 
 def item_item_scores(R, user):
-    """R: users x items interaction counts. Returns a score per item for one
-user."""
+    """R: users x items interaction counts. Returns a score per item for one user."""
     X = (R > 0).astype(float)
     norms = np.linalg.norm(X, axis=0) + 1e-9
     S = (X.T @ X) / np.outer(norms, norms)   # cosine similarity between items
@@ -109,8 +108,7 @@ user."""
 
 ```python
 def implicit_als(R, k=16, alpha=20.0, reg=0.1, iters=10, seed=0):
-    """Dense version for learning; use the `implicit` library on sparse data
-in practice."""
+    """Dense version for learning; use the `implicit` library on sparse data in practice."""
     rng = np.random.default_rng(seed)
     n_users, n_items = R.shape
     U = rng.normal(scale=0.1, size=(n_users, k))
@@ -160,7 +158,7 @@ The sizes are illustrative; what matters is that each stage cuts the set by an o
 |---|---|---|---|
 | Candidate generation | Find everything plausibly relevant | Two-tower + ANN, item- to-item CF, MF, "order again", popular in the area, new restaurants | Recall@k of items later ordered |
 | Filtering | Remove what cannot or must not be shown | Rules: availability, delivery range, stock, user blocks, legal | Share of shown items that were unavailable (should be ~0) |
-| Ranking | Order the candidates by predicted value | GBDT, DLRM/DCN, multi- task deep nets | NDCG@k, AUC/logloss per task, calibration |
+| Ranking | Order the candidates by predicted value | GBDT, DLRM/DCN, multi-task deep nets | NDCG@k, AUC/logloss per task, calibration |
 | Re-ranking | Build the best page, not the best list | MMR/diversity, business rules, ad insertion, exploration | Diversity, coverage, page-level conversion |
 
 **Design points interviewers probe:**
@@ -199,8 +197,7 @@ class Tower(nn.Module):
 
     def forward(self, ids, feats):
         x = torch.cat([self.id_emb(ids), feats], dim=-1)
-        return F.normalize(self.mlp(x), dim=-1)      # unit vectors: dot
-product = cosine
+        return F.normalize(self.mlp(x), dim=-1)      # unit vectors: dot product = cosine
 
 class TwoTower(nn.Module):
     def __init__(self, n_users, n_items, n_user_feats, n_item_feats, dim=64, temperature=0.05):
@@ -261,7 +258,6 @@ with torch.no_grad():
 | DCN-v2 (Google, 2021) | Cross layers learn explicit feature crosses of bounded degree | When feature crosses matter and you want them learned |
 | DIN (Alibaba, 2018) | Attention over the user's history, weighted by relevance to the candidate | Long, varied histories; "which past orders matter for this item?" |
 | SASRec (2018), BERT4Rec (2019) | Transformer over the user's item sequence, predicting the next item | Sequential behaviour; also used as a retrieval source |
-| Model | Key idea | When to use |
 | MMoE (Google, 2018) | Several expert networks shared by task-specific gates | Multi-task with conflicting objectives |
 
 **A DCN-v2 cross layer in PyTorch.** Each layer computes `xₗ₊₁ = x₀ ⊙ (W xₗ + b) + xₗ`, so stacking L layers gives feature interactions up to degree L+1.
@@ -376,7 +372,7 @@ for t in range(20_000):
 print((alpha + beta - 2).astype(int))   # pulls per arm, e.g. [232 1432 18336]: most go to the best arm
 ```
 
-**In a production recommender** you rarely run a pure bandit over everything. Common patterns: reserve one or two slots per page for exploration; add an uncertainty bonus to new items' ranking scores for their first N impressions; use a bandit for small decisions (which carousel, which banner, which promotion). Whatever you do, **log the probabilitywith which each item was shown** (the propensity). That log is what makes unbiased offline evaluation possible later (25.10). Measure exploration's cost as the drop in short-term conversion in the exploration slots, and its benefit as catalogue coverage and new-restaurant success.
+**In a production recommender** you rarely run a pure bandit over everything. Common patterns: reserve one or two slots per page for exploration; add an uncertainty bonus to new items' ranking scores for their first N impressions; use a bandit for small decisions (which carousel, which banner, which promotion). Whatever you do, **log the probability with which each item was shown** (the propensity). That log is what makes unbiased offline evaluation possible later (25.10). Measure exploration's cost as the drop in short-term conversion in the exploration slots, and its benefit as catalogue coverage and new-restaurant success.
 
 ## 25.9 Position bias and inverse propensity scoring
 
@@ -442,8 +438,7 @@ ndcg_at_k([5, 3, 9, 1], relevant=[3, 7], k=3)     # ~0.39
 
 ```python
 def ips_value(rewards, p_new, p_logged, clip=10.0):
-    """Estimated reward of a new policy from logs; clipping trades a little
-bias for less variance."""
+    """Estimated reward of a new policy from logs; clipping trades a little bias for less variance."""
     w = np.minimum(p_new / p_logged, clip)
     return np.mean(w * rewards)
 ```
@@ -489,7 +484,7 @@ At scale, classic retrieval and ranking models still do the heavy lifting becaus
 
 Try each one aloud before reading the model answer. Questions 1–5 are basic, 6–11 intermediate, 12–16 senior.
 
-**1. What is the difference between explicit and implicit feedback, and where donegatives come from with implicit data?** Explicit feedback is a stated preference (ratings), rare and biased towards extremes. Implicit feedback is behaviour (impressions, clicks, orders): abundant but with no explicit negatives. For ranking, the best negatives are items the user saw and did not choose. For retrieval, use sampled negatives (in-batch plus some random). Items that were unavailable are not negatives at all.
+**1. What is the difference between explicit and implicit feedback, and where do negatives come from with implicit data?** Explicit feedback is a stated preference (ratings), rare and biased towards extremes. Implicit feedback is behaviour (impressions, clicks, orders): abundant but with no explicit negatives. For ranking, the best negatives are items the user saw and did not choose. For retrieval, use sampled negatives (in-batch plus some random). Items that were unavailable are not negatives at all.
 
 **2. Why do recommenders use multiple stages?** Latency and cost. A rich ranker cannot score a whole catalogue in 100 ms, so cheap high-recall models cut the set to thousands, rules remove what cannot be shown, a heavy model ranks hundreds, and re-ranking builds the page. Each stage optimises a different metric: recall early, precision and value late.
 
@@ -499,7 +494,7 @@ Try each one aloud before reading the model answer. Questions 1–5 are basic, 6
 
 **5. What is cold start and how do you handle a new restaurant?** No interactions means an untrained ID embedding. Use content features in the item tower (cuisine, price, menu embeddings) so it gets a vector on day one, give it guaranteed exploration impressions, train with ID dropout so the model can score from content, and borrow signals from similar existing restaurants.
 
-**6. Explain in-batch negatives in a two-tower model. What bias does it introduce andhow do you fix it?** Other positives in the batch serve as negatives, giving a B × B logit matrix trained with softmax cross-entropy. Items appear as negatives in proportion to popularity, so popular items get over-penalised. The logQ correction subtracts each item's log sampling probability from its logit; adding uniformly sampled negatives also helps.
+**6. Explain in-batch negatives in a two-tower model. What bias does it introduce and how do you fix it?** Other positives in the batch serve as negatives, giving a B × B logit matrix trained with softmax cross-entropy. Items appear as negatives in proportion to popularity, so popular items get over-penalised. The logQ correction subtracts each item's log sampling probability from its logit; adding uniformly sampled negatives also helps.
 
 **7. Why can't a two-tower model use user-item cross features, and where do they go?** The towers only interact at the final dot product, which is what makes precomputing item vectors and ANN search possible. Cross features such as distance or past orders from this restaurant need both user and item at once, so they go into the ranker.
 

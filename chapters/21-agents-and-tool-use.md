@@ -1,6 +1,6 @@
 # 21 · Agents and tool use
 
-Part VI · Building with LLMs. Assumes Chapter 15 (prompting, structured output, injection). Chapter 23 covers agent evaluation in depth; Chapter 20 the frameworks (LangGraph and others). Worked design that builds on it: E.10 Agentic customer-service flow.
+Part VI · Agents. Assumes Chapter 15 (prompting, structured output, injection). Chapter 23 covers agent evaluation in depth; Chapter 20 the frameworks (LangGraph and others). Worked design that builds on it: E.10 Agentic customer-service flow.
 
 ## Why it matters
 
@@ -34,8 +34,8 @@ Common workflow patterns, in increasing complexity:
 | Prompt chaining | Fixed sequence of LLM steps, with checks between | Extract order details → classify issue → draft reply |
 | Routing | Classify the input, send it to a specialised prompt or model | Refund questions to one flow, account questions to another |
 | Parallelisation | Run sub-tasks at once (sectioning) or the same task several times (voting) | Check a review for toxicity, PII and spam in parallel |
-| Orchestrator- workers | An LLM splits the task and delegates sub-tasks dynamically | Research a question across several sources |
-| Evaluator- optimiser | One LLM generates, another critiques, loop until good | Draft and refine a restaurant description |
+| Orchestrator-workers | An LLM splits the task and delegates sub-tasks dynamically | Research a question across several sources |
+| Evaluator-optimiser | One LLM generates, another critiques, loop until good | Draft and refine a restaurant description |
 | Autonomous agent | LLM chooses tools step by step with environment feedback | Resolve a ticket end to end with lookups and actions |
 
 **The senior default:** start with the simplest pattern that works, and move towards autonomy only where the task genuinely needs flexible, multi-step decisions and evaluation shows a fixed flow fails. E.10 deliberately uses a state machine with LLM decisions inside steps, not a free-roaming agent.
@@ -81,8 +81,7 @@ def get_order(order_id: str) -> dict:
 
 @tool
 def issue_voucher(order_id: str, amount: float, reason: Literal["missing_item", "late", "quality"]) -> dict:
-    """Issue a voucher for an order. Amount in euros, at most 10. Requires a
-reason."""
+    """Issue a voucher for an order. Amount in euros, at most 10. Requires a reason."""
     if amount > 10:                                         # the policy lives in code, not in the prompt
         return {"error": "amount above policy cap of 10 euros; escalate instead"}
     return {"ok": True, "voucher": amount}

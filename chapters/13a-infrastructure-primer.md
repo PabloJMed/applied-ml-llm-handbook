@@ -1,6 +1,6 @@
 # 13a · Infrastructure primer
 
-Part III · Bridge chapter. No prerequisites: this chapter assumes you have trained models in notebooks but never deployed one. Read it before Chapter 14 (serving) and Chapter 29 (MLOps).
+Part IV · Bridge chapter. No prerequisites: this chapter assumes you have trained models in notebooks but never deployed one. Read it before Chapter 14 (serving) and Chapter 29 (MLOps).
 
 ## Why it matters
 
@@ -39,7 +39,7 @@ Each line is a one-sentence definition with a link to a good explanation. The se
 
 Two paths cover almost every ML system you will meet:
 
-- **Online path.** A customer opens the app; the app sends a request; within about 100– 300 ms the system must answer (a ranked list, an ETA, a fraud score). Everything here is about speed and reliability.
+- **Online path.** A customer opens the app; the app sends a request; within about 100–300 ms the system must answer (a ranked list, an ETA, a fraud score). Everything here is about speed and reliability.
 - **Offline path.** Every event (orders, clicks, ratings) is stored. Scheduled jobs process it hours later: build training data, retrain the model, compute features, or score everything in bulk. Everything here is about correctness, cost and volume.
 
 The two meet in two places: the model trained offline is deployed to the online model server, and every online prediction is logged so it becomes offline data. When you design a system (Chapter 28), first decide which parts must be online. Many teams make everything online by default and pay for it in cost and complexity; if a prediction can be computed overnight and looked up, it usually should be.
@@ -174,8 +174,7 @@ You will rarely write these from scratch (platform teams provide templates, Helm
 | Store | What it is for | Typical latency | Examples |
 |---|---|---|---|
 | App database (OLTP) | live product data: orders, users, menus; many small reads and writes | ~1–10 ms | PostgreSQL, MySQL, DynamoDB |
-| Cache / key- value | features and results needed in milliseconds | <1 ms | Redis, Memcached |
-| Store | What it is for | Typical latency | Examples |
+| Cache / key-value | features and results needed in milliseconds | <1 ms | Redis, Memcached |
 | Data warehouse | analytics and training data; SQL over billions of rows | seconds | BigQuery, Snowflake, Redshift |
 | Data lake / object storage | raw files, Parquet tables, model weights, checkpoints | tens of ms per file | S3, GCS, Azure Blob |
 | Vector database | nearest-neighbour search over embeddings (Chapter 18) | ~1–50 ms | pgvector, FAISS-based services, Pinecone, Qdrant |

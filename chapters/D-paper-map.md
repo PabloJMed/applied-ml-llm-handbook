@@ -6,7 +6,7 @@ Forty papers that come up again and again in applied ML and LLM work and intervi
 
 **1. Rumelhart, Hinton and Williams,** [**"Learning representations by back-propagating errors"**](https://www.nature.com/articles/323533a0) **(1986).** Showed that the chain rule, applied layer by layer, trains multi-layer networks that learn useful internal features. Every model in this guide is trained this way (Ch 6).
 
-**2. Kingma and Ba,** [**"Adam: A Method for Stochastic Optimization"**](https://arxiv.org/abs/1412.6980) **(2015); Loshchilov andHutter,** [**"Decoupled Weight Decay Regularization"**](https://arxiv.org/abs/1711.05101) **(AdamW, 2019).** Momentum plus per-parameter step sizes with bias correction; AdamW separates weight decay and is the default for transformers (Ch 6).
+**2. Kingma and Ba,** [**"Adam: A Method for Stochastic Optimization"**](https://arxiv.org/abs/1412.6980) **(2015); Loshchilov and Hutter,** [**"Decoupled Weight Decay Regularization"**](https://arxiv.org/abs/1711.05101) **(AdamW, 2019).** Momentum plus per-parameter step sizes with bias correction; AdamW separates weight decay and is the default for transformers (Ch 6).
 
 **3. Srivastava et al.,** [**"Dropout"**](https://jmlr.org/papers/v15/srivastava14a.html) **(2014).** Randomly zeroing units during training stops co-adaptation and acts like averaging many thinned networks (Ch 6).
 
@@ -30,7 +30,7 @@ Forty papers that come up again and again in applied ML and LLM work and intervi
 
 **11. ★ Devlin et al.,** [**"BERT"**](https://arxiv.org/abs/1810.04805) **(2019).** A bidirectional encoder pre-trained with masked language modelling, then fine-tuned; still the right family for high-volume classification and reranking (Ch 11, 12).
 
-**12. Radford et al.,** [**"Language Models are Unsupervised Multitask Learners"**](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) **(GPT-2,2019) and Brown et al.,** [**"Language Models are Few-Shot Learners"**](https://arxiv.org/abs/2005.14165) **(GPT-3, 2020).** Scaling a decoder-only model produced zero- and few-shot ability from prompts alone (Ch 11, 15).
+**12. Radford et al.,** [**"Language Models are Unsupervised Multitask Learners"**](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) **(GPT-2, 2019) and Brown et al.,** [**"Language Models are Few-Shot Learners"**](https://arxiv.org/abs/2005.14165) **(GPT-3, 2020).** Scaling a decoder-only model produced zero- and few-shot ability from prompts alone (Ch 11, 15).
 
 **13. Raffel et al.,** [**"Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer"**](https://arxiv.org/abs/1910.10683) **(T5, 2020).** Every task as text-to-text, plus a model study of objectives and data (Ch 11).
 
@@ -42,7 +42,7 @@ Forty papers that come up again and again in applied ML and LLM work and intervi
 
 **16. Kaplan et al.,** [**"Scaling Laws for Neural Language Models"**](https://arxiv.org/abs/2001.08361) **(2020).** Loss follows smooth power laws in parameters, data and compute (Ch 11).
 
-**17. ★ Hoffmann et al.,** [**"Training Compute-Optimal Large Language Models"**](https://arxiv.org/abs/2203.15556) **(Chinchilla,2022).** For fixed compute, scale parameters and tokens equally, about 20 tokens per parameter; know C ≈ 6ND and why practice now overtrains small models (Ch 11).
+**17. ★ Hoffmann et al.,** [**"Training Compute-Optimal Large Language Models"**](https://arxiv.org/abs/2203.15556) **(Chinchilla, 2022).** For fixed compute, scale parameters and tokens equally, about 20 tokens per parameter; know C ≈ 6ND and why practice now overtrains small models (Ch 11).
 
 **18. Fedus, Zoph and Shazeer,** [**"Switch Transformers"**](https://arxiv.org/abs/2101.03961) **(2021).** Top-1 mixture-of-experts routing with a load-balancing loss: more parameters, same compute per token (Ch 11).
 

@@ -47,8 +47,18 @@ class MultiHeadAttention(nn.Module):
 
 mha = MultiHeadAttention(32, 4, n_kv_heads=2)
 x = torch.randn(2, 5, 32)
-ref = F.scaled_dot_product_attention  # sanity: compare against torch for full heads
 print(mha(x).shape)
+# Check the hand-written GQA attention against PyTorch's fused kernel.
+mha.eval()
+with torch.no_grad():
+    B, T, _ = x.shape
+    rep = mha.h // mha.kv
+    q = mha.q(x).view(B, T, mha.h, mha.dh).transpose(1, 2)
+    k = mha.k(x).view(B, T, mha.kv, mha.dh).transpose(1, 2).repeat_interleave(rep, dim=1)
+    v = mha.v(x).view(B, T, mha.kv, mha.dh).transpose(1, 2).repeat_interleave(rep, dim=1)
+    ref = mha.o(F.scaled_dot_product_attention(q, k, v, is_causal=True).transpose(1, 2).reshape(B, T, -1))
+    assert torch.allclose(mha(x), ref, atol=1e-5)
+print("GQA matches F.scaled_dot_product_attention")
 
 def sinusoidal_pe(T, d):
     pos = torch.arange(T).unsqueeze(1)

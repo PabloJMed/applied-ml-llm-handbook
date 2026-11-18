@@ -30,7 +30,7 @@ For almost any text task there is a ladder of options. Climb only as far as qual
 | Embeddings + linear model | Hundreds | Low | Semantic tasks with few labels; multilingual |
 | Fine-tuned encoder (BERT-family) | Thousands | Low (CPU or small GPU) | High-volume classification and extraction |
 | LLM zero- or few-shot | Tens, for the prompt and evaluation | High per call | Low volume, fast iteration, many classes, changing taxonomies |
-| LLM labels, then distil into a small model | A small human- audited sample | High once, low after | High volume where an LLM's quality is needed |
+| LLM labels, then distil into a small model | A small human-audited sample | High once, low after | High volume where an LLM's quality is needed |
 
 The last pattern deserves a picture, because it is the default answer for high-volume tasks today:
 
@@ -54,8 +54,7 @@ from sklearn.metrics import classification_report
 
 clf = make_pipeline(
     make_union(
-        TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True),
-# words
+        TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True),  # words
         TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True),  # character n-grams
     ),
     LogisticRegression(max_iter=2000, class_weight="balanced"),
@@ -114,7 +113,6 @@ A food-delivery platform needs every merchant (restaurant, grocery, pharmacy, fl
 | Inputs | Name only, or menu items and description too? | Short names are ambiguous; menu items add strong signal; measure each input's contribution |
 | Labels | Where did ground truth come from? | Expert-labelled evaluation set; agreement between labellers; LLM vs human agreement |
 | Model | Why an LLM and not TF-IDF or a fine-tuned encoder? | The baseline's numbers; the quality gap; volume and cost; how often labels change |
-| Decision | Questions you will get | Strong answer covers |
 | Cost | What did it cost per 1,000 merchants? | Tokens per call × calls × price; batch discount; caching of repeated prompt prefixes |
 | Quality control | How do you know it keeps working? | A fixed evaluation set re-run on every prompt or model change; sampling of production outputs; drift alerts on class distribution |
 | Failure handling | What happens when it is unsure or wrong? | Confidence or "unsure" output, review queue, feedback into the evaluation set |
@@ -259,7 +257,7 @@ On a small set of delivery reviews, this labels clusters as "late, cold, courier
 - **One long document** larger than the context window, or too long to read reliably: map-reduce. Summarise chunks, then summarise the summaries. Keep chunk summaries for traceability.
 - **Summaries that must be checkable**: ask for each claim with a citation to its source sentence or review id, and verify citations automatically.
 
-**Evaluating summaries.** ROUGE (12.9) measures word overlap with a reference summary and is weak for abstractive outputs. In practice, evaluate four properties with an LLM judge calibrated on human ratings (Chapter 22): **faithfulness** (every claim supported by the source), **coverage** (the important points present), **conciseness**, and **usefulness forthe reader's decision**. Faithfulness can also be checked claim by claim: split the summary into claims and test each against the source with an entailment model or a judge.
+**Evaluating summaries.** ROUGE (12.9) measures word overlap with a reference summary and is weak for abstractive outputs. In practice, evaluate four properties with an LLM judge calibrated on human ratings (Chapter 22): **faithfulness** (every claim supported by the source), **coverage** (the important points present), **conciseness**, and **usefulness for the reader's decision**. Faithfulness can also be checked claim by claim: split the summary into claims and test each against the source with an entailment model or a judge.
 
 Worked design E.5 applies this to review summaries shown to customers, where an unfaithful negative claim about a restaurant is a real business and legal risk.
 
@@ -284,10 +282,10 @@ In a multi-country marketplace, translation shows up in catalogues (menus in Ara
 |---|---|---|---|
 | BLEU | N-gram precision against references, with a brevity penalty | Machine translation | Ignores meaning; one reference misses valid alternatives; poor at sentence level |
 | ROUGE-N, ROUGE-L | N-gram recall / F1, or longest common subsequence, against references | Summarisation | Rewards copying words; blind to factual errors |
-| chrF | Character n-gram F- score | Translation, especially morphologically rich languages | Still surface overlap |
+| chrF | Character n-gram F-score | Translation, especially morphologically rich languages | Still surface overlap |
 | BERTScore | Matches tokens by contextual embedding similarity | Paraphrase-tolerant overlap | Still compares with a reference; weak on factual consistency |
 | COMET | A model trained to predict human translation scores | Translation | Needs a trained model per task; can be gamed |
-| LLM judge | An LLM scores outputs against a rubric | Summaries, answers, open-ended text | Must be calibrated against humans; biases (length, position, self- preference) |
+| LLM judge | An LLM scores outputs against a rubric | Summaries, answers, open-ended text | Must be calibrated against humans; biases (length, position, self-preference) |
 
 **ROUGE from scratch** (the coding-round version):
 
@@ -316,7 +314,7 @@ def rouge_l(candidate, reference):
 
 **The limit, in one example.** Reference: *"customers praise the fresh sushi but complain* *about late delivery"*.
 
-| Candidate | Meaning | ROUGE- 1 | ROUGE- 2 | ROUGE- L |
+| Candidate | Meaning | ROUGE-1 | ROUGE-2 | ROUGE-L |
 |---|---|---|---|---|
 | "reviews like the fresh sushi but say delivery is often late" | Correct | 0.57 | 0.32 | 0.48 |
 | "customers praise the late delivery but complain about the fresh sushi" | Reversed | 0.95 | 0.74 | 0.57 |
@@ -363,11 +361,11 @@ Questions 1–5 are basic, 6–11 intermediate, 12–15 senior.
 
 **11. How do you handle Arabic and English in one NLP system?** Multilingual models, per-language evaluation sets and metrics, transliteration variants, language-specific normalisation, native-speaker review; watch for code-switching within one text.
 
-**12. For the merchant classifier in 12.3: why an LLM, and what would you change after ayear in production?** Give the baseline numbers and the gap the LLM closed, the cost after batching, and how quality was measured. Then name a concrete next step: distillation for cost and latency, a confidence threshold with review, or drift monitoring as merchant types change. (Rehearse the same answer for a project of your own.)
+**12. For the merchant classifier in 12.3: why an LLM, and what would you change after a year in production?** Give the baseline numbers and the gap the LLM closed, the cost after batching, and how quality was measured. Then name a concrete next step: distillation for cost and latency, a confidence threshold with review, or drift monitoring as merchant types change. (Rehearse the same answer for a project of your own.)
 
 **13. How do you check an LLM summary for hallucinations at scale?** Split the summary into atomic claims; check each against the source with an entailment model or a calibrated LLM judge; require citations; track the share of unsupported claims as a metric; route summaries with unsupported claims to regeneration or review.
 
-**14. A product team wants a "topics customers complain about" dashboard. How do youbuild it?** Aspect or theme extraction into a fixed, reviewed set of themes (seeded by clustering plus LLM naming), counts and trends computed in code, drill-down to example reviews, a monthly review of new clusters for emerging themes, and an evaluation sample per theme.
+**14. A product team wants a "topics customers complain about" dashboard. How do you build it?** Aspect or theme extraction into a fixed, reviewed set of themes (seeded by clustering plus LLM naming), counts and trends computed in code, drill-down to example reviews, a monthly review of new clusters for emerging themes, and an evaluation sample per theme.
 
 **15. How do you decide between paying for LLM calls and fine-tuning a model?** Compute cost per month for each: tokens × calls × price (with batch discount) vs training plus serving cost; compare quality on the same evaluation set; factor in latency, how often labels change, team effort and vendor risk. Often the answer is both: an LLM for labels and hard cases, a small model for volume.
 

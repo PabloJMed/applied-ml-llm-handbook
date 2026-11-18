@@ -1,6 +1,6 @@
 # 29 · MLOps and LLMOps
 
-Part VIII · Prerequisites: Chapter 13a (infrastructure primer). Written for readers who have trained models but never run one in production.
+Part IX · Prerequisites: Chapter 13a (infrastructure primer). Written for readers who have trained models but never run one in production.
 
 ## Why it matters
 

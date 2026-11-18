@@ -29,7 +29,7 @@ ctx = "vouchers are worth 20% of the order value, up to 10 euros. requests withi
 print(faithfulness("Vouchers are worth 20% of the order. Refunds arrive within 3 days.", ctx, fake_claims, fake_support))
 
 def abstention_report(should_answer, did_answer, correct):
-    sa, da, c = map(np.asarray, (should_answer, did_answer, correct))
+    sa, da, c = (np.asarray(a, dtype=bool) for a in (should_answer, did_answer, correct))  # bool masks: ~ and & must be logical
     return {
         "answered_and_correct": np.mean(c[sa & da]) if (sa & da).any() else None,
         "wrongly_abstained": np.mean(~da[sa]) if sa.any() else None,

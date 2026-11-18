@@ -94,7 +94,7 @@ And habits that signal the opposite: jumping to the newest model, no baseline, n
 Interviewers often ask "why this role" and "why now". A clear, honest answer helps more than polish. Fill in this template:
 
 - **Why this company:** [one thing about its product or market] + [one thing about the team's technical work you have read or heard about] + [any prior contact with the team or product].
-- **What you bring:** [two or three projects in one line each, each with a number: "an LLM classifier that cut labelling cost by x", "a ranking model that lifted CTR by y"] + [one area of depth, such as research in parameter-efficient fine-tuning].
+- **What you bring:** [two or three projects in one line each, each with a number: "an LLM classifier that cut labelling cost by x", "a ranking model that lifted CTR by y"] + [one area of depth, such as parameter-efficient fine-tuning].
 - **What you are building up:** one honest growth area and what you are doing about it. It shows self-awareness.
 - **Why now:** the move makes sense for your career stage (and, if relevant, for practical reasons such as relocation that you have already settled).
 

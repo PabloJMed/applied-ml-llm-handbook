@@ -22,7 +22,7 @@ Most production ML on tabular data still runs on these models: logistic regressi
 
 **Intuition.** Predict a number as a weighted sum of features: ŷ = w·x + b. Fit the weights that minimise squared error.
 
-**Maths.** With a column of ones for the bias, the least-squares solution is the **normalequation** w = (XᵀX)⁻¹Xᵀy; ridge adds λI inside the inverse, which also makes it stable when features are correlated. For large data, use gradient descent instead (Chapter 3.5).
+**Maths.** With a column of ones for the bias, the least-squares solution is the **normal equation** w = (XᵀX)⁻¹Xᵀy; ridge adds λI inside the inverse, which also makes it stable when features are correlated. For large data, use gradient descent instead (Chapter 3.5).
 
 ```python
 import numpy as np
@@ -108,7 +108,7 @@ On a synthetic classification set this scores the same test accuracy (0.906) as 
 
 ## 4.4 Random forests
 
-**Intuition.** Many deep, different trees each overfit in different ways; averaging them cancels much of the noise. Two sources of difference: each tree is trained on a **bootstrapsample** (rows drawn with replacement: bagging), and each split considers only a **randomsubset of features** (typically √d for classification), which decorrelates the trees.
+**Intuition.** Many deep, different trees each overfit in different ways; averaging them cancels much of the noise. Two sources of difference: each tree is trained on a **bootstrap sample** (rows drawn with replacement: bagging), and each split considers only a **random subset of features** (typically √d for classification), which decorrelates the trees.
 
 ![Diagram](images/04-01.png)
 
@@ -148,8 +148,7 @@ This reaches 0.983 test accuracy on the same data where one tree gets 0.906 (sci
 from sklearn.tree import DecisionTreeRegressor
 
 class SimpleGBM:
-    """Gradient boosting for squared loss: each tree fits the current
-residuals."""
+    """Gradient boosting for squared loss: each tree fits the current residuals."""
     def __init__(self, n_trees=200, lr=0.1, max_depth=3):
         self.n_trees, self.lr, self.max_depth = n_trees, lr, max_depth
 
@@ -177,8 +176,7 @@ On a regression test set this reaches RMSE 25.1, the same as scikit-learn's `Gra
 | Library | Distinctive ideas | Notes |
 |---|---|---|
 | XGBoost | Second-order (gradient and hessian) split finding, regularised objective, sparsity-aware splits for missing values | The one that made boosting dominant on Kaggle; robust default |
-| LightGBM | Histogram-based splits, leaf-wise growth, gradient-based sampling (GOSS), exclusive feature bundling | Usually fastest on large data; leaf- wise trees overfit small data unless you limit leaves |
-| Library | Distinctive ideas | Notes |
+| LightGBM | Histogram-based splits, leaf-wise growth, gradient-based sampling (GOSS), exclusive feature bundling | Usually fastest on large data; leaf-wise trees overfit small data unless you limit leaves |
 | CatBoost | Ordered boosting and ordered target statistics for categoricals, symmetric trees | Best out of the box with many categorical features; less tuning |
 
 **When to use:** the default first serious model for tabular data: ranking, fraud, ETA, demand, churn. On tabular benchmarks, tuned gradient boosting still usually matches or beats deep learning. Deep models win with very large data, raw text, images, sequences, or very high-cardinality IDs that need embeddings.
@@ -236,8 +234,7 @@ class MultinomialNaiveBayes:
     def fit(self, X, y, alpha=1.0):
         self.classes = np.unique(y)
         self.log_prior = np.log(np.array([np.mean(y == c) for c in self.classes]))
-        counts = np.array([X[y == c].sum(0) for c in self.classes]) + alpha
-# Laplace smoothing
+        counts = np.array([X[y == c].sum(0) for c in self.classes]) + alpha  # Laplace smoothing
         self.log_lik = np.log(counts / counts.sum(1, keepdims=True))
         return self
 
@@ -258,14 +255,11 @@ def kmeans(X, k, iters=50, seed=0):
     rng = np.random.default_rng(seed)
     C = X[rng.choice(len(X), k, replace=False)]
     for _ in range(iters):
-        labels = np.argmin(((X[:, None] - C[None]) ** 2).sum(-1), axis=1)
-# assign
+        labels = np.argmin(((X[:, None] - C[None]) ** 2).sum(-1), axis=1)  # assign
         new_C = np.array([X[labels == j].mean(0) if np.any(labels == j) else C[j] for j in range(k)])
-        if np.allclose(new_C, C):
-# converged
+        if np.allclose(new_C, C):  # converged
             break
-        C = new_C
-# update
+        C = new_C  # update
     return C, labels
 ```
 
@@ -295,7 +289,6 @@ Components and explained-variance ratios match scikit-learn's `PCA` (up to sign,
 |---|---|---|
 | Tabular classification or regression | Logistic or linear regression baseline | LightGBM / XGBoost / CatBoost |
 | Ranking with tabular features | GBDT with LambdaMART | Deep ranker if very large data (Chapter 25) |
-| Situation | Start with | Then try |
 | Short text classification | TF-IDF + logistic regression | Fine-tuned encoder, LLM labelling (Chapter 12) |
 | Few hundred rows | Regularised linear model, small forest | Careful cross-validation over model choice |
 | Need explanations for each decision | Logistic regression, shallow tree, GBDT with SHAP | Monotonic constraints in GBDT |
@@ -348,7 +341,7 @@ Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
 
 **13. Deep learning or gradient boosting for a tabular ETA problem?** Gradient boosting first: it handles heterogeneous features well, trains fast, and is hard to beat on tabular data. Consider deep models when you have very large data, sequences (route traces), high-cardinality IDs needing embeddings, or want multi-task learning; often the best production system combines both.
 
-**14. How would you explain an individual prediction of a boosted model to an operationsteam?** SHAP values: additive per-feature contributions to the prediction relative to a baseline, with clear caveats that they explain the model, not causality; use monotonic constraints where the business expects a direction.
+**14. How would you explain an individual prediction of a boosted model to an operations team?** SHAP values: additive per-feature contributions to the prediction relative to a baseline, with clear caveats that they explain the model, not causality; use monotonic constraints where the business expects a direction.
 
 **15. Implement gradient boosting for log loss. What changes from squared loss?** The initial prediction is the log-odds of the base rate; each tree fits the negative gradient y − p (not y − log-odds); leaf values are better set with a Newton step (sum of gradients over sum of hessians p(1−p)), which is what XGBoost does; predictions pass through the sigmoid.
 

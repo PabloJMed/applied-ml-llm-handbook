@@ -64,13 +64,10 @@ The loss is what training optimises; choose it so its optimum is what the busine
 | MAE | \|y − p\| | Median | Regression robust to outliers |
 | Huber | Quadratic near zero, linear beyond δ | Between mean and median | Regression with some outliers |
 | Quantile (pinball) | max(q(y−p), (q−1) (y−p)) | q-th quantile | ETA promises, demand buffers |
-| Log loss (cross- entropy) | −[y log p + (1−y) log(1−p)] | True probability | Classification with probabilities |
+| Log loss (cross-entropy) | −[y log p + (1−y) log(1−p)] | True probability | Classification with probabilities |
 | Hinge | max(0, 1 − y·f) with y in {−1, 1} | Margin | SVMs |
 | Focal | −(1−pₜ)^γ log pₜ | Down-weights easy examples | Extreme imbalance, dense detection |
-
-LossFormula (perOptimalUse for example)prediction
-
-Ranking lossesPairwise, listwiseCorrect orderSearch and recommendation (Chapter 26)
+| Ranking losses | Pairwise, listwise | Correct order | Search and recommendation (Chapter 26) |
 
 ```python
 import numpy as np
@@ -165,7 +162,7 @@ On synthetic data with true weights [2, −1, 0.5, 0, 0], all three recover abou
 |---|---|---|
 | Independent rows, imbalanced classes | Stratified k-fold | Keeps class ratios equal across folds |
 | Several rows per user, store or restaurant | Group k-fold | The same entity must not appear in train and validation, or the model memorises it |
-| Anything with time | Time-based (walk- forward) | The model will predict the future, so validate on the future |
+| Anything with time | Time-based (walk-forward) | The model will predict the future, so validate on the future |
 
 ![Diagram](images/03-01.png)
 
@@ -190,8 +187,7 @@ Leakage is information in training that will not be available at prediction time
 | Type | Example | Prevention |
 |---|---|---|
 | Target leakage | A "refund issued" feature in a model predicting complaints | Ask of every feature: is it known at the prediction moment? |
-| Temporal leakage | Features computed with data after the prediction time; random splits on time data | Point-in-time feature joins (`merge_asof`, Chapter 28); time- based splits |
-| Type | Example | Prevention |
+| Temporal leakage | Features computed with data after the prediction time; random splits on time data | Point-in-time feature joins (`merge_asof`, Chapter 28); time-based splits |
 | Preprocessing leakage | Scaling, imputation or target encoding fitted on all data before splitting | Fit preprocessing inside each training fold (scikit-learn Pipelines) |
 | Entity leakage | The same user in train and test with user-specific patterns | Group splits |
 | Duplicate leakage | Near-duplicate rows across splits (same review posted twice) | Deduplicate before splitting |
@@ -222,8 +218,7 @@ def target_encode_oof(df, col, target, n_splits=5, smoothing=20, seed=0):
     for tr, va in KFold(n_splits, shuffle=True, random_state=seed).split(df):
         stats = df.iloc[tr].groupby(col)[target].agg(["sum", "count"])
         smoothed = (stats["sum"] + smoothing * prior) / (stats["count"] + smoothing)   # shrink small groups
-        enc.iloc[va] = df.iloc[va][col].map(smoothed).fillna(prior).values
-# unseen -> prior
+        enc.iloc[va] = df.iloc[va][col].map(smoothed).fillna(prior).values  # unseen -> prior
     return enc
 ```
 
@@ -287,7 +282,7 @@ Questions 1–5 basic, 6–11 intermediate, 12–14 senior.
 
 **12. How do you frame "reduce late deliveries" as an ML problem?** Clarify the decision (promise times, dispatching, restaurant prep alerts), then choose a framing whose output that decision uses: quantile ETA regression for promises, a late-risk classifier for proactive alerts. Define the label (minutes late vs promise), the prediction moment, features available then, error costs, and the baseline.
 
-**13. Your validation metric improves but production does not. What could be wrong withyour training setup?** Leakage, splits that do not mirror production (random vs time, entity overlap), a training distribution different from serving (selection bias in logged data), train-serve skew in features, a proxy label misaligned with the business metric.
+**13. Your validation metric improves but production does not. What could be wrong with your training setup?** Leakage, splits that do not mirror production (random vs time, entity overlap), a training distribution different from serving (selection bias in logged data), train-serve skew in features, a proxy label misaligned with the business metric.
 
 **14. When should you not use ML?** When rules achieve the goal, when there is no reliable label or feedback loop, when errors are unacceptable and unexplainable, when data is too small, or when nobody will act on the prediction.
 

@@ -1,6 +1,6 @@
 # 32 · ML depth question bank
 
-Part X · The interview. 160 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
+Part X · Interview craft. 160 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
 
 ## How to use this bank
 
@@ -297,7 +297,7 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 
 **123. [I] Faithfulness vs correctness?** Faithfulness: claims supported by the retrieved context. Correctness: claims true against a reference. A faithful answer from a wrong document is still wrong.
 
-**124. [S] How many examples do you need to compare two prompts?** Depends on the difference: use paired comparisons on the same cases (McNemar); 100 cases give about ±7 points on a single rate, small differences need hundreds.
+**124. [S] How many examples do you need to compare two prompts?** Depends on the difference: use paired comparisons on the same cases (McNemar); 100 cases give about ±7 points on a single rate near 85% (±10 near 50%), small differences need hundreds.
 
 **125. [S] How do you evaluate an agent?** End-state task success, trajectory checks, efficiency, robustness to tool failures, repeated runs (pass^k), safety tests.
 

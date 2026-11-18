@@ -1,6 +1,6 @@
 # 6 · Neural network fundamentals
 
-Part II · Deep learning. Phase 2 chapter. Assumes Chapter 1 (gradients) and Chapter 3 (losses, optimisers). Chapter 7 moves the same ideas into PyTorch; Chapter 10 builds transformers from them.
+Part II · Deep learning. Assumes Chapter 1 (gradients) and Chapter 3 (losses, optimisers). Chapter 7 moves the same ideas into PyTorch; Chapter 10 builds transformers from them.
 
 ## Why it matters
 
@@ -75,7 +75,7 @@ Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. 
 | Tanh | (e^x − e^−x)/(e^x + e^−x) | Zero-centred sigmoid; still saturates; used in RNN gates |
 | ReLU | max(0, x) | Cheap, no saturation for x > 0; units can "die" (stuck at 0) |
 | Leaky ReLU | max(αx, x) | Avoids dead units |
-| GELU | x·Φ(x) | Smooth ReLU; standard in BERT and GPT-style models |
+| GELU | x·Φ(x) | Smooth ReLU; standard in BERT and GPT-2/3; current LLMs use gated SwiGLU (next row) |
 | SiLU / Swish | x·σ(x) | Used inside SwiGLU in modern LLMs (Chapter 10.6) |
 | Softmax | e^zᵢ/Σe^zⱼ | Output layer for multi-class distributions |
 

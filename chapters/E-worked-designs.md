@@ -1,4 +1,4 @@
-# Appendix E · Worked system designs
+# E · Worked system designs
 
 Ten complete answers in the eight-step format of Chapter 28. Each one is the answer a strong mid-level candidate gives in 45 minutes, with notes on what lifts it to senior.
 
@@ -103,7 +103,7 @@ All scale numbers are assumptions stated for the exercise, not facts about any c
 
 **The ask:** "We have 10 million grocery and restaurant products with messy names and descriptions in several languages. Classify each into a 3-level taxonomy of about 800 leaf categories, to power filters and browse."
 
-This is close to the system you own. Interviewers will push on evaluation and cost, so lead with them.
+Interviewers will push on evaluation and cost, so lead with them.
 
 **1 · Clarify.** Assumptions: 10M existing products plus about 50k new or edited per day; the taxonomy changes a few times a year; no strict real-time need (new products can be classified within an hour); a budget in the low thousands of dollars per full run; a wrong category is visible to users but not dangerous. Today: vendors pick categories by hand, inconsistently.
 
@@ -197,7 +197,7 @@ If you have built something similar, present it as a design rather than a story,
 | Item | Moderation | Summarisation |
 |---|---|---|
 | ML task | Multi-label classification per policy (toxicity, PII, spam, off-topic) with thresholds | Aspect-based summarisation over many reviews |
-| Label | Moderator decisions plus a policy- labelled gold set | Human-rated summaries on a sample |
+| Label | Moderator decisions plus a policy-labelled gold set | Human-rated summaries on a sample |
 | Offline metrics | Precision and recall per policy, at the chosen thresholds | Faithfulness (every claim supported by reviews), aspect coverage, balance of positive and negative |
 | Online metric | Moderation cost, appeal rate, complaints | Page conversion, time on page |
 | Guardrails | Harmful content published (must be near zero), fair criticism wrongly removed | Hallucinated claims, partner complaints |
@@ -212,7 +212,7 @@ If you have built something similar, present it as a design rather than a story,
 - **Moderation model:** an LLM with the policy in the prompt and structured output per policy (label, confidence, quoted span) for V1; a fine-tuned small classifier on accumulated labels for volume in V2, with the LLM kept for borderline cases.
 - **Thresholds per policy:** strict for hate and PII (prefer false positives, send to humans), lenient for negative-but-fair criticism.
 - **Summarisation:** extract aspects and sentiment per review first (structured), aggregate counts per aspect, then have the LLM write the summary from the aggregated table plus a few representative quotes. Summarising from counts keeps proportions honest and reduces hallucination.
-- **Ranking which reviews to show:** recency, informativeness and reliability, rebalanced so the displayed mix reflects the overall rating (your sentiment-interleaving work).
+- **Ranking which reviews to show:** recency, informativeness and reliability, rebalanced so the displayed mix reflects the overall rating (sentiment interleaving).
 
 **6 · Evaluation.** Moderation: per-policy precision and recall on a gold set, inter-moderator agreement as the ceiling, and a red-team set of adversarial reviews (obfuscated slurs, PII in odd formats). Summaries: an LLM judge for faithfulness and balance, checked against human ratings; a check that the summary's sentiment matches the rating distribution. Online: A/B on the restaurant page; moderation measured on cost and appeal rates.
 
@@ -280,7 +280,6 @@ If you have built something similar, present it as a design rather than a story,
 |---|---|
 | ML task | Predict P(click) per (user, context, ad); rank by expected value |
 | Ranking score | bid × pCTR, plus a quality term so poor ads do not win on money alone |
-| Item | Choice |
 | Label | Click after impression (and optionally order after click, for a pCVR model) |
 | Offline metrics | Log loss and calibration (predicted CTR must match observed CTR, because it sets prices); AUC as a secondary check |
 | Online metrics | Ad revenue, advertiser return (orders per spend), organic conversion |
@@ -325,7 +324,6 @@ If you have built something similar, present it as a design rather than a story,
 | ML task | Multi-horizon time-series forecasting, ideally probabilistic (quantiles) |
 | Target | Units demanded per store, product and day (and orders per store per hour for staffing) |
 | Offline metrics | WAPE or MASE (scale-free, handle many series); pinball loss for quantiles; bias (systematic over- or under-forecasting) |
-| Item | Choice |
 | Online metrics | Stock-out rate, waste rate, availability of top products |
 | Guardrails | Inventory cost, order fulfilment rate |
 
@@ -370,7 +368,6 @@ If you have built something similar, present it as a design rather than a story,
 | ML task | Binary risk scoring per order (and per account), with thresholds that map to actions |
 | Labels | Chargebacks (card fraud, arriving weeks later); confirmed abuse from investigations; linked accounts found by the graph |
 | Offline metrics | Precision and recall at the operating thresholds; PR-AUC; money saved at a fixed false-positive rate |
-| Item | Choice |
 | Online metrics | Fraud losses, voucher cost recovered |
 | Guardrails | Good customers blocked or challenged, checkout conversion, manual review load |
 
@@ -417,7 +414,6 @@ This extends E.4. The new difficulty is that the system takes actions, so safety
 | Item | Choice |
 |---|---|
 | ML task | A tool-using agent that diagnoses the problem, decides an action within policy, and explains it to the customer |
-| Item | Choice |
 | Ground truth | 500–1,000 historical cases with the decision a senior agent made, plus the policy rule that applies |
 | Offline metrics | Correct final action (vs expert decision), policy compliance, correct tool calls, steps and cost per case |
 | Online metrics | Resolution without a human, customer satisfaction, compensation cost per contact |

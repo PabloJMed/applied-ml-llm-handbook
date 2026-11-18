@@ -121,14 +121,13 @@ Attention is permutation-invariant: without position information, "courier waite
 | Sinusoidal (original transformer) | Add fixed sin/cos waves of different frequencies to embeddings | No parameters; extrapolates poorly in practice |
 | Learned absolute (GPT-2, BERT) | Add a learned vector per position | Simple; cannot go beyond the trained length |
 | RoPE (rotary, RoFormer; Llama and most current LLMs) | Rotate query and key vectors by an angle proportional to position | Attention scores depend on relative position; extended to longer contexts with scaling tricks (position interpolation, NTK-aware scaling, YaRN) |
-| ALiBi | Add a penalty to attention scores proportional to distance | No embeddings; extrapolates to longer inputs |
+| ALiBi | Add a penalty to attention scores proportional to distance | No embeddings; loss stays stable beyond the training length, though distant context is used weakly |
 
 **RoPE in code,** and its key property: the dot product between a rotated query at position m and a rotated key at position n depends only on m − n.
 
 ```python
 def rope(x, base=10000.0):
-    """x: (B, heads, T, D). Rotate pairs of dimensions by position-dependent
-angles."""
+    """x: (B, heads, T, D). Rotate pairs of dimensions by position-dependent angles."""
     B, H, T, D = x.shape
     half = D // 2
     freqs = base ** (-torch.arange(half, dtype=torch.float32) / half)       # one frequency per pair
@@ -178,9 +177,9 @@ class SwiGLU(nn.Module):
 
 | Architecture | Attention | Training objective | Examples | Best for |
 |---|---|---|---|---|
-| Encoder-only | Bidirectional (sees left and right) | Masked language modelling | BERT, RoBERTa, modern embedding models | Classification, extraction, embeddings, re- rankers |
-| Decoder- only | Causal (sees left only) | Next-token prediction | GPT family, Llama, Claude- style LLMs | Generation, chat, general-purpose LLMs |
-| Encoder- decoder | Encoder bidirectional, decoder causal with cross- attention | Span corruption, seq2seq | T5, BART, many translation models | Translation, summarisation, structured transformation |
+| Encoder-only | Bidirectional (sees left and right) | Masked language modelling | BERT, RoBERTa, modern embedding models | Classification, extraction, embeddings, re-rankers |
+| Decoder-only | Causal (sees left only) | Next-token prediction | GPT family, Llama, Claude-style LLMs | Generation, chat, general-purpose LLMs |
+| Encoder-decoder | Encoder bidirectional, decoder causal with cross-attention | Span corruption, seq2seq | T5, BART, many translation models | Translation, summarisation, structured transformation |
 
 Decoder-only models won for general LLMs because one simple objective scales smoothly with data and compute, and every task can be phrased as text continuation. Encoders remain the efficient choice for classification and embeddings at high volume (Chapter 12).
 
@@ -198,8 +197,7 @@ The cache's memory is often the bottleneck of LLM serving:
 def kv_cache_gb(layers, kv_heads, head_dim, seq_len, batch=1, bytes_per_value=2):
     return 2 * layers * kv_heads * head_dim * seq_len * batch * bytes_per_value / 1e9
 
-kv_cache_gb(32, 32, 128, 8192)   # ~4.3 GB per sequence with full multi-head
-attention (fp16)
+kv_cache_gb(32, 32, 128, 8192)   # ~4.3 GB per sequence with full multi-head attention (fp16)
 kv_cache_gb(32, 8, 128, 8192)    # ~1.1 GB with 8 KV heads (GQA): 4x more sequences per GPU
 ```
 
@@ -211,10 +209,9 @@ That is why serving engines manage the cache in pages (vLLM's PagedAttention), q
 |---|---|---|
 | Multi-query attention (MQA) | All query heads share one K/V head | Smallest KV cache, fastest decoding; some quality loss |
 | Grouped-query attention (GQA) | Query heads share K/V heads in groups (for example 32 query, 8 KV) | Most of MQA's savings with near-full quality; standard in current open LLMs |
-| FlashAttention | Exact attention computed in tiles in fast on-chip memory, never materialising the T×T matrix | Much faster and memory- linear in T; same result |
+| FlashAttention | Exact attention computed in tiles in fast on-chip memory, never materialising the T×T matrix | Much faster and memory-linear in T; same result |
 | Sliding-window attention | Each token attends only to the last w tokens | Linear cost; information still flows across layers; often mixed with some global layers |
-| Sparse and linear attention, state-space models | Restrict or approximate attention, or replace it with recurrent state (Mamba- style) | Very long sequences; hybrids are an active research area |
-| Variant | Idea | Why |
+| Sparse and linear attention, state-space models | Restrict or approximate attention, or replace it with recurrent state (Mamba-style) | Very long sequences; hybrids are an active research area |
 | Multi-head latent attention (MLA) | Compress keys and values into a small latent vector cached per token (DeepSeek) | Very small KV cache |
 
 ## 10.10 A mini-GPT from scratch
@@ -292,7 +289,7 @@ Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
 
 **5. BERT vs GPT?** BERT: encoder, bidirectional attention, masked-token objective; best for understanding tasks and embeddings. GPT: decoder, causal attention, next-token objective; best for generation.
 
-**6. Why do transformers need positional encodings, and how does RoPE work?** Attention ignores order. RoPE rotates queries and keys by position-dependent angles so their dot product depends on relative distance, which generalises better and works naturally with caching.
+**6. Why do transformers need positional encodings, and how does RoPE work?** Attention ignores order. RoPE rotates queries and keys by position-dependent angles so their dot product depends on relative distance, which works naturally with caching; running beyond the trained length still needs scaling tricks (position interpolation, NTK, YaRN) and some long-context fine-tuning.
 
 **7. Pre-norm vs post-norm?** Pre-norm normalises inside the residual branch, keeping the residual path an identity: much more stable training for deep models; post-norm needs careful warm-up.
 
