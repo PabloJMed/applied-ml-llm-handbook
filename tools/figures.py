@@ -1077,6 +1077,121 @@ def ch34():
     ax.set_title("Effects smaller than the seed noise need many seeds")
     save(fig, "34-fig-1.png")
 
+def ch40():
+    from sklearn.datasets import make_friedman1
+    from sklearn.ensemble import GradientBoostingRegressor
+    X, y = make_friedman1(n_samples=3000, noise=1.0, random_state=0); Xtr, ytr, Xte, yte = X[:1500], y[:1500], X[1500:], y[1500:]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for lr, c, ls in ((0.5, S2, DASH[1]), (0.1, S1, DASH[0]), (0.02, S3, DASH[2])):
+        m = GradientBoostingRegressor(n_estimators=1000, learning_rate=lr, max_depth=3, random_state=0).fit(Xtr, ytr)
+        rm = np.array([np.sqrt(np.mean((p - yte) ** 2)) for p in m.staged_predict(Xte)])
+        ax.plot(np.arange(1, 1001), rm, color=c, ls=ls, label=f"learning rate {lr}")
+        print(f"lr {lr}: best RMSE {rm.min():.3f} at {rm.argmin() + 1} trees; at 1000 trees {rm[-1]:.3f}")
+    ax.set_xscale("log"); ax.set_ylim(0.9, 3.5); ax.legend(fontsize=7.5, loc="upper right")
+    ax.set_xlabel("number of trees"); ax.set_ylabel("test RMSE"); ax.set_title("Smaller learning rates need more trees and reach a lower error")
+    save(fig, "40-fig-1.png")
+
+
+def _mmc_p99(lam, mu, c):
+    a = lam / mu; rho = a / c
+    s = sum(a ** k / math.factorial(k) for k in range(c)); last = a ** c / math.factorial(c) / (1 - rho)
+    C = last / (s + last); b = c * mu - lam
+    def tail(t):
+        hypo = (b * math.exp(-mu * t) - mu * math.exp(-b * t)) / (b - mu) if abs(b - mu) > 1e-9 else (1 + mu * t) * math.exp(-mu * t)
+        return (1 - C) * math.exp(-mu * t) + C * hypo
+    lo, hi = 0.0, 100.0
+    for _ in range(80):
+        mid = (lo + hi) / 2; lo, hi = (mid, hi) if tail(mid) > 0.01 else (lo, mid)
+    return hi
+
+
+def ch42():
+    rho = np.linspace(0.05, 0.97, 80); mu = 1 / 0.050
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for c, col, ls in ((1, S2, DASH[1]), (8, S1, DASH[0])):
+        p99 = [1000 * _mmc_p99(r * c * mu, mu, c) for r in rho]
+        ax.plot(rho * 100, p99, color=col, ls=ls, label="1 server" if c == 1 else f"{c} servers sharing one queue")
+        for r in (0.5, 0.6, 0.8, 0.9, 0.95): print(f"c={c} util {r}: p99 {1000 * _mmc_p99(r * c * mu, mu, c):.0f} ms")
+    ax.axhline(1000 * math.log(100) / mu, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(6, 1000 * math.log(100) / mu - 95, "p99 of the service time alone (230 ms)", color=INK2, fontsize=7.5)
+    ax.axvline(60, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(61, 1300, "60%", color=INK2, fontsize=7.5)
+    ax.set_ylim(0, 1600); ax.set_xlim(0, 100); ax.legend(fontsize=7.5, loc="upper left")
+    ax.set_xlabel("utilisation (%)"); ax.set_ylabel("p99 latency (ms)"); ax.set_title("Tail latency explodes as servers approach full utilisation")
+    save(fig, "42-fig-1.png")
+
+
+def ch43():
+    rng = np.random.default_rng(0); ctr = np.array([0.04, 0.05, 0.07]); T, R = 20000, 60
+    reg = {"ε-greedy (ε = 0.1)": np.zeros(T), "Thompson sampling": np.zeros(T)}
+    for _ in range(R):
+        a, b = np.ones(3), np.ones(3); n, s = np.zeros(3), np.zeros(3)
+        u = rng.random((T, 2)); clicks = rng.random((T, 3)) < ctr; ri = rng.integers(0, 3, T); th = rng.beta
+        r1 = np.empty(T); r2 = np.empty(T)
+        for t in range(T):
+            arm = ri[t] if u[t, 0] < 0.1 or n.min() == 0 else int(np.argmax(s / np.maximum(n, 1)))
+            n[arm] += 1; s[arm] += clicks[t, arm]; r1[t] = ctr.max() - ctr[arm]
+            arm = int(np.argmax(th(a, b))); a[arm] += clicks[t, arm]; b[arm] += 1 - clicks[t, arm]; r2[t] = ctr.max() - ctr[arm]
+        reg["ε-greedy (ε = 0.1)"] += np.cumsum(r1) / R; reg["Thompson sampling"] += np.cumsum(r2) / R
+    fig, ax = plt.subplots(figsize=(W, 2.1)); x = np.arange(1, T + 1)
+    for (k, v), c, ls in zip(reg.items(), (S2, S1), (DASH[1], DASH[0])):
+        ax.plot(x, v, color=c, ls=ls); label_end(ax, T, v[-1], k, c); print(k, f"regret at 20k: {v[-1]:.0f} clicks")
+    ax.set_xlim(0, 27000); ax.set_xticks([0, 5000, 10000, 15000, 20000]); ax.set_xlabel("impressions")
+    ax.set_ylabel("clicks lost vs always best"); ax.set_title("Thompson sampling stops paying for exploration; ε-greedy never does")
+    save(fig, "43-fig-1.png")
+
+
+def ch45():
+    mu = 60 / 25; t = 5 / 60
+    def service(lam, c):
+        a = lam / mu
+        if c <= a: return float("nan")                          # unstable: the queue grows without bound
+        s = sum(a ** k / math.factorial(k) for k in range(c)); last = a ** c / math.factorial(c) * c / (c - a)
+        C = last / (s + last); return 1 - C * math.exp(-(c * mu - lam) * t)
+    cs = np.arange(40, 76)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for lam, col, ls in ((100, S3, DASH[2]), (120, S1, DASH[0]), (140, S2, DASH[1])):
+        sl = [service(lam, int(c)) for c in cs]; ax.plot(cs, sl, color=col, ls=ls, marker="o", ms=2, label=f"{lam} orders per hour")
+        need = next(int(c) for c, v in zip(cs, sl) if v == v and v >= 0.9); print(f"lambda {lam}: load {lam/mu:.1f} couriers; 90% within 5 min needs {need}")
+    ax.axhline(0.9, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(40.5, 0.92, "target: 90% assigned within 5 min", color=INK2, fontsize=7.5)
+    ax.legend(fontsize=7.5, loc="lower right"); ax.set_ylim(0, 1.02); ax.set_xlabel("couriers on shift in the zone")
+    ax.set_ylabel("share assigned within 5 min"); ax.set_title("Service level jumps over a narrow band of staffing")
+    # 45.6: expected cost per staffing level, demand ~ N(120, 15), EUR 9 per courier-hour, EUR 6 per order not assigned within 5 min
+    lams = np.linspace(60, 180, 241); wts = np.exp(-0.5 * ((lams - 120) / 15) ** 2); wts /= wts.sum()
+    cost = {c: 9 * c + 6 * sum(w_ * l_ * (1 - (service(l_, c) if service(l_, c) == service(l_, c) else 0.0)) for l_, w_ in zip(lams, wts)) for c in range(54, 70)}
+    print("expected cost by couriers:", {c: round(v) for c, v in cost.items()}, "optimum", min(cost, key=cost.get))
+    save(fig, "45-fig-1.png")
+
+
+def ch47():
+    rng = np.random.default_rng(0); train = rng.normal(30, 8, 50000)
+    edges = np.quantile(train, np.linspace(0, 1, 11)); edges[0], edges[-1] = -np.inf, np.inf
+    e = np.histogram(train, edges)[0] / len(train)
+    def psi(x):
+        a = np.clip(np.histogram(x, edges)[0] / len(x), 1e-6, None); return float(np.sum((a - e) * np.log(a / e)))
+    shifts = np.linspace(0, 8, 33)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for n, col, ls in ((300, S2, DASH[1]), (5000, S1, DASH[0])):
+        mean = [np.mean([psi(rng.normal(30 + d, 8, n)) for _ in range(40)]) for d in shifts]
+        ax.plot(shifts, mean, color=col, ls=ls, label=f"{n:,} rows in the live window")
+        print(n, "PSI at shift 0:", round(mean[0], 4), "at 2:", round(mean[8], 3), "at 4:", round(mean[16], 3))
+    for th, lab in ((0.1, "watch"), (0.25, "investigate")):
+        ax.axhline(th, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(0.1, th + 0.015, lab, color=INK2, fontsize=7.5)
+    ax.legend(fontsize=7.5, loc="upper left", bbox_to_anchor=(0, 0.85)); ax.set_xlabel("shift in mean basket value (training: mean 30, sd 8)")
+    ax.set_ylabel("PSI (10 bins)"); ax.set_title("PSI grows with the size of the shift, not with the sample")
+    save(fig, "47-fig-1.png")
+
+
+def ch48():
+    p = np.linspace(0.5, 0.97, 100)
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    for po, col, ls in ((0.95, S1, DASH[0]), (0.90, S2, DASH[1])):
+        pe = p ** 2 + (1 - p) ** 2; k = (po - pe) / (1 - pe); ok = (1 - p) >= (1 - po) / 2
+        ax.plot(p[ok] * 100, k[ok], color=col, ls=ls, label=f"raw agreement {po:.0%}")
+        for q in (0.5, 0.8, 0.9): pe_ = q ** 2 + (1 - q) ** 2; print(f"po {po} majority {q}: kappa {(po - pe_) / (1 - pe_):.2f}")
+    ax.axhline(0, color=MUTED, lw=0.6); ax.legend(fontsize=7.5, loc="lower left")
+    ax.set_xlabel("share of the majority class (%)"); ax.set_ylabel("Cohen's kappa"); ax.set_ylim(-0.1, 1)
+    ax.set_title("The same raw agreement means less when one class dominates")
+    save(fig, "48-fig-1.png")
+
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]
     for ch in wanted:

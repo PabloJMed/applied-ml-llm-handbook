@@ -179,6 +179,12 @@ On a regression test set this reaches RMSE 25.1, the same as scikit-learn's `Gra
 | LightGBM | Histogram-based splits, leaf-wise growth, gradient-based sampling (GOSS), exclusive feature bundling | Usually fastest on large data; leaf-wise trees overfit small data unless you limit leaves |
 | CatBoost | Ordered boosting and ordered target statistics for categoricals, symmetric trees | Best out of the box with many categorical features; less tuning |
 
+![Diagram](images/40-fig-1.png)
+
+*Test RMSE against the number of trees for three learning rates (depth-3 trees, 1,500 training rows of a nonlinear regression problem with noise). At 0.5 the error bottoms out at 1.57 after 73 trees and then creeps up; at 0.1 it reaches 1.30 after about 470 trees; at 0.02 it is still improving at 1,000 trees.*
+
+**How to tune it in practice.** Fix a moderate learning rate (0.05–0.1) and let early stopping on a validation set choose the number of trees. Tune depth (or leaves), the minimum samples per leaf and subsampling. Then lower the learning rate and raise the tree cap for the final model if the extra training time is affordable. The curve shows why a fixed number of trees across learning rates is a mistake: the best number varies by more than ten times.
+
 **When to use:** the default first serious model for tabular data: ranking, fraud, ETA, demand, churn. On tabular benchmarks, tuned gradient boosting still usually matches or beats deep learning. Deep models win with very large data, raw text, images, sequences, or very high-cardinality IDs that need embeddings.
 
 ## 40.6 k-nearest neighbours (kNN)

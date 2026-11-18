@@ -372,6 +372,12 @@ for t in range(20_000):
 print((alpha + beta - 2).astype(int))   # pulls per arm, e.g. [232 1432 18336]: most go to the best arm
 ```
 
+![Diagram](images/43-fig-1.png)
+
+*Cumulative regret, the clicks lost against always showing the best banner, averaged over 60 simulated runs with the three CTRs above. ε-greedy keeps spending 10% of traffic at random forever, so its regret grows linearly; Thompson sampling's exploration fades as the posteriors separate.*
+
+After 20,000 impressions, ε-greedy has lost about 60 clicks and Thompson sampling about 35, and the gap keeps widening. The difference matters most when many items compete and the differences between them are small, which is the normal case in recommendation. Decaying ε over time narrows the gap but adds a schedule to tune; Thompson sampling gets the decay for free from the data.
+
 **In a production recommender** you rarely run a pure bandit over everything. Common patterns: reserve one or two slots per page for exploration; add an uncertainty bonus to new items' ranking scores for their first N impressions; use a bandit for small decisions (which carousel, which banner, which promotion). Whatever you do, **log the probability with which each item was shown** (the propensity). That log is what makes unbiased offline evaluation possible later (43.10). Measure exploration's cost as the drop in short-term conversion in the exploration slots, and its benefit as catalogue coverage and new-restaurant success.
 
 ## 43.9 Position bias and inverse propensity scoring

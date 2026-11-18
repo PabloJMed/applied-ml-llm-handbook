@@ -121,6 +121,12 @@ With supply (12, 3, 8, 2) and need (6, 7, 5, 7) across four zones, the solver mo
 
 **Staffing.** Turn demand forecasts into courier hours per zone and slot with a target service level (for example, 90% of orders picked up within 10 minutes), often via queueing approximations or simulation; then schedule shifts to cover the requirement at minimum cost.
 
+![Diagram](images/45-fig-1.png)
+
+*Share of orders assigned a courier within 5 minutes, by couriers on shift, from the Erlang C queueing model. Each order keeps a courier busy for 25 minutes on average. Below the offered load (orders per hour × hours per order) the queue grows without bound, so those points are omitted.*
+
+**Square-root staffing.** The number of couriers needed is the offered load plus a safety margin that grows with its square root: c ≈ a + β√a. For 120 orders an hour the load is 50 couriers, and the 90%-within-5-minutes target needs 56, so β is about 0.85. The margin is a smaller fraction of the load in busy zones, which is why pooling neighbouring zones saves couriers.
+
 **Vocabulary to use in interviews:** linear programming (continuous, convex, fast), integer programming (whole couriers, harder), assignment and matching, vehicle routing (with time windows, NP-hard, solved with heuristics such as those in OR-Tools), and the idea of **predict-then-optimise**: forecast errors matter differently depending on the decision they feed.
 
 ## 45.4 Pricing and incentives (conceptual)
@@ -135,6 +141,29 @@ In interviews, show you understand the two-sided effects: every pricing lever mo
 ## 45.5 Experiments in two-sided marketplaces
 
 Covered in Chapter 2.9: user-level A/B tests are biased whenever treatment and control compete for the same couriers or restaurant capacity (dispatch, pricing, incentives, ETA changes that shift demand). Use switchbacks (city × time slots), geo experiments, or both, with slot-level analysis and carryover buffers. Combine with simulation before live tests for changes that could hurt service levels.
+
+## 45.6 A worked staffing plan
+
+Plan courier shifts for one zone for Friday 19:00–20:00.
+
+1. **Forecast with uncertainty.** The demand model (45.1) predicts 120 orders, and its quantile model gives a 10th–90th percentile range of 101–139. Staffing to the mean is a bet that demand will not be above average, a bet lost half the time.
+2. **Convert demand to couriers.** With 25 minutes per order and a target of 90% assigned within 5 minutes, the Erlang C curve gives:
+
+   | Demand (orders/hour) | Offered load (couriers) | Couriers for 90% within 5 min |
+   |---|---|---|
+   | 100 | 41.7 | 48 |
+   | 120 | 50.0 | 56 |
+   | 140 | 58.3 | 65 |
+
+3. **Choose the staffing level from the costs.** This is a newsvendor problem.
+   - Under-staffing costs late orders: refunds, cancellations and lost repeat orders, say €6 per late order.
+   - Over-staffing costs guaranteed courier pay, say €9 per courier-hour.
+   - Average the cost of each staffing level over the demand forecast (normal, mean 120, standard deviation 15). The expected cost falls from €749 at 56 couriers to a minimum of €617 at 65, then rises slowly; 64–66 are within €2 of each other.
+   - The optimum is close to staffing for the 90th-percentile demand. The late-order curve is steep, so a shortfall costs much more than a spare courier.
+4. **Add flexibility instead of more fixed staff.** Above the plan, use surge incentives for couriers in neighbouring zones and allow cross-zone dispatch. The pooling effect (42.9) means two zones that share couriers need fewer in total than two zones staffed separately.
+5. **Check against reality.** After the slot, compare the forecast with actual demand and the planned with the achieved service level. If the service level misses while demand matched the forecast, the queueing assumptions are wrong (for example, service times are longer at peak, because restaurants are slower), and the conversion step needs fixing, not the forecast.
+
+The structure, forecast distribution → queueing model → cost-based quantile → flexibility → feedback, is the answer shape interviewers look for in "how many couriers do we need?" questions.
 
 ## Pitfalls
 

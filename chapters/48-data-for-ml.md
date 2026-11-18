@@ -156,6 +156,12 @@ from sklearn.metrics import cohen_kappa_score
 
 90% agreement sounds great, but kappa 0.69 is only "substantial": much of that agreement would happen by chance with this class balance. Rough reading: below 0.4 poor, 0.4–0.6 moderate, 0.6–0.8 substantial, above 0.8 strong. Use Fleiss' kappa or Krippendorff's alpha for more than two annotators or missing labels.
 
+![Diagram](images/48-fig-1.png)
+
+*Cohen's kappa for two annotators with the same raw agreement, as the majority class grows (both annotators labelling the majority class at the same rate). At 90% raw agreement, kappa is 0.80 with balanced classes and 0.44 when 90% of items are the majority class.*
+
+The practical consequence: for rare-class labelling tasks (harmful content, fraud, defects), report agreement on the rare class itself, such as each annotator's recall of the other's positives, alongside kappa. A 95% raw agreement can hide annotators who agree on almost none of the positives.
+
 Useful practices:
 
 - Low agreement usually means unclear guidelines or a genuinely ambiguous task, not lazy annotators. Fix the definition first.
@@ -168,6 +174,28 @@ Useful practices:
 ## 48.8 Synthetic data
 
 Uses: bootstrapping a classifier when no labels exist, covering rare classes, generating evaluation sets for RAG (questions from documents), red-team attacks (Chapter 28), and privacy-safe test data. Risks: synthetic data reflects the generator's biases and style, it lacks real-world messiness (typos, Arabizi, code-switching), and evaluating on data from the same generator inflates scores. Rules: mix with real data, generate with diversity prompts (personas, dialects, lengths), deduplicate, validate a sample by hand, and always keep a real-data test set as the final judge.
+
+## 48.9 A worked labelling project: 10,000 reviews for a complaint classifier
+
+1. **Write the guidelines.** Define the eight complaint categories, each with:
+   - a one-line definition;
+   - two positive and two negative examples;
+   - a rule for multiple categories ("label every category that applies").
+   - Also list explicit edge cases: sarcasm, complaints about a previous order, mixed Arabic and English.
+2. **Pilot.** Two annotators label the same 200 reviews.
+   - Measure kappa per category and read every disagreement.
+   - Suppose "late delivery" and "courier behaviour" are confused 30% of the time, because a late courier is often also rude. Clarify the rule (both labels apply) and add the case to the guidelines.
+   - Re-pilot on 100 new reviews until kappa per category is above about 0.7.
+3. **Budget.** At 30 seconds per review, 10,000 reviews take 83 annotator-hours. Double-labelling 20% of them for quality control adds 17 hours. Adjudicating the roughly 10% of double-labelled items where annotators disagree adds about 2 hours of an expert's time.
+4. **Pre-label with an LLM.** Run a strong model with the guidelines as its prompt. Measure its agreement with the adjudicated pilot labels as if it were a third annotator.
+   - If it matches the humans' agreement on the common categories, have annotators review its labels instead of labelling from scratch. That is often 2–3 times faster.
+   - Keep labelling from scratch for the rare categories, where it is weakest.
+5. **Sample deliberately.**
+   - Random sampling gives few examples of rare categories, so oversample with keyword and model-score filters until each category has at least 300 positives.
+   - Record the sampling weights, so evaluation on a random held-out set stays unbiased.
+6. **Track quality over time.** Seed 2% of each batch with gold items whose labels are known, and watch each annotator's accuracy on them. Revisit the guidelines whenever a new disagreement pattern appears.
+
+The deliverable is not only 10,000 labels. It is also the guidelines, the agreement numbers per category, and the label noise ceiling they imply. Those tell the modelling team how good a classifier can reasonably get.
 
 ## Pitfalls
 

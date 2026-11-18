@@ -128,6 +128,12 @@ def psi(expected, actual, bins=10):
 
 Rule of thumb: below 0.1 stable, 0.1–0.25 watch, above 0.25 investigate. Avoid alerting on p-values of statistical tests: with large samples, a Kolmogorov–Smirnov test calls even the harmless +2 shift "significant" (p = 1e-27 on 5,000 rows each). Alert on effect size, and compare with the same season last year before raising alarms about Ramadan or summer.
 
+![Diagram](images/47-fig-1.png)
+
+*PSI of a live window against the training distribution as the mean basket value shifts, averaged over 40 windows. With 5,000 rows, PSI without any shift is 0.002. With 300 rows the noise floor is 0.03 and small windows read slightly high throughout, but both reach the 0.25 "investigate" line at a shift of about half a standard deviation.*
+
+PSI measures the size of a shift, not its statistical significance, which is why it works as an alert. Two practical cautions follow from the figure. First, compute it on windows large enough that the no-shift value sits well below 0.1: a few hundred rows at least for 10 bins. Second, set thresholds per feature from a few weeks of history, because some features drift weekly by design (hour of day, for example).
+
 **When to retrain**: on a schedule (simple and predictable), on a trigger (drift or performance past a threshold), or continuously for fast-moving targets. Always pass the new model through the same gates and release ladder. Fix data bugs before retraining; retraining on broken data just learns the bug.
 
 ## 47.6 LLMOps: what changes with LLM features
@@ -170,6 +176,28 @@ Research teams run a different kind of production: long training jobs and large 
 - **Reproducibility**: pinned environments (containers), fixed data snapshots, recorded seeds; documented non-determinism.
 - **Evaluation pipelines** that score checkpoints automatically and publish dashboards, so model comparisons use the same code every time (Chapter 23).
 - **Cost accounting**: GPU-hours per project and per experiment, to support the compute budgeting of Chapter 34.
+
+## 47.10 A worked incident: an ETA model drifts
+
+Monday 09:00. The dashboard shows PSI on the "restaurant prep time" feature at 0.41 for the last 24 hours. Every other feature is below 0.08. The model's mean predicted ETA has risen by 3 minutes, and late-delivery complaints are up 12% since Saturday.
+
+1. **Triage.** Is this the world changing or a data bug?
+   - The feature's distribution shows a new spike at exactly 30 minutes, which did not exist before.
+   - Real-world prep times do not jump to one value overnight. Suspect the data.
+2. **Find the cause.** Join the feature's source table with the deployment log. On Saturday a partner-app release changed the default prep time for restaurants that had not set one from "missing" to 30 minutes. The model learned that missing meant "fast restaurant with no data" and now sees 30 minutes everywhere.
+3. **Mitigate first, fix second.**
+   - Roll back to treating the new default as missing with a one-line feature-pipeline change, behind a flag. This is faster than retraining and goes through the normal release ladder (47.4), shortened for an incident.
+   - Watch the PSI and the prediction distribution return to normal.
+4. **Confirm the impact.** Once the labels arrive, compare actual delivery times with predictions for the affected restaurants against the rest over the weekend. Quantify the extra late deliveries for the incident report.
+5. **Prevent the class of bug.**
+   - Add a data contract on that column (48.6): allowed values, and an alert if any single value exceeds 20% of rows.
+   - Add a pre-release check in the partner app's pipeline.
+   - Add "default-value spikes" to the drift dashboard as their own detector.
+6. **Write the post-mortem.**
+   - Timeline, impact, root cause, and why monitoring caught it on Monday rather than within an hour of the release.
+   - The answer: PSI was computed daily. Move the critical features to hourly windows.
+
+The lesson in most drift incidents is that "drift" is an upstream change in how data are produced, not a change in the world, and the fix belongs in the data contract, not in a retrained model.
 
 ## Pitfalls
 

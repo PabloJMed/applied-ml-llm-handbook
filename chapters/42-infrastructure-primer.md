@@ -231,6 +231,17 @@ replicas_needed(3000, 0.40, 8)    # 250 replicas if the model takes 400 ms
 
 The 0.6 headroom keeps each replica at about 60% utilisation, because latency rises steeply as a server approaches 100% busy (queues build up). Notice the lesson: an 8× slower model needs about 8× the machines. Latency is a cost driver, not only a user-experience number.
 
+![Diagram](images/42-fig-1.png)
+
+*p99 latency of a service whose requests take 50 ms on average (exponentially distributed), as utilisation rises: one server against eight servers fed from a shared queue (the M/M/1 and M/M/8 queueing models). At 80% utilisation one server's p99 is 1.15 s; eight pooled servers stay at 258 ms.*
+
+**Two lessons from queueing theory.**
+
+- **Utilisation costs latency non-linearly.** For a single server, p99 more than doubles between 50% and 80% utilisation and doubles again by 90%. This is why capacity plans keep headroom.
+- **Pooling helps.** Eight servers pulling from one queue can run at 90% with p99 near 350 ms, because an idle server picks up the next request instead of letting it wait behind a slow one. Load balancers that route to the least-busy replica approximate this; random routing behaves more like eight separate single-server queues.
+
+Real services are burstier than this model, so measure p99 under load tests rather than trusting the formula. The shape of the curve holds.
+
 Other terms you will hear: **SLO** (service-level objective, for example "p99 under 200 ms, 99.9% availability"), **timeouts** (never wait forever on a dependency), **fallbacks** (if the model is down, serve a popularity ranking), **cold start** (time for a new replica to load the model before it can serve).
 
 ## 42.10 Shipping changes safely: CI/CD and infrastructure as code

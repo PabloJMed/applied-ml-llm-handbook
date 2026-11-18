@@ -375,8 +375,27 @@ def main() -> int:
                     BREAKS.add(p.id)
         return build_html(positions)
 
-    doc = pymupdf.Story.write_stabilized_with_links(
-        contentfn, rectfn, user_css=css(BASE), em=BASE, archive=archive, add_header_ids=False)
+    def layout():
+        return pymupdf.Story.write_stabilized_with_links(
+            contentfn, rectfn, user_css=css(BASE), em=BASE, archive=archive, add_header_ids=False)
+
+    doc = layout()
+    # Breaks only accumulate during a layout run, so a break added while earlier content sat
+    # differently can outlive its reason and leave a half-empty page. Drop every break whose previous
+    # page is less than two-thirds full and lay out again: the pass re-adds the ones still needed.
+    for _ in range(3):
+        bottom, first = {}, {}
+        for p in collected:
+            if p.rect and p.id:
+                bottom[p.page_num] = max(bottom.get(p.page_num, 0.0), p.rect[3])
+            if (p.open_close & 1) and p.id in BREAKS:
+                first.setdefault(p.id, p.page_num)
+        stale = {i for i, pg in first.items()
+                 if pg > 0 and pg - 1 in bottom and bottom[pg - 1] < floor - 0.34 * (floor - TOP)}
+        if not stale:
+            break
+        BREAKS.difference_update(stale)
+        doc = layout()
 
     starts, sections = {}, []
     for pos in collected:
