@@ -64,6 +64,12 @@ idx.search("late delivery")    # doc 2 first: it contains both terms
 
 **TF-IDF** scores a document by term frequency (how often the term appears) times inverse document frequency (how rare the term is across the collection). **BM25** improves it in two ways: term frequency saturates (the tenth "pizza" adds little), and long documents are normalised so they do not win just by containing more words. The BM25 formula and a from-scratch implementation are in Chapter 44.3. Real systems add tokenisation and stemming per language, field weights (title counts more than body), and phrase matching.
 
+![Diagram](images/30-fig-1.png)
+
+*BM25's term-frequency factor, tf × (k1 + 1) / (tf + k1 × (1 − b + b × length / average length)). k1 sets how fast it saturates (ceiling k1 + 1); b = 0.75 lowers the factor for long documents, so the grey curve needs more occurrences to reach the same score.*
+
+The defaults (k1 between 0.9 and 1.5, b = 0.75) are good starting points. Tune them on your evaluation set when documents are unusual: very short fields such as titles or product names often want a lower b, and long documents with repeated key terms a higher k1.
+
 **Strengths:** exact matches on names, codes, numbers and rare terms; no training; transparent (you can see why a document matched); cheap to update. **Weaknesses:** the vocabulary mismatch problem: "refund" does not match "money back", and "late order" does not match "delivery delay".
 
 **Learned sparse retrieval** (SPLADE and similar) keeps the inverted index but uses a transformer to decide term weights and to add related terms to each document ("refund" adds weight to "money" and "reimbursement"). You get much of the vocabulary bridging of dense retrieval with the efficiency and exact matching of an inverted index.
@@ -129,6 +135,12 @@ class IVFIndex:
         cand = np.concatenate([self.lists[j] for j in cells])
         return cand[np.argsort(-(self.X[cand] @ q))[:k]]
 ```
+
+![Diagram](images/30-fig-2.png)
+
+*Recall@10 against exact search as the number of probed cells grows, on 100,000 clustered 64-dimensional vectors with 300 queries. More lists make each cell smaller, so 1,024 lists reach a given recall while scanning a smaller share of the collection, but each probe finds fewer true neighbours.*
+
+The curve is the tool for tuning. Pick the recall your application needs (often 0.9–0.95 for a first stage followed by re-ranking), then read off the cheapest setting. A rule of thumb is about √N lists for N vectors, and probes chosen from such a curve on real queries. Recall falls when the data drift away from the clusters the index was trained on, so retrain the centroids when the collection changes substantially.
 
 **PQ (product quantisation)** compresses vectors. Split each vector into m sub-vectors, run k-means with 256 centroids on each sub-space, and store each sub-vector as one byte: the id of its nearest centroid. A 64-dimensional float32 vector (256 bytes) becomes 16 bytes. At query time, precompute the query's similarity to every centroid in each sub-space (m small tables), and a vector's approximate score is the sum of m table lookups.
 
@@ -353,6 +365,35 @@ Report the comparison table per query segment (language, intent, query length) w
 - **Reasoning-intensive retrieval**: benchmarks such as BRIGHT contain queries whose relevant documents share little surface or semantic overlap with them (a maths problem and the theorem needed to solve it). Standard embedders score poorly; gains come from query rewriting with reasoning models, reasoning-trained rerankers and retrievers fine-tuned on such data.
 - **Generative and agentic retrieval**: models that issue many searches, read results and refine queries over multiple steps (Chapter 33), which shifts the bottleneck from single-shot ranking quality to recall over a search session and to the cost of many calls.
 - **Long context versus retrieval**: very long contexts reduce but do not remove the need for retrieval; retrieval remains cheaper, fresher and more precise for large corpora (Chapter 31).
+
+## 30.11 A worked index sizing: 50 million chunks
+
+A document platform will hold 50M chunks with 768-dimensional embeddings, must answer at 200 queries per second with p95 under 100 ms for the retrieval step, and grows 3% a month.
+
+**Memory for the candidate designs.** HNSW with M = 32 stores about 64 neighbour ids of 4 bytes per vector at the base layer.
+
+| Design | Vectors | Graph or codes | Total |
+|---|---|---|---|
+| HNSW over float32 | 153.6 GB | 12.8 GB | 166 GB |
+| HNSW over int8 | 38.4 GB | 12.8 GB | 51 GB |
+| HNSW over Matryoshka 256 dims, int8 | 12.8 GB | 12.8 GB | 26 GB |
+| IVF-PQ, 64 bytes per vector | 3.2 GB | centroids only | about 3.2 GB |
+
+**Exact search is out.** Each query would need 38 billion multiply-adds, roughly a second of CPU time per query, and 200 queries per second would need hundreds of cores. It remains the tool for computing ground truth on a sample.
+
+**The choice.**
+
+- **Recall, latency and simplicity.** HNSW over int8 (51 GB) on two replicas of a 128 GB machine gives this with headroom for a year of growth.
+- **Lower memory.** The Matryoshka variant halves the memory if its recall, measured on the evaluation queries, is adequate.
+- **Very low memory.** IVF-PQ needs the least memory, but its recall depends on re-ranking. Re-scoring 200 candidates with float32 vectors from SSD reads about 0.6 MB per query, which fits the budget on NVMe drives.
+
+**The re-ranker dominates latency, not the index.** A cross-encoder over the top 50 candidates costs far more than the ANN search itself. Budget it separately and batch it on a GPU.
+
+**Operations.**
+
+- **Embedding.** The corpus at an assumed 20,000 chunks per minute per GPU is about 42 GPU-hours; measure the real rate on a sample first.
+- **Deletes and updates.** Plan for them: HNSW handles deletes poorly, so use tombstones plus periodic rebuilds.
+- **Ground truth.** Recompute recall@10 against exact search on 1,000 real queries after every rebuild.
 
 ## Pitfalls
 

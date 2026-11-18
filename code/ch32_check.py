@@ -31,3 +31,58 @@ g.add_node("classify", classify); g.add_node("retrieve", retrieve); g.add_node("
 g.add_edge("classify", "retrieve"); g.add_edge("retrieve", "generate"); g.add_conditional("generate", check)
 out, trace = g.run("classify", {"query": "I want a refund for order 123"})
 print(trace, out["answer"])
+
+# 32.9 the same RAG step in plain Python: retries, cache, validation, trace
+import hashlib, json, random, time
+from pydantic import BaseModel, ValidationError
+
+class Answer(BaseModel):
+    answer: str
+    citations: list[str]
+
+class TransientError(Exception):
+    pass
+
+PROMPT_V3 = ("Answer from the passages only. Return JSON with 'answer' and 'citations' (passage ids).\n"
+             "If the passages do not answer the question, say so.\n\nPassages:\n{passages}\n\nQuestion: {question}")
+
+def call_with_retries(llm, prompt, attempts=3, base_delay=0.5):
+    for i in range(attempts):
+        try:
+            return llm(prompt)
+        except TransientError:                       # rate limits, timeouts: retry with jittered backoff
+            if i == attempts - 1:
+                raise
+            time.sleep(base_delay * 2 ** i * (1 + random.random()))
+
+def answer(question, retrieve, llm, cache, trace, model="small-model", k=5):
+    passages = retrieve(question, k=k)
+    trace.append({"step": "retrieve", "ids": [p["id"] for p in passages]})
+    prompt = PROMPT_V3.format(passages="\n".join(f"[{p['id']}] {p['text']}" for p in passages), question=question)
+    key = hashlib.sha256(json.dumps([model, prompt]).encode()).hexdigest()
+    raw = cache.get(key)
+    if raw is None:
+        t0 = time.time(); raw = call_with_retries(llm, prompt); cache[key] = raw
+        trace.append({"step": "llm", "cached": False, "seconds": round(time.time() - t0, 3)})
+    else:
+        trace.append({"step": "llm", "cached": True})
+    try:
+        out = Answer.model_validate_json(raw)
+    except ValidationError:
+        trace.append({"step": "parse", "ok": False}); return None
+    unknown = set(out.citations) - {p["id"] for p in passages}
+    trace.append({"step": "check", "unknown_citations": sorted(unknown)})
+    return out if not unknown else None
+
+docs = [{"id": "p1", "text": "Refunds go to the original payment method within 5 days."},
+        {"id": "p2", "text": "Vouchers expire after 30 days."}]
+calls = {"n": 0}
+def fake_llm(prompt):
+    calls["n"] += 1
+    if calls["n"] == 1:
+        raise TransientError("429")
+    return json.dumps({"answer": "Within 5 days, to the original payment method.", "citations": ["p1"]})
+cache, trace = {}, []
+r1 = answer("When do I get my refund?", lambda q, k: docs[:k], fake_llm, cache, trace)
+r2 = answer("When do I get my refund?", lambda q, k: docs[:k], fake_llm, cache, trace)
+print("32.9:", r1.citations, "llm calls", calls["n"], [e["step"] + ("(cached)" if e.get("cached") else "") for e in trace])

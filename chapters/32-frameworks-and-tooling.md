@@ -188,6 +188,71 @@ Application frameworks are not what research scientists use to train models. The
 
 The habits from Chapter 34 matter more than the tools: configuration files, versioned code and data, tracked runs and evaluation as code. Know one stack deeply and be able to read the others' code.
 
+## 32.9 A worked example: one RAG step in plain Python
+
+Here is the core of a production RAG step without a framework, to show what a framework would otherwise hide:
+
+- a versioned prompt;
+- retries with backoff on transient errors;
+- a response cache keyed by the model and the exact prompt;
+- schema validation with Pydantic;
+- a citation check against the retrieved ids;
+- a trace of every step.
+
+```python
+import hashlib, json, random, time
+from pydantic import BaseModel, ValidationError
+
+class Answer(BaseModel):
+    answer: str
+    citations: list[str]
+
+class TransientError(Exception):
+    pass
+
+PROMPT_V3 = ("Answer from the passages only. Return JSON with 'answer' and 'citations' (passage ids).\n"
+             "If the passages do not answer the question, say so.\n\nPassages:\n{passages}\n\nQuestion: {question}")
+
+def call_with_retries(llm, prompt, attempts=3, base_delay=0.5):
+    for i in range(attempts):
+        try:
+            return llm(prompt)
+        except TransientError:                       # rate limits, timeouts: retry with jittered backoff
+            if i == attempts - 1:
+                raise
+            time.sleep(base_delay * 2 ** i * (1 + random.random()))
+
+def answer(question, retrieve, llm, cache, trace, model="small-model", k=5):
+    passages = retrieve(question, k=k)
+    trace.append({"step": "retrieve", "ids": [p["id"] for p in passages]})
+    prompt = PROMPT_V3.format(passages="\n".join(f"[{p['id']}] {p['text']}" for p in passages), question=question)
+    key = hashlib.sha256(json.dumps([model, prompt]).encode()).hexdigest()
+    raw = cache.get(key)
+    if raw is None:
+        t0 = time.time(); raw = call_with_retries(llm, prompt); cache[key] = raw
+        trace.append({"step": "llm", "cached": False, "seconds": round(time.time() - t0, 3)})
+    else:
+        trace.append({"step": "llm", "cached": True})
+    try:
+        out = Answer.model_validate_json(raw)
+    except ValidationError:
+        trace.append({"step": "parse", "ok": False}); return None
+    unknown = set(out.citations) - {p["id"] for p in passages}
+    trace.append({"step": "check", "unknown_citations": sorted(unknown)})
+    return out if not unknown else None
+```
+
+The check script runs it with a fake model that fails once with a rate-limit error. The first call retries and succeeds. The second, identical call is served from the cache. The trace reads retrieve, llm, check, retrieve, llm (cached), check.
+
+The whole thing is about 40 lines, every line is visible in a stack trace, and each piece maps to a framework feature:
+
+- the retry wrapper corresponds to a framework's retry policy;
+- the cache to its LLM cache;
+- the Pydantic model to its output parser;
+- the trace list to its callbacks or tracing integration.
+
+For a flow like this, plain code is easier to test and to change. When the flow grows loops, branches, human approvals and state that must survive a restart, the bookkeeping is what LangGraph or a workflow engine provides (32.3, 32.7), and at that point the framework earns its keep. Either way, keep functions like `answer` as plain, testable code that the framework calls.
+
 ## Pitfalls
 
 - Not knowing what prompt the framework actually sends. Log it.

@@ -237,6 +237,35 @@ Instead of one fixed retrieve-then-generate pass, an agent (Chapter 33) decides:
 
 The debugging order is always the same: first check whether the right passage was retrieved (retrieval problem), then whether it reached the context (assembly problem), then whether the answer used it correctly (generation problem). Chapter 25 turns this into metrics.
 
+## 31.10 A worked debugging session
+
+Suppose an internal policy assistant answers 64% of a 200-question evaluation set correctly, and the team's instinct is to try a bigger model. Debug in the order of 31.9 instead.
+
+1. **Label each failure by where it happened.** For each of the 72 wrong answers, check three things in the trace: whether the gold passage is in the top 50 retrieved, whether it is in the final context, and whether the answer used it. A plausible breakdown:
+
+   | Where the failure happened | Count | Share of failures |
+   |---|---|---|
+   | Gold passage not retrieved in the top 50 | 30 | 42% |
+   | Retrieved, but ranked out of the final 5 | 14 | 19% |
+   | In the context, answer still wrong | 20 | 28% |
+   | Wrongly abstained | 5 | 7% |
+   | Label or question problem | 3 | 4% |
+
+2. **Fix the biggest group first.** Reading the 30 retrieval misses shows two patterns:
+   - Questions using internal codes ("form HR-7"), which dense retrieval misses. Fix: add BM25 and fuse the results (Chapter 30.6).
+   - Questions about tables that the parser flattened into nonsense. Fix: table-aware parsing, with each table chunked together with its title.
+
+   Re-index and re-run.
+3. **Then the ranking group.** Add a cross-encoder re-ranker over the top 50 and keep the final 5. Check that the context recall at 5 rises on the evaluation set.
+4. **Then the generation group.** The 20 in-context failures split into two kinds:
+   - Answers that mix two policies, because the passages for two countries were both retrieved. Fix: a country metadata filter from the user's profile (31.3).
+   - Answers that ignore a passage placed in the middle of a long context. Fix: fewer, better passages, with the most relevant placed first.
+
+   Only failures that remain after this are evidence for a stronger model.
+5. **Fix the labels** for the 3 questions with problems, and keep them in the set as regression tests.
+
+Each step is a separate, measured change. The order matters because upstream fixes change what reaches the model: a prompt tuned before the retrieval fixes would be tuned to the wrong context. In most RAG systems the first two groups are the majority, and the biggest gains come from ingestion and retrieval rather than the generator.
+
 ## Pitfalls
 
 - **Skipping the parsing check.** Broken tables and repeated footers poison the index silently.

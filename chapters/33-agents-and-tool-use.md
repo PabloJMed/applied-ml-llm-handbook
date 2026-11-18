@@ -172,6 +172,17 @@ This is the strongest argument for short, structured flows, verification steps t
 
 **Cost and latency** grow with steps: each step resends a growing context. A 10-step agent with 8,000 tokens of context per step processes 80,000+ input tokens per task. Control it with prompt caching of the stable prefix (Chapter 22.7), trimming tool outputs, small models for simple steps, parallel tool calls where independent, and hard budgets. Set the budget from the business value of the task: an agent resolving a 15-euro support ticket cannot spend 2 euros of tokens on it.
 
+![Diagram](images/33-fig-1.png)
+
+*Billed input tokens for a 20-step agent with a 4,000-token fixed prefix, where each step adds 600 tokens of output and tool results to the history. Without caching, the total is 194,000 tokens, quadratic in the number of steps. With prefix caching (cached reads billed at 10%) it is 33,000; trimming tool outputs to 400 new tokens per step brings it to 26,000.*
+
+**What the curve means for design.**
+
+- **Quadratic cost.** At step t the model rereads everything before it, so input cost grows with the square of the number of steps, and long tasks cost far more than proportionally.
+- **Caching changes the slope.** Caching applies as long as each request extends the previous one byte for byte. So append to the history; do not rewrite or re-order earlier turns.
+- **Trimming helps twice.** Summarising or truncating long tool outputs before they enter the history saves tokens on every later step, and it also keeps the context focused.
+- **Budget the latency too.** At about 0.6 s to the first token and 200 output tokens at 15 ms each, the 20 steps take about 72 seconds before any tool time. That is acceptable for a background task and unacceptable for a chat reply, which is another argument for fewer, larger steps and for parallel tool calls.
+
 ## 33.10 Evaluating agents
 
 Covered in Chapter 25.5: task success on the environment's end state, trajectory checks (right tools, right order, no forbidden calls), efficiency (steps, tokens, latency), robustness to tool failures, repeated runs for reliability, and safety tests including injection through tool outputs. Before automation, run in **shadow mode**: the agent proposes, people decide, and you measure agreement.
@@ -185,6 +196,31 @@ Prompted agents are limited by what the base model learned. Frontier agent capab
 - **Reward hacking is the central risk**: agents find shortcuts the environment allows (editing tests, hard-coding outputs, exploiting the grader). Environment design and hidden checks are as important as the algorithm (Chapter 27).
 - **Computer use**: models act on screenshots with mouse and keyboard actions; evaluated on suites like OSWorld. Errors compound over long action sequences, so reliability per step must be very high.
 - **Measuring progress**: pass^k reliability rather than pass@k, and task-length horizons (Chapter 23), on held-out environments the agent was not trained on.
+
+## 33.12 A worked agent design: refund requests
+
+A delivery platform wants an agent to resolve "missing item" complaints, which today take a human agent four minutes each.
+
+1. **Is an agent needed?** Most complaints follow one path: check the order, check the courier's photo and the restaurant's confirmation, apply the refund policy, reply. That is a workflow (33.1) with one model call to read the complaint and one to write the reply. Keep an agent loop only for the 15% of cases that do not fit, such as several orders, a dispute with the courier, or an ambiguous description.
+2. **Tools and permissions.**
+   - Read-only tools: `get_order`, `get_delivery_evidence`, `get_customer_history`.
+   - A write tool, `issue_refund(order_id, amount, reason)`, with server-side checks: the amount is capped by the order value and the policy, and refunds above €20 or for customers with more than three refunds in 30 days go to a human approval queue.
+   - The model never sees payment details.
+   - Tool outputs are passed as data, never as instructions (33.8).
+3. **Budgets.** A hard cap of 12 steps and €0.10 of tokens per case. With a 3,000-token prefix that is mostly cached, the typical 5-step case costs about €0.04. When a cap is hit, hand the case to a human with the trace attached rather than retrying.
+4. **Evaluation before launch.** Replay 500 historical cases in a sandbox with the real outcomes as labels (Chapter 25.7). Measure:
+   - correct refund amount and correct escalation, as end-state checks;
+   - policy violations, which must be zero;
+   - pass^4 on a 100-case subset;
+   - cost and latency per case.
+
+   Then run in shadow mode for two weeks: the agent proposes, a human decides, and the disagreements are labelled.
+5. **Launch and monitor.**
+   - Automate only the case types where shadow-mode agreement exceeds the target (for example 97%).
+   - Track the refund amount per case, the escalation rate, re-contacts within 7 days and the human override rate, by case type and week.
+   - A rise in refunds per case is the first sign of manipulation by users or of a policy drift in the prompt.
+
+The design puts most of the safety in the tools and the policy checks, not in the prompt. A prompt can be argued with; a server-side cap cannot.
 
 ## Pitfalls
 

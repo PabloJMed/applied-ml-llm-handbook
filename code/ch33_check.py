@@ -66,3 +66,12 @@ print([m["content"] for m in out["messages"] if m["role"] == "tool"])
 
 for p in [0.99, 0.95, 0.9]:
     print(p, [round(p ** n, 2) for n in (5, 10, 20)])
+
+# 33.9 cost of a 20-step agent: 4,000-token prefix, +600 tokens of history per step, 200 output tokens per step, $3/$15 per M
+import numpy as np
+steps = np.arange(1, 21)
+for delta, cache in ((600, False), (600, True), (400, True)):
+    ctx = 4000 + delta * (steps - 1)
+    billed = ctx if not cache else np.where(steps == 1, ctx, 0.1 * (ctx - delta) + delta)
+    print(f"delta {delta}, cache {cache}: input ${billed.sum() * 3 / 1e6:.3f} + output ${20 * 200 * 15 / 1e6:.3f}")
+print("latency: 20 x (0.6 s to first token + 200 tokens x 15 ms) = %.0f s before tool time" % (20 * (0.6 + 200 * 0.015)))

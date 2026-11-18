@@ -156,3 +156,12 @@ sel = faiss.IDSelectorBatch(np.flatnonzero(mask).astype("int64"))
 params = faiss.SearchParametersHNSW(sel=sel, efSearch=64)
 _, I = index.search(Q[:1], 10, params=params)
 print("pre-filter", all(mask[i] for i in I[0]))
+
+# 30.11 sizing an index for 50M chunks of 768 dimensions (HNSW M=32: about 2M neighbour ids of 4 bytes per vector at layer 0)
+N, d = 50e6, 768
+links = N * 2 * 32 * 4 / 1e9
+for name, bpv in (("float32", d * 4), ("int8", d), ("Matryoshka 256 dims, int8", 256)):
+    print(f"HNSW over {name}: vectors {N * bpv / 1e9:.1f} GB + links {links:.1f} GB = {N * bpv / 1e9 + links:.1f} GB")
+print(f"IVF-PQ at 64 bytes: {N * 64 / 1e9:.1f} GB; exact search: {N * d / 1e9:.1f}e9 multiply-adds per query")
+print(f"re-scoring 200 candidates from float32 on SSD: {200 * d * 4 / 1e6:.2f} MB read per query")
+print(f"embedding 50M chunks at 20k chunks/min per GPU: {N / 20000 / 60:.0f} GPU-hours")

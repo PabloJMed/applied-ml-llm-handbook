@@ -70,6 +70,17 @@ def info_nce(q, d, temperature=0.05, symmetric=True):
 
 **The same loss trains** CLIP (image-text pairs), DPR (Chapter 30.3), two-tower recommenders (Chapter 43.4, with the logQ correction for popularity), and modern text embedding models (E5, BGE, GTE families), typically in two stages: weakly supervised pre-training on hundreds of millions of noisy pairs mined from the web, then fine-tuning on high-quality labelled pairs with hard negatives.
 
+**What the temperature does to the gradient.** In InfoNCE each negative pushes the query away from it with a weight equal to its softmax probability. So the temperature decides which negatives the model learns from:
+
+![Diagram](images/29-fig-1.png)
+
+*One query with a positive at cosine 0.8, 5 hard negatives at 0.60–0.75 and 250 easy ones around 0.3. At τ = 0.05 the 5 hard negatives receive 82% of the push-away; at τ = 0.3 the easy majority dominates.*
+
+Two consequences:
+
+- **Low temperature is a built-in form of hard-negative mining.** It concentrates learning on the confusable pairs, which is what retrieval needs. This is why values near 0.05 work well.
+- **Low temperature also amplifies label noise.** If a "hard negative" is really a relevant passage (the false-negative trap below), a low temperature makes it the main thing the model learns from. Mined negatives and a low temperature need the filtering of 29.3 together.
+
 ## 29.3 Hard negatives
 
 Random in-batch negatives are mostly easy ("refund policy" vs "pizza menu"). The model learns more from **hard negatives:** passages that look relevant but are not ("refund policy for partners" for a customer question).
@@ -171,6 +182,32 @@ So: shortlist from MTEB (filtered to retrieval tasks and your languages), then c
 ## 29.9 LLM-based embedders
 
 The strongest general-purpose embedding models are now built on decoder LLM backbones (often 1–8B parameters) rather than BERT-sized encoders: take a pretrained LLM, enable bidirectional attention or use the last token's (or mean-pooled) hidden state, and train contrastively on large mixtures of retrieval, classification and clustering data, often synthetic, with task instructions prepended to queries ("Represent this question for retrieving supporting documents: ..."). MMTEB, the massively multilingual successor to MTEB, covers hundreds of tasks across many languages. Trade-offs: much higher quality on hard and multilingual retrieval, but larger vectors and slower encoding, which matters at index-build time and for latency. Matryoshka training (29.5) and quantisation (29.6) offset the storage cost. For representation analysis in research (comparing what different layers or models encode), see centred kernel alignment and probing in Chapter 26.
+
+## 29.10 A worked choice: an embedding model for 2 million product descriptions
+
+A marketplace wants semantic search over 2 million product descriptions in Arabic and English. The work goes in five steps.
+
+1. **Build the evaluation set.**
+   - Take 600 real search queries from logs, stratified by language and by head and tail.
+   - For each one, pool the top 20 results of BM25 and two candidate models and have annotators label relevance.
+   - Pooling keeps labelling cheap and limits the bias towards any one system.
+   - Keep 200 queries aside as a test set.
+2. **Compare baselines.** Score recall@10 and nDCG@10 for each system (Chapter 30.9), with bootstrap intervals over queries.
+   - On 400 queries, an interval for recall@10 is typically ±3–4 points, so treat smaller differences as ties.
+   - Look at the per-language and tail slices before the averages: a model that wins on English head queries and loses on Arabic tail queries is the wrong choice for this product.
+3. **Price the storage.**
+   - At 1,024 float32 dimensions, 2M vectors take 8.2 GB.
+   - A Matryoshka model truncated to 256 dimensions in int8 takes 0.5 GB, small enough for one modest machine with room to grow.
+   - Measure the recall cost of truncation on the evaluation set; do not assume it.
+4. **Decide whether to fine-tune.** If the best off-the-shelf model trails BM25 on tail queries (product codes, brand names, transliterated dish names), first try hybrid search (Chapter 30.6). It is cheaper and often closes most of the gap. Fine-tune only if hybrid search still falls short:
+   - pairs from query logs, with hard negatives mined from ranks 10–50 and filtered by a cross-encoder;
+   - τ = 0.05 and the largest batch that fits;
+   - one epoch, then evaluation against the same baselines.
+5. **Plan the re-index.**
+   - Embedding 2M descriptions of about 150 tokens is 300M tokens, a few GPU-hours for a base-size model.
+   - Version the index with the model name, so queries are never embedded by a different model from the documents.
+
+The decision is then written as a table: model, dimensions, precision, recall@10 overall and per slice, index size and query latency. That table is what the team will check again when a new model is released.
 
 ## Pitfalls
 

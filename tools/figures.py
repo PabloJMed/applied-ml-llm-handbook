@@ -988,6 +988,80 @@ def ch28():
     ax.set_title("Rare harms make even good classifiers mostly wrong when they flag")
     save(fig, "28-fig-1.png")
 
+def ch29():
+    rng = np.random.default_rng(0)
+    pos = 0.8; neg = np.concatenate([rng.uniform(0.6, 0.75, 5), rng.normal(0.3, 0.1, 250)])
+    taus = np.logspace(-2, 0, 80); share, ppos = [], []
+    for t in taus:
+        z = np.concatenate([[pos], neg]) / t; z -= z.max(); e = np.exp(z); p = e / e.sum()
+        share.append(p[1:6].sum() / p[1:].sum()); ppos.append(p[0])
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(taus, share, color=S2, ls=DASH[1], label="push-away share on the 5 hardest negatives")
+    ax.plot(taus, ppos, color=S1, label="probability on the positive")
+    ax.legend(fontsize=7.5, loc="upper right")
+    for t in (0.02, 0.05, 0.1):
+        i = int(np.argmin(np.abs(taus - t))); print(f"tau {t}: hard share {share[i]:.2f}, p(pos) {ppos[i]:.3f}")
+    ax.axvline(0.05, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(0.053, 0.08, "τ = 0.05", color=INK2, fontsize=7.5)
+    ax.set_xscale("log"); ax.set_xlim(0.01, 1); ax.set_xticks([0.01, 0.03, 0.1, 0.3, 1]); ax.set_xticklabels(["0.01", "0.03", "0.1", "0.3", "1"])
+    ax.set_xlabel("temperature τ"); ax.set_ylabel("fraction"); ax.set_title("Low temperature focuses the contrastive loss on hard negatives")
+    save(fig, "29-fig-1.png")
+
+
+def ch30():
+    tf = np.linspace(0, 20, 200)
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    for k1, c, ls in ((0.5, S3, DASH[2]), (1.2, S1, DASH[0]), (2.0, S2, DASH[1])):
+        ax.plot(tf, tf * (k1 + 1) / (tf + k1), color=c, ls=ls, label=f"k1 = {k1}, average-length document")
+    k1, b = 1.2, 0.75; ax.plot(tf, tf * (k1 + 1) / (tf + k1 * (1 - b + b * 2)), color=MUTED, ls=DASH[1], label="k1 = 1.2, document twice the average length")
+    ax.legend(fontsize=7.5, loc="lower right"); ax.set_xlabel("occurrences of the term in the document"); ax.set_ylabel("term-frequency factor")
+    ax.set_xticks([0, 1, 2, 5, 10, 15, 20]); ax.set_title("BM25 saturates: the tenth occurrence adds little")
+    save(fig, "30-fig-1.png")
+    # IVF recall vs share scanned on 100k clustered vectors
+    rng = np.random.default_rng(0); d, N = 64, 100_000
+    cent = rng.standard_normal((300, d)); X = cent[rng.integers(0, 300, N)] + 1.6 * rng.standard_normal((N, d))
+    X = (X / np.linalg.norm(X, axis=1, keepdims=True)).astype(np.float32)
+    Q = cent[rng.integers(0, 300, 300)] + 1.6 * rng.standard_normal((300, d)); Q = (Q / np.linalg.norm(Q, axis=1, keepdims=True)).astype(np.float32)
+    truth = np.argsort(-(Q @ X.T), axis=1)[:, :10]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for nl, c, ls in ((256, S1, DASH[0]), (1024, S2, DASH[1])):
+        C = X[rng.choice(N, nl, replace=False)].copy()
+        for _ in range(12):
+            a = np.argmax(X @ C.T, axis=1)
+            for j in range(nl):
+                m = a == j
+                if m.any(): v = X[m].mean(0); C[j] = v / np.linalg.norm(v)
+        a = np.argmax(X @ C.T, axis=1); lists = [np.flatnonzero(a == j) for j in range(nl)]
+        probes = [1, 2, 4, 8, 16, 32, 64]; rec, scan = [], []
+        for npb in probes:
+            r = s = 0
+            for qi, q in enumerate(Q):
+                cells = np.argsort(-(C @ q))[:npb]; cand = np.concatenate([lists[j] for j in cells]); s += len(cand)
+                top = cand[np.argsort(-(X[cand] @ q))[:10]]; r += len(set(top) & set(truth[qi])) / 10
+            rec.append(r / len(Q)); scan.append(100 * s / len(Q) / N)
+        ax.plot(scan, rec, color=c, ls=ls, marker="o", ms=2.5, label=f"IVF, {nl} lists")
+        for npb, x, y in zip(probes, scan, rec):
+            if npb in (1, 8, 64): ax.annotate(f"{npb} probe{'s' if npb > 1 else ''}", (x, y), xytext=(4, -10) if nl == 256 else (-4, 6), ha="left" if nl == 256 else "right", textcoords="offset points", color=INK2, fontsize=7)
+        print(nl, [(p, round(x, 2), round(y, 3)) for p, x, y in zip(probes, scan, rec)])
+    ax.set_xscale("log"); ax.legend(fontsize=7.5, loc="lower right"); ax.set_ylim(0.3, 1.03)
+    ax.set_xticks([0.2, 0.5, 1, 2, 5, 10, 25]); ax.set_xticklabels(["0.2", "0.5", "1", "2", "5", "10", "25"]); ax.minorticks_off()
+    ax.set_xlabel("share of the collection scanned per query (%)"); ax.set_ylabel("recall@10 vs exact search")
+    ax.set_title("IVF trades recall for the share of vectors scanned")
+    save(fig, "30-fig-2.png")
+
+
+def ch33():
+    steps = np.arange(1, 21)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for delta, cache, c, ls, lab in ((600, False, S2, DASH[1], "no caching"), (600, True, S1, DASH[0], "prefix caching (reads at 10%)"),
+                                     (400, True, S3, DASH[2], "caching + tool outputs trimmed")):
+        ctx = 4000 + delta * (steps - 1)
+        billed = ctx.astype(float) if not cache else np.where(steps == 1, ctx, 0.1 * (ctx - delta) + delta)
+        cum = np.cumsum(billed) / 1000; ax.plot(steps, cum, color=c, ls=ls, marker="o", ms=2.5, label=lab)
+        print(lab, f"context at step 20 {ctx[-1]:,}; billed input {cum[-1]*1000:,.0f} tokens = ${cum[-1]*1000*3/1e6:.3f} at $3/M")
+    ax.legend(fontsize=7.5, loc="upper left"); ax.set_xlim(0.5, 20.5); ax.set_xticks([1, 5, 10, 15, 20]); ax.set_xlabel("agent step"); ax.set_ylabel("billed input tokens so far (thousands)")
+    ax.set_title("Resending the history makes agent cost grow quadratically")
+    save(fig, "33-fig-1.png")
+
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]
     for ch in wanted:
