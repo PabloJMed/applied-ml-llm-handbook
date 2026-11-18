@@ -103,6 +103,14 @@ python code/ch04_check.py
 - Every Python block in the chapters parses with Python's `ast` module; the longer examples are the ones exercised in `code/`.
 - The links in the Key concepts sections were opened and checked in November 2026. Library APIs (LangChain, LlamaIndex, Hugging Face, vector databases) change every few months: if a snippet fails, check it against the current docs; the concepts stay the same.
 
+## About
+
+Written with AI assistance (Claude) and reviewed and edited by the author. Corrections and suggestions are welcome: open an issue.
+
+## Licence
+
+Text, diagrams and the PDF: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Code in `code/`: [MIT](code/LICENSE). See [LICENSE](LICENSE).
+
 ## Edition
 
 November 2026. The Markdown and the PDF are generated from the same source, so they match.

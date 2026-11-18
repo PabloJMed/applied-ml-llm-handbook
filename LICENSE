@@ -1,0 +1,18 @@
+Applied ML & LLM Handbook
+Copyright (c) 2026 PabloJMed
+
+This repository uses two licences.
+
+1. Text, diagrams and the book PDF (everything outside the code/ folder)
+   are licensed under the Creative Commons Attribution-NonCommercial-ShareAlike
+   4.0 International licence (CC BY-NC-SA 4.0).
+
+   You may share and adapt this material for non-commercial purposes, as long
+   as you give appropriate credit, link to the licence, indicate if changes
+   were made, and distribute your contributions under the same licence.
+
+   Summary: https://creativecommons.org/licenses/by-nc-sa/4.0/
+   Full legal code: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+2. Source code in the code/ folder is licensed under the MIT licence;
+   see code/LICENSE.
