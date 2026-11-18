@@ -35,7 +35,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Delta method for a ratio metric R = Ȳ/X̄: Var(R) ≈ (1/X̄²)[Var(Ȳ) − 2R Cov(Ȳ, X̄) + R² Var(X̄)]
 - Entropy: H(p) = −Σ p_i log p_i. Cross-entropy: H(p, q) = −Σ p_i log q_i. KL(p‖q) = Σ p_i log(p_i / q_i)
 
-## Linear models and losses (Ch 1, 3, 4)
+## Linear models and losses (Ch 1, 3, 40)
 
 - Linear regression: ŷ = Xw + b; closed form w = (XᵀX)⁻¹Xᵀy; ridge adds λI inside the inverse
 - MSE = (1/n) Σ (y − ŷ)²; MAE = (1/n) Σ |y − ŷ|
@@ -47,7 +47,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Gradient boosting step: F_m = F_(m−1) + η h_m, where h_m fits the negative gradient of the loss
 - Expected error = bias² + variance + irreducible noise
 
-## Evaluation (Ch 5, 18, 26)
+## Evaluation (Ch 4, 30, 44)
 
 - Precision = TP / (TP + FP); recall = TP / (TP + FN); F1 = 2PR / (P + R); Fβ weights recall β times as much as precision
 - FPR = FP / (FP + TN); ROC plots TPR vs FPR; AUC = P(score₊ > score₋)
@@ -58,7 +58,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Cohen's kappa: κ = (p_o − p_e) / (1 − p_e)
 - PSI = Σ (a_i − e_i) ln(a_i / e_i) over bins
 
-## Neural networks (Ch 6, 7)
+## Neural networks (Ch 5, 6)
 
 - Layer: h = f(Wx + b). Backprop: ∂L/∂W = δ xᵀ, δ_prev = Wᵀδ ⊙ f′(z)
 - Initialisation: Xavier/Glorot Var(w) = 2 / (fan_in + fan_out); He Var(w) = 2 / fan_in (ReLU)
@@ -78,7 +78,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Parameters per transformer block ≈ 12 d_model² (4d² attention + 8d² MLP with 4× expansion)
 - Sinusoidal position: PE(pos, 2i) = sin(pos / 10000^(2i/d)), PE(pos, 2i+1) = cos(…)
 
-## LLM training and alignment (Ch 11, 13)
+## LLM training and alignment (Ch 12, 15)
 
 - Language modelling loss: L = −(1/T) Σ log p(x_t | x_<t); perplexity = e^L
 - Training compute: C ≈ 6 N D FLOPs. Chinchilla: D ≈ 20 N, so N ≈ √(C / 120)
@@ -89,7 +89,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Distillation: L = α T² KL(softmax(z_t/T) ‖ softmax(z_s/T)) + (1 − α) CE(y, z_s)
 - LoRA: W = W₀ + (α/r) BA, with B ∈ R^(d×r), A ∈ R^(r×k), r ≪ min(d, k); trainable params r(d + k)
 
-## Inference (Ch 14)
+## Inference (Ch 21)
 
 - Temperature: p_i ∝ exp(z_i / T)
 - KV cache bytes = 2 × layers × kv_heads × head_dim × seq_len × batch × bytes_per_value
@@ -99,7 +99,7 @@ The formulas that come up in interviews, in one place, with the notation used in
 - Latency = TTFT + output_tokens × TPOT
 - Cost = requests × (tokens_in × price_in + tokens_out × price_out) / 10⁶
 
-## Retrieval and recommendation (Ch 17, 18, 25)
+## Retrieval and recommendation (Ch 29, 30, 43)
 
 - Cosine similarity: (a · b) / (‖a‖ ‖b‖); equals the dot product for unit vectors
 - TF-IDF: tf(t, d) × log(N / df(t))

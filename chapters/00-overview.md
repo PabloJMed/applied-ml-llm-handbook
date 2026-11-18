@@ -6,7 +6,7 @@ A self-study guide for data scientists and ML engineers preparing for senior app
 
 ## How the handbook works
 
-The guide has 35 chapters in 10 parts (including Chapter 13a, an infrastructure primer for readers new to production systems) and five appendices. Read it in order, or jump to the part you need; a suggested study plan is below.
+The guide has 35 chapters in 10 parts (including Chapter 42, an infrastructure primer for readers new to production systems) and five appendices. Read it in order, or jump to the part you need; a suggested study plan is below.
 
 **Every chapter follows the same template:**
 
@@ -68,7 +68,7 @@ Parts IV–VII are the core of the book and the largest share of it: how LLMs wo
 | 16 | Fine-tuning and parameter-efficient methods | When to prompt, retrieve or fine-tune; full fine-tuning; LoRA in depth (the low-rank update, rank and alpha, target modules, merging); QLoRA; adapters; prefix-tuning and prompt tuning; instruction data; synthetic data; catastrophic forgetting; evaluating a fine-tune. Code: LoRA from scratch, then with Hugging Face PEFT |
 | 17 | Embeddings and representation learning | Sentence embeddings; contrastive learning and InfoNCE; hard negatives; fine-tuning an embedding model; Matryoshka embeddings; multilingual embeddings; benchmarks (MTEB) and why your own evaluation matters more |
 
-**Chapter 13a · Infrastructure primer.** Servers, CPUs and GPUs, HTTP APIs, Docker, Kubernetes, storage, queues and streams, batch vs online inference, capacity planning and observability, explained from zero for readers who have never deployed a model. Read it before Chapters 14 and 29.
+**Chapter 42 · Infrastructure primer.** Servers, CPUs and GPUs, HTTP APIs, Docker, Kubernetes, storage, queues and streams, batch vs online inference, capacity planning and observability, explained from zero for readers who have never deployed a model. Read it before Chapters 21 and 47.
 
 ### Part V — Retrieval and RAG
 
@@ -127,7 +127,7 @@ Parts VIII–X turn knowledge into interview performance: the recommender and se
 - **B.** One-page cheat sheets per part, for the night before
 - **C.** Notation and common formulas
 - **D.** Paper map: the 40 papers worth knowing, one paragraph each
-- **E.** Ten worked system designs, the model answers for Chapter 28
+- **E.** Ten worked system designs, the model answers for Chapter 46
 
 ## A suggested study plan
 
@@ -135,7 +135,7 @@ If you are preparing for interviews, this eight-week order front-loads what inte
 
 | Week | Chapters | Why then |
 |---|---|---|
-| 1 | 28 ML system design, the framework part; 25 Recommender systems | Start the weekly timed design practice with a restaurant feed (Chapter 28) |
+| 1 | 28 ML system design, the framework part; 25 Recommender systems | Start the weekly timed design practice with a restaurant feed (Chapter 46) |
 | 2 | 5 Evaluation and metrics; 26 Search ranking | Ranking metrics and the search design exercise |
 | 3 | 18 Information retrieval; 12 NLP tasks; 15 Prompting | Two-tower retrieval and the LLM classification design |
 | 4 | 19 RAG; 22 LLM evaluation; 23 RAG and agent evaluation | The RAG assistant design and the first mock |

@@ -1,33 +1,72 @@
-from typing import TypedDict, Callable
-import json
-class State(TypedDict, total=False):
-    query: str; intent: str; docs: list; answer: str; attempts: int
+import math, torch, torch.nn as nn, torch.nn.functional as F
+torch.manual_seed(0)
 
-def classify(s: State) -> State:
-    return {**s, "intent": "refund" if "refund" in s["query"].lower() else "faq"}
-def retrieve(s: State) -> State:
-    kb = {"refund": ["Refunds go to the original payment method within 5-7 days."], "faq": ["Delivery fees depend on distance."]}
-    return {**s, "docs": kb[s["intent"]]}
-def generate(s: State) -> State:
-    return {**s, "answer": f"[{s['intent']}] " + s["docs"][0], "attempts": s.get("attempts", 0) + 1}
-def check(s: State) -> str:
-    return "end" if s["answer"] and s["attempts"] >= 1 else "generate"
+class LoRALinear(nn.Module):
+    def __init__(self, base: nn.Linear, r=8, alpha=16, dropout=0.0):
+        super().__init__()
+        self.base = base
+        for p in self.base.parameters():
+            p.requires_grad = False
+        self.r, self.scaling = r, alpha / r
+        self.A = nn.Parameter(torch.empty(r, base.in_features))
+        self.B = nn.Parameter(torch.zeros(base.out_features, r))
+        nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
+        self.dropout = nn.Dropout(dropout)
+        self.merged = False
 
-class Graph:
-    def __init__(self): self.nodes, self.edges, self.cond = {}, {}, {}
-    def add_node(self, name, fn): self.nodes[name] = fn
-    def add_edge(self, a, b): self.edges[a] = b
-    def add_conditional(self, a, router: Callable[[State], str]): self.cond[a] = router
-    def run(self, start, state, max_steps=20):
-        node, trace = start, []
-        for _ in range(max_steps):
-            state = self.nodes[node](state); trace.append(node)
-            nxt = self.cond[node](state) if node in self.cond else self.edges.get(node, "end")
-            if nxt == "end": return state, trace
-            node = nxt
-        raise RuntimeError("step limit hit")
-g = Graph()
-g.add_node("classify", classify); g.add_node("retrieve", retrieve); g.add_node("generate", generate)
-g.add_edge("classify", "retrieve"); g.add_edge("retrieve", "generate"); g.add_conditional("generate", check)
-out, trace = g.run("classify", {"query": "I want a refund for order 123"})
-print(trace, out["answer"])
+    def forward(self, x):
+        out = self.base(x)
+        if not self.merged:
+            out = out + (self.dropout(x) @ self.A.T @ self.B.T) * self.scaling
+        return out
+
+    @torch.no_grad()
+    def merge(self):
+        if not self.merged:
+            self.base.weight += (self.B @ self.A) * self.scaling
+            self.merged = True
+
+def count(model):
+    total = sum(p.numel() for p in model.parameters()); train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return train, total
+
+base = nn.Linear(4096, 4096, bias=False)
+lora = LoRALinear(base, r=16, alpha=32)
+print(count(lora), round(count(lora)[0] / count(lora)[1] * 100, 2))
+
+# toy adaptation: base learns task A; LoRA adapts to task B with a low-rank change
+d = 64
+base = nn.Linear(d, d, bias=False)
+W_target = base.weight.detach() + (torch.randn(d, 4) @ torch.randn(4, d)) * 0.1
+X = torch.randn(2048, d); Y = X @ W_target.T
+model = LoRALinear(base, r=4, alpha=8)
+opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=1e-2)
+print("before", round(F.mse_loss(model(X), Y).item(), 4))
+for step in range(500):
+    loss = F.mse_loss(model(X), Y); opt.zero_grad(); loss.backward(); opt.step()
+print("after", round(loss.item(), 6))
+x = torch.randn(3, d); y1 = model(x); model.merge(); y2 = model(x)
+print("merge equal", torch.allclose(y1, y2, atol=1e-5))
+
+# prompt tuning: soft prompt prepended to frozen embeddings
+class SoftPrompt(nn.Module):
+    def __init__(self, n_tokens, d_model, init_from=None):
+        super().__init__()
+        init = init_from[:n_tokens].clone() if init_from is not None else torch.randn(n_tokens, d_model) * 0.02
+        self.prompt = nn.Parameter(init)
+    def forward(self, token_embeds):
+        B = token_embeds.shape[0]
+        return torch.cat([self.prompt.unsqueeze(0).expand(B, -1, -1), token_embeds], dim=1)
+emb = nn.Embedding(100, 32); sp = SoftPrompt(10, 32, init_from=emb.weight.detach())
+print(sp(emb(torch.randint(0, 100, (2, 7)))).shape)
+
+def finetune_memory_gb(n_params_b, mode):
+    n = n_params_b * 1e9
+    if mode == "full_adam_mixed":
+        return n * 16 / 1e9          # bf16 weights+grads (4) + fp32 master (4) + Adam m,v (8)
+    if mode == "lora_bf16":
+        return n * 2 / 1e9
+    if mode == "qlora_4bit":
+        return n * 0.5 / 1e9
+for m in ["full_adam_mixed", "lora_bf16", "qlora_4bit"]:
+    print(m, finetune_memory_gb(7, m))

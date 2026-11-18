@@ -1,8 +1,8 @@
 # E · Worked system designs
 
-Ten complete answers in the eight-step format of Chapter 28. Each one is the answer a strong mid-level candidate gives in 45 minutes, with notes on what lifts it to senior.
+Ten complete answers in the eight-step format of Chapter 46. Each one is the answer a strong mid-level candidate gives in 45 minutes, with notes on what lifts it to senior.
 
-**Try each design yourself first, timed, before reading it.** Reading a model answer before attempting the problem feels productive but trains recognition, not recall; the interview tests recall. A weekly timed design session (Chapter 28's practice plan) covers most of them in a month.
+**Try each design yourself first, timed, before reading it.** Reading a model answer before attempting the problem feels productive but trains recognition, not recall; the interview tests recall. A weekly timed design session (Chapter 46's practice plan) covers most of them in a month.
 
 All scale numbers are assumptions stated for the exercise, not facts about any company.
 
@@ -41,7 +41,7 @@ All scale numbers are assumptions stated for the exercise, not facts about any c
 
 **6 · Evaluation.** Offline: recall@200 per retrieval source and combined; NDCG@10 on orders, sliced by new vs returning users, city size, and time of day. Online: A/B test by user for two weeks; but because feed changes shift demand between restaurants that share couriers, check delivery-time guardrails per city, and consider a switchback test if supply effects show up. Interleaving for fast comparison of ranker versions.
 
-**7 · Serving.** At about 1,700 QPS peak (see the Chapter 28 arithmetic): precompute "ordered before" and "popular in area" lists hourly; ANN retrieval online (a few ms); fetch features from an online store (~20–30 ms); rank about 500 candidates with LightGBM (a few ms with batching); re-rank (1–2 ms). Fallback: the cached popularity list for the area when any stage times out. Retrain daily; ship through shadow mode, then a canary, then the A/B test.
+**7 · Serving.** At about 1,700 QPS peak (see the Chapter 46 arithmetic): precompute "ordered before" and "popular in area" lists hourly; ANN retrieval online (a few ms); fetch features from an online store (~20–30 ms); rank about 500 candidates with LightGBM (a few ms with batching); re-rank (1–2 ms). Fallback: the cached popularity list for the area when any stage times out. Retrain daily; ship through shadow mode, then a canary, then the A/B test.
 
 **8 · Monitoring.** Feature freshness (especially busyness and open status), score distribution drift, calibration of P(order), share of impressions going to the top 1% of restaurants (concentration), coverage of the catalogue, and the business metric and guardrails per city.
 
@@ -130,7 +130,7 @@ Interviewers will push on evaluation and cost, so lead with them.
 
 **6 · Evaluation.** Per-level accuracy and leaf macro F1 on the held-out human set; a confusion matrix to find categories the taxonomy itself makes ambiguous (often the real fix is a clearer definition); calibration of the confidence field against actual accuracy; sliced by language and vendor type. Online: filter usage and search success in an A/B test by market or category.
 
-**7 · Serving.** A batch pipeline, not a request path: the initial backfill of 10M products as a batch job (see the cost arithmetic in Chapter 28: a few hundred dollars at placeholder prices with batching), then a daily incremental job for new and changed products, and an event-driven path for urgent items. Retries with backoff; outputs validated against the JSON schema and the set of valid category IDs.
+**7 · Serving.** A batch pipeline, not a request path: the initial backfill of 10M products as a batch job (see the cost arithmetic in Chapter 46: a few hundred dollars at placeholder prices with batching), then a daily incremental job for new and changed products, and an event-driven path for urgent items. Retries with backoff; outputs validated against the JSON schema and the set of valid category IDs.
 
 **8 · Monitoring.** Distribution of predicted categories over time (a sudden shift means a prompt, model or data change), share of low-confidence outputs, vendor overrides as a free label stream, cost per run, and a weekly human audit of a random sample.
 

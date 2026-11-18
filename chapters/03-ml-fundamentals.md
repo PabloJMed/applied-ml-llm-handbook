@@ -1,6 +1,6 @@
 # 3 · ML fundamentals
 
-Part I · Foundations. The concepts every later chapter assumes. Chapter 4 covers the classic models themselves, Chapter 5 how to measure them, Chapter 6 neural networks.
+Part I · Foundations. The concepts every later chapter assumes. Chapter 40 covers the classic models themselves, Chapter 4 how to measure them, Chapter 5 neural networks.
 
 ## Why it matters
 
@@ -14,7 +14,7 @@ The ML depth round starts here. "What is the bias-variance trade-off?", "how wou
 - **Train, validation and test splits; cross-validation**: estimate how a model will do on unseen data; split by time or by user when the data has that structure. [scikit-learn: cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html).
 - **Data leakage**: information that would not be available at prediction time sneaking into training. [Leakage](https://en.wikipedia.org/wiki/Leakage_(machine_learning)).
 - **Feature engineering**: encoding categories, scaling, aggregates over time windows, text and embedding features.
-- **Class imbalance**: when positives are rare; handled with the right metric, class weights or resampling, and threshold choice (Chapter 5).
+- **Class imbalance**: when positives are rare; handled with the right metric, class weights or resampling, and threshold choice (Chapter 4).
 
 ## 3.1 Framing a problem as ML
 
@@ -24,7 +24,7 @@ Before choosing a model, answer these questions, in this order:
 2. **Is ML needed at all?** Rules or a heuristic often get 80% of the value. ML earns its cost when patterns are too complex for rules, change over time, or need to scale.
 3. **What exactly is the label?** "Will the user churn?" needs a definition: no order in 30 days? 60? Measured from when? Labels decide what the model learns more than any architecture.
 4. **What is the prediction moment, and what is known then?** Only data available at that moment may be used as features (3.7).
-5. **What are the costs of each kind of error?** That decides the metric and the threshold (Chapter 5.1).
+5. **What are the costs of each kind of error?** That decides the metric and the threshold (Chapter 4.1).
 6. **What is the baseline?** Popularity, last value, a rule, the current system. A model that does not beat the baseline by a margin worth its cost does not ship.
 
 **Common framings:** classification (will it happen?), regression (how much?), ranking (in what order?), forecasting (how much, when?), clustering or anomaly detection (what is unusual?), generation (write it). The same business problem can be framed several ways: "reduce late deliveries" can be ETA regression, a late-or-not classifier, or a quantile forecast of delivery time. Choose the framing whose output the decision-maker can use.
@@ -67,7 +67,7 @@ The loss is what training optimises; choose it so its optimum is what the busine
 | Log loss (cross-entropy) | −[y log p + (1−y) log(1−p)] | True probability | Classification with probabilities |
 | Hinge | max(0, 1 − y·f) with y in {−1, 1} | Margin | SVMs |
 | Focal | −(1−pₜ)^γ log pₜ | Down-weights easy examples | Extreme imbalance, dense detection |
-| Ranking losses | Pairwise, listwise | Correct order | Search and recommendation (Chapter 26) |
+| Ranking losses | Pairwise, listwise | Correct order | Search and recommendation (Chapter 44) |
 
 ```python
 import numpy as np
@@ -97,7 +97,7 @@ Regularisation limits model complexity to reduce variance.
 - **L1 (lasso):** adds λ∑|w|. Pushes some weights exactly to zero, so it also selects features. On a test with 20 features of which 3 matter, Lasso kept exactly 3 non-zero weights while Ridge kept all 20 small but non-zero.
 - **Elastic net:** both; useful with many correlated features.
 - **Early stopping:** stop training when validation loss stops improving; the most-used regulariser in deep learning and boosting.
-- **Model-specific:** tree depth, minimum samples per leaf and learning rate in boosting (Chapter 4); dropout and data augmentation in neural networks (Chapter 6).
+- **Model-specific:** tree depth, minimum samples per leaf and learning rate in boosting (Chapter 40); dropout and data augmentation in neural networks (Chapter 5).
 
 **Why L1 gives zeros:** geometrically, the L1 constraint region is a diamond with corners on the axes, and the loss contours usually first touch it at a corner, where some weights are zero. The L2 region is a circle with no corners.
 
@@ -187,7 +187,7 @@ Leakage is information in training that will not be available at prediction time
 | Type | Example | Prevention |
 |---|---|---|
 | Target leakage | A "refund issued" feature in a model predicting complaints | Ask of every feature: is it known at the prediction moment? |
-| Temporal leakage | Features computed with data after the prediction time; random splits on time data | Point-in-time feature joins (`merge_asof`, Chapter 28); time-based splits |
+| Temporal leakage | Features computed with data after the prediction time; random splits on time data | Point-in-time feature joins (`merge_asof`, Chapter 46); time-based splits |
 | Preprocessing leakage | Scaling, imputation or target encoding fitted on all data before splitting | Fit preprocessing inside each training fold (scikit-learn Pipelines) |
 | Entity leakage | The same user in train and test with user-specific patterns | Group splits |
 | Duplicate leakage | Near-duplicate rows across splits (same review posted twice) | Deduplicate before splitting |
@@ -203,7 +203,7 @@ For tabular problems, features usually matter more than the model.
 - **Categorical:** one-hot for few categories; **target encoding** for many (restaurant id, zone), which must be computed out-of-fold with smoothing, or it leaks the label; hashing for huge, open vocabularies; learned embeddings in neural networks.
 - **Time:** hour, weekday, holiday flags, time since last event; cyclical encoding (sin/cos) for linear models.
 - **Aggregates:** counts, means and rates over windows (orders in the last 7 and 30 days), always computed point-in-time.
-- **Text and images:** embeddings from pretrained models (Chapters 12, 17).
+- **Text and images:** embeddings from pretrained models (Chapters 41, 29).
 - **Missing values:** impute and add a "was missing" flag; missingness is often informative.
 
 **Out-of-fold target encoding** (a frequent interview follow-up):
@@ -228,18 +228,18 @@ Each row's encoding comes from other folds, so its own label never contributes. 
 
 When positives are rare (fraud, churn, clicks):
 
-1. **Use the right metrics first:** PR-AUC, precision and recall at the operating point, not accuracy (Chapter 5).
+1. **Use the right metrics first:** PR-AUC, precision and recall at the operating point, not accuracy (Chapter 4).
 2. **Class weights:** weight the loss so rare-class errors cost more (`class_weight="balanced"`). Simple and usually enough.
 3. **Resampling:** undersample the majority class (fast, loses data) or oversample the minority (SMOTE and variants create synthetic examples; often less helpful on real tabular data than people expect). Resample only the training folds, never validation or test.
 4. **Threshold tuning:** often the biggest lever; choose the threshold from costs on validation data.
-5. **Correct probabilities** if you reweighted or resampled (Chapter 5.3), before using them as probabilities.
+5. **Correct probabilities** if you reweighted or resampled (Chapter 4.3), before using them as probabilities.
 6. **Focal loss** or anomaly-detection framing for extreme imbalance.
 
 And question the framing: with 50 positives in a year, you may need rules plus human review rather than a model.
 
 ## 3.10 Calibration
 
-Covered in Chapter 5.3: when predicted probabilities are used as numbers (expected value, bids, combining heads), check reliability diagrams and fix with Platt, isotonic or temperature scaling on held-out data. Trees, boosted models trained with resampling, and neural networks are often miscalibrated; logistic regression usually is not.
+Covered in Chapter 4.3: when predicted probabilities are used as numbers (expected value, bids, combining heads), check reliability diagrams and fix with Platt, isotonic or temperature scaling on held-out data. Trees, boosted models trained with resampling, and neural networks are often miscalibrated; logistic regression usually is not.
 
 ## Pitfalls
 

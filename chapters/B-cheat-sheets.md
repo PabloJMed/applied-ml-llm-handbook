@@ -2,7 +2,7 @@
 
 One page per area, for the night before. Everything here is a reminder of something explained properly in a chapter; if a line does not make sense, go back to that chapter rather than memorising it.
 
-## B.1 Foundations (Chapters 1–5)
+## B.1 Foundations (Chapters 1–4 and 40)
 
 **Formulas**
 
@@ -36,7 +36,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 - Bootstrap the independent unit (users, queries), and compare models with paired bootstrap.
 - Marketplace experiments: switchbacks or geo when arms share couriers or capacity.
 
-## B.2 Deep learning, transformers and LLMs (Chapters 6–14)
+## B.2 Deep learning, transformers and LLMs (Chapters 5–21)
 
 **Formulas and numbers**
 
@@ -62,7 +62,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 - Debugging a net: overfit one batch first; NaNs → learning rate, clipping, fp16, bad data.
 - Tokenisers decide cost and multilingual quality; Arabic often needs more tokens per word.
 
-## B.3 Retrieval, RAG, building with LLMs, evaluation and safety (Chapters 15–24)
+## B.3 Retrieval, RAG, building with LLMs, evaluation and safety (Chapters 20–33)
 
 **Retrieval and RAG**
 
@@ -92,7 +92,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 - Agents: end-state success, trajectory rules, efficiency, robustness, pass^k over repeated runs, safety tests.
 - Safety: grounding and abstention against hallucination; PII minimisation and redaction; moderation with policy definitions, per-language metrics, human appeals; EU AI Act risk tiers and transparency duties.
 
-## B.4 Recommendation, search and marketplace (Chapters 25–27)
+## B.4 Recommendation, search and marketplace (Chapters 43–45)
 
 - Funnel: candidate generation (two-tower ANN, order again, item-to-item, popular nearby) → filtering (open, in range, in stock) → ranking (GBDT/DCN/multi-task) → re-ranking (MMR diversity, rules, ads, exploration).
 - Two-tower: in-batch softmax, logQ correction, hard negatives in moderation; cross features belong in the ranker.
@@ -106,7 +106,7 @@ One page per area, for the night before. Everything here is a reminder of someth
 - ETA: decompose (prep, courier, travel), promise a quantile, measure late rate and calibration.
 - Optimisation: Hungarian for assignment, LP for rebalancing; predict-then-optimise.
 
-## B.5 Systems (Chapters 28–30)
+## B.5 Systems (Chapters 46–48)
 
 - Framework: clarify → frame → data → features → model → evaluation → serving → monitoring; about 45 minutes, spend the most on the middle four.
 - QPS = daily users × requests per user / 86,400, × peak factor (≈ 3).

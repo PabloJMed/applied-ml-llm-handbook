@@ -1,6 +1,6 @@
 # 2 · Statistics and experimentation
 
-Part I · Foundations. Assumes basic probability (Chapter 1). Chapter 5 covers confidence intervals on model metrics; this chapter covers experiments on products. Worked designs and chapters that rely on it: every "online evaluation" section, Chapter 27 (marketplace experiments), E.1 and E.8.
+Part I · Foundations. Assumes basic probability (Chapter 1). Chapter 4 covers confidence intervals on model metrics; this chapter covers experiments on products. Worked designs and chapters that rely on it: every "online evaluation" section, Chapter 45 (marketplace experiments), E.1 and E.8.
 
 ## Why it matters
 
@@ -24,7 +24,7 @@ Every model you ship is judged by an experiment, and in a delivery marketplace e
 
 **A 95% confidence interval** is estimate ± 1.96 × standard error. Correct reading: if we repeated the experiment many times, 95% of intervals built this way would contain the true value. It is not "a 95% probability that the true value is in this interval" (a Bayesian credible interval says that).
 
-**The bootstrap** gives intervals for any statistic (medians, ratios, percentiles, model metrics) without formulas: resample the data with replacement many times, recompute the statistic, take percentiles. Resample the independent unit (users, not orders, if one user has many orders; Chapter 5.9).
+**The bootstrap** gives intervals for any statistic (medians, ratios, percentiles, model metrics) without formulas: resample the data with replacement many times, recompute the statistic, take percentiles. Resample the independent unit (users, not orders, if one user has many orders; Chapter 4.9).
 
 ```python
 import numpy as np
@@ -103,7 +103,7 @@ A checklist that covers what interviewers probe:
 
 1. **Hypothesis and decision:** what change, what you expect, and what you will do with each outcome.
 2. **Randomisation unit:** user, session, order, restaurant, city, or time slot. Use the unit at which the treatment acts and at which interference is contained. The analysis unit must match (or use clustered standard errors).
-3. **Metrics:** one primary metric (sensitive and aligned with the goal), secondary metrics, **guardrails** (latency, cancellations, delivery time, revenue) and counter-metrics (Chapter 5.7). Written down before the test.
+3. **Metrics:** one primary metric (sensitive and aligned with the goal), secondary metrics, **guardrails** (latency, cancellations, delivery time, revenue) and counter-metrics (Chapter 4.7). Written down before the test.
 4. **Sample size and duration** from the MDE (2.3); at least one or two full weeks.
 5. **Checks during the test:** sample ratio mismatch, guardrail breaches, data quality. No peeking at the primary metric to decide early (2.7).
 6. **Analysis:** effect with confidence interval, segments defined in advance, multiple-testing awareness (2.6).
@@ -169,7 +169,7 @@ Options:
 
 ## 2.8 Interleaving for ranking
 
-For comparing two rankers (search, recommendations), interleaving merges both rankings into one list per user and credits clicks or orders to the ranker that contributed each item. Because each user sees both systems, between-user variance disappears, and interleaving typically needs far less traffic than an A/B test to find the better ranker. Use it to screen candidates; confirm business impact with an A/B test (Chapter 26.9).
+For comparing two rankers (search, recommendations), interleaving merges both rankings into one list per user and credits clicks or orders to the ranker that contributed each item. Because each user sees both systems, between-user variance disappears, and interleaving typically needs far less traffic than an A/B test to find the better ranker. Use it to screen candidates; confirm business impact with an A/B test (Chapter 44.9).
 
 ## 2.9 Experiments in two-sided marketplaces
 
@@ -185,7 +185,7 @@ In a delivery marketplace, users in treatment and control **share couriers and r
 - **Geo (cluster) experiments:** randomise whole cities or zones. Clean but few units, so low power; use matched pairs or synthetic controls.
 - **Two-sided randomisation** or budget-split designs for pricing and ads.
 
-User-level A/B tests remain fine for changes whose effect stays on the demand side and does not draw on shared supply (most UI changes, ranking within what is available, notification copy). The senior skill is recognising which kind of change you have. Chapter 27 covers marketplace experiments further.
+User-level A/B tests remain fine for changes whose effect stays on the demand side and does not draw on shared supply (most UI changes, ranking within what is available, notification copy). The senior skill is recognising which kind of change you have. Chapter 45 covers marketplace experiments further.
 
 ## 2.10 Causal inference basics
 

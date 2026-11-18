@@ -1,6 +1,6 @@
 # 10 · The transformer in depth
 
-Part III · NLP and transformers. Assumes Chapter 6 (neural network basics) and Chapter 7 (PyTorch); Chapter 8 explains the attention mechanism that came before. Chapter 11 covers model families built on this architecture, Chapter 14 how they are served.
+Part III · Transformers and architectures. Assumes Chapter 5 (neural network basics) and Chapter 6 (PyTorch); Chapter 8 explains the attention mechanism that came before. Chapter 12 covers model families built on this architecture, Chapter 21 how they are served.
 
 ## Why it matters
 
@@ -31,7 +31,7 @@ A decoder-only language model (GPT, Llama, Claude-style models) turns a sequence
 4. Both sub-layers use **residual connections** (add the input back) and **normalisation**.
 5. After N blocks, a final linear layer maps each position's vector to scores over the vocabulary; softmax gives next-token probabilities.
 
-Training is next-token prediction with cross-entropy over trillions of tokens; generation samples one token at a time and feeds it back in (Chapter 14).
+Training is next-token prediction with cross-entropy over trillions of tokens; generation samples one token at a time and feeds it back in (Chapter 21).
 
 ## 10.2 Scaled dot-product attention
 
@@ -171,7 +171,7 @@ class SwiGLU(nn.Module):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 ```
 
-**Mixture of experts (MoE)** replaces the single FFN with many expert FFNs and a router that sends each token to a few of them, so total parameters grow while compute per token stays modest (Chapter 11).
+**Mixture of experts (MoE)** replaces the single FFN with many expert FFNs and a router that sends each token to a few of them, so total parameters grow while compute per token stays modest (Chapter 12).
 
 ## 10.7 Encoder, decoder and encoder-decoder
 
@@ -181,7 +181,7 @@ class SwiGLU(nn.Module):
 | Decoder-only | Causal (sees left only) | Next-token prediction | GPT family, Llama, Claude-style LLMs | Generation, chat, general-purpose LLMs |
 | Encoder-decoder | Encoder bidirectional, decoder causal with cross-attention | Span corruption, seq2seq | T5, BART, many translation models | Translation, summarisation, structured transformation |
 
-Decoder-only models won for general LLMs because one simple objective scales smoothly with data and compute, and every task can be phrased as text continuation. Encoders remain the efficient choice for classification and embeddings at high volume (Chapter 12).
+Decoder-only models won for general LLMs because one simple objective scales smoothly with data and compute, and every task can be phrased as text continuation. Encoders remain the efficient choice for classification and embeddings at high volume (Chapter 41).
 
 ## 10.8 Complexity and the KV cache
 
@@ -201,7 +201,7 @@ kv_cache_gb(32, 32, 128, 8192)   # ~4.3 GB per sequence with full multi-head att
 kv_cache_gb(32, 8, 128, 8192)    # ~1.1 GB with 8 KV heads (GQA): 4x more sequences per GPU
 ```
 
-That is why serving engines manage the cache in pages (vLLM's PagedAttention), quantise it, and why architectures cut KV heads (Chapter 14).
+That is why serving engines manage the cache in pages (vLLM's PagedAttention), quantise it, and why architectures cut KV heads (Chapter 21).
 
 ## 10.9 Attention variants
 
@@ -263,7 +263,7 @@ class MiniGPT(nn.Module):
 # loss = F.cross_entropy(model(xb).reshape(-1, vocab), yb.reshape(-1))
 ```
 
-The two phases in `generate`, **prefill** (process the whole prompt in parallel) and **decode** (one token at a time, memory-bound on reading weights and the cache), are the two phases you optimise when serving (Chapter 14).
+The two phases in `generate`, **prefill** (process the whole prompt in parallel) and **decode** (one token at a time, memory-bound on reading weights and the cache), are the two phases you optimise when serving (Chapter 21).
 
 ## Pitfalls
 

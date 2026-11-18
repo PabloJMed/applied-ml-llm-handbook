@@ -1,8 +1,10 @@
 # 8 · Embeddings and sequence models
 
+Part II · Deep learning and training dynamics.
+
 ## Why it matters
 
-Transformers did not appear from nowhere. Word embeddings taught the field that meaning can live in dense vectors; RNNs and LSTMs taught it how to read sequences; and attention was invented to fix a weakness of RNN encoder-decoders. Interviewers still ask about these because they reveal whether you understand *why* the transformer looks the way it does. In practice you will also meet them: fastText and word2vec-style item embeddings ("item2vec") are still common in recommendation, including the order-history models in Chapter 25, and small GRUs still run on-device and in streaming systems.
+Transformers did not appear from nowhere. Word embeddings taught the field that meaning can live in dense vectors; RNNs and LSTMs taught it how to read sequences; and attention was invented to fix a weakness of RNN encoder-decoders. Interviewers still ask about these because they reveal whether you understand *why* the transformer looks the way it does. In practice you will also meet them: fastText and word2vec-style item embeddings ("item2vec") are still common in recommendation, including the order-history models in Chapter 43, and small GRUs still run on-device and in streaming systems.
 
 Code below was run with PyTorch on CPU; quoted outputs are from that run.
 
@@ -63,7 +65,7 @@ The famous analogy result (king − man + woman ≈ queen) is real but cherry-pi
 - **GloVe** (Pennington et al., 2014) builds the global co-occurrence matrix X once, then fits vectors so that `w_i · w_j + b_i + b_j ≈ log X_ij`, with a weighting that caps very frequent pairs. Count-based and global, where word2vec is predictive and local; results are similar in practice.
 - **fastText** (Bojanowski et al., 2017) represents each word as the sum of its character n-gram vectors (3 to 6 characters, plus the whole word). It can build a vector for a word it never saw, and it handles typos and rich morphology well. That matters for Arabic and for transliterated, code-switched Arabizi ("shawarma", "shawerma", "shwarma"), and for user-typed menu items. The fastText library also gives a very fast linear text classifier, still a good first baseline.
 
-All three give **static** embeddings: one vector per word, whatever the context. "Bank" has the same vector in "river bank" and "bank account". Contextual embeddings from ELMo, then BERT (Chapter 11) fixed that.
+All three give **static** embeddings: one vector per word, whatever the context. "Bank" has the same vector in "river bank" and "bank account". Contextual embeddings from ELMo, then BERT (Chapter 12) fixed that.
 
 ## 8.4 Recurrent networks
 
@@ -78,7 +80,7 @@ The problem is training. Backpropagation through time multiplies by `W_h` (and t
 - `c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t`;
 - output gate `o_t`, and `h_t = o_t ⊙ tanh(c_t)`.
 
-Because `c_t` is a sum rather than a repeated matrix product, gradients can flow across many steps when the forget gate stays near 1 (the same idea as residual connections in Chapter 6). **GRU** (Cho et al., 2014) merges the gates into two (update and reset) and drops the separate cell: fewer parameters, usually similar accuracy.
+Because `c_t` is a sum rather than a repeated matrix product, gradients can flow across many steps when the forget gate stays near 1 (the same idea as residual connections in Chapter 5). **GRU** (Cho et al., 2014) merges the gates into two (update and reset) and drops the separate cell: fewer parameters, usually similar accuracy.
 
 ```python
 class LSTMClassifier(nn.Module):
@@ -125,7 +127,7 @@ class AdditiveAttention(nn.Module):
 
 **Luong attention** (2015) replaced the small network with a dot product `s · h_i` (or `sᵀ W` `h_i`): cheaper and just as good. Scaled dot-product attention in the transformer is that idea plus a `1/√d` scale, many heads, and, crucially, self-attention: every token attends to every other token in the same sequence. Once attention could do the job of recurrence, Vaswani et al. (2017) dropped recurrence entirely, which made training parallel across positions. Chapter 10 picks up from here.
 
-**Teacher forcing.** During training, the decoder is fed the true previous token rather than its own prediction. Fast and stable, but at inference the model sees its own mistakes, a mismatch called exposure bias. Decoding strategies (Chapter 14) and sequence-level training are the usual answers.
+**Teacher forcing.** During training, the decoder is fed the true previous token rather than its own prediction. Fast and stable, but at inference the model sees its own mistakes, a mismatch called exposure bias. Decoding strategies (Chapter 21) and sequence-level training are the usual answers.
 
 ## 8.6 Where these models still earn their place
 

@@ -1,5 +1,7 @@
 # 9 · Text and tokenisation
 
+Part III · Transformers and architectures.
+
 ## Why it matters
 
 Every LLM bill, context-window limit and many strange model failures trace back to the tokenizer. A model never sees letters: it sees integer ids from a fixed vocabulary chosen before pre-training. That choice decides how many tokens your Arabic menu costs, why the model cannot count the r's in "strawberry", why prices like "12.50 AED" are split oddly, and why a fine-tuned model breaks if you change the chat template. In a region where users mix Arabic, English and Arabizi ("3al fa7m") in one query, tokenisation and normalisation are real product questions, not trivia.
@@ -158,7 +160,7 @@ price_in = $0.50 / 1M, price_out = $1.50 / 1M
 Batch API at 50% off -> $230; cache the shared system prompt -> lower still.
 ```
 
-Levers, roughly in order of impact: a smaller model for the easy cases (cascade, Chapter 14), shorter prompts (move fixed instructions into a cached prefix), structured short outputs instead of prose, batch APIs for anything not latency-sensitive, and fewer calls (dedupe identical inputs). Combined, these levers often cut an offline LLM job's cost by 5–10×. If you have done this, have the before and after numbers ready and know which lever gave how much.
+Levers, roughly in order of impact: a smaller model for the easy cases (cascade, Chapter 21), shorter prompts (move fixed instructions into a cached prefix), structured short outputs instead of prose, batch APIs for anything not latency-sensitive, and fewer calls (dedupe identical inputs). Combined, these levers often cut an offline LLM job's cost by 5–10×. If you have done this, have the before and after numbers ready and know which lever gave how much.
 
 Count tokens with the model's own tokenizer (tiktoken for OpenAI models, the provider's token-count endpoint, or the Hugging Face tokenizer for open models). Character-based rules of thumb (about 4 English characters per token) do not hold for Arabic or code.
 

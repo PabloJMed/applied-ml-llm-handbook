@@ -1,118 +1,45 @@
-import numpy as np
-import pandas as pd
-from collections import Counter
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline, make_union
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, f1_score
-from sklearn.decomposition import LatentDirichletAllocation
+import torch, torch.nn as nn, torch.nn.functional as F, math
+torch.manual_seed(0)
+# Chinchilla arithmetic
+def chinchilla(C):
+    N = math.sqrt(C / (6 * 20)); D = 20 * N; return N, D
+for C in [1e21, 1e23, 1e24]:
+    N, D = chinchilla(C); print(f"C={C:.0e}: N={N/1e9:.1f}B params, D={D/1e9:.0f}B tokens")
+# Chinchilla loss fit (published constants, approx)
+def L(N, D, E=1.69, A=406.4, B=410.7, a=0.34, b=0.28): return E + A / N**a + B / D**b
+print(round(L(70e9, 1.4e12), 3), round(L(280e9, 300e9), 3))
 
-texts = [
-    "pizzeria napoli margherita calzone", "burger house cheeseburger fries", "sushi tokyo maki nigiri",
-    "farmacia central ibuprofeno paracetamol", "supermercado dia leche pan huevos", "kebab istanbul doner durum",
-    "pizza express pepperoni four cheese", "smash burgers bacon double", "ramen bar tonkotsu gyoza",
-    "parafarmacia crema solar vitaminas", "fruteria manzanas platanos", "pharmacy plus aspirin bandages",
-]
-labels = ["restaurant", "restaurant", "restaurant", "pharmacy", "grocery", "restaurant",
-          "restaurant", "restaurant", "restaurant", "pharmacy", "grocery", "pharmacy"]
-# Evaluate on names the model has never seen. (Duplicating the list before a random split
-# would put copies of training rows in the test set: the leakage Chapter 3.7 warns about.)
-X_tr, y_tr = texts, labels
-X_te = ["pizzeria roma diavola", "burger bros onion rings", "farmacia norte aspirina",
-        "supermercado eroski arroz aceite", "thai garden pad thai", "pharmacy express vitamins"]
-y_te = ["restaurant", "restaurant", "pharmacy", "grocery", "restaurant", "pharmacy"]
+# top-k MoE layer
+class MoE(nn.Module):
+    def __init__(self, d, n_exp=8, k=2, d_ff=64):
+        super().__init__()
+        self.router = nn.Linear(d, n_exp, bias=False); self.k = k
+        self.experts = nn.ModuleList([nn.Sequential(nn.Linear(d, d_ff), nn.GELU(), nn.Linear(d_ff, d)) for _ in range(n_exp)])
+    def forward(self, x):                       # x: (T, d) tokens
+        logits = self.router(x)                 # (T, E)
+        w, idx = logits.topk(self.k, dim=-1)    # (T, k)
+        w = w.softmax(-1)
+        out = torch.zeros_like(x)
+        for e, expert in enumerate(self.experts):
+            tok, slot = (idx == e).nonzero(as_tuple=True)
+            if tok.numel(): out[tok] += w[tok, slot, None] * expert(x[tok])
+        probs = logits.softmax(-1)              # load-balancing aux loss (Switch style)
+        frac = F.one_hot(idx[:, 0], len(self.experts)).float().mean(0)
+        aux = len(self.experts) * (frac * probs.mean(0)).sum()
+        return out, aux
+moe = MoE(16); y, aux = moe(torch.randn(32, 16)); print(y.shape, round(aux.item(), 3))
+tot = sum(p.numel() for p in moe.parameters()); act = sum(p.numel() for p in moe.experts[0].parameters()) * 2 + moe.router.weight.numel()
+print("total", tot, "active per token", act)
 
-clf = make_pipeline(
-    make_union(
-        TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True),
-        TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=1, sublinear_tf=True),
-    ),
-    LogisticRegression(max_iter=2000, class_weight="balanced"),
-)
-clf.fit(X_tr, y_tr)
-print(f1_score(y_te, clf.predict(X_te), average="macro"))
-print(clf.predict(["farmasi ibuprofen", "pizeria roma"]))
-proba = clf.predict_proba(["random shop name"])
-print(proba.max())
+# CLIP-style symmetric InfoNCE
+def clip_loss(img, txt, t=0.07):
+    img, txt = F.normalize(img, dim=-1), F.normalize(txt, dim=-1)
+    logits = img @ txt.T / t; labels = torch.arange(len(img))
+    return (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
+a = torch.randn(8, 32); print(round(clip_loss(a, a + 0.1 * torch.randn(8, 32)).item(), 4), round(clip_loss(a, torch.randn(8, 32)).item(), 3))
 
-# BIO decoding + entity F1
-def bio_to_spans(tags):
-    spans, start, label = [], None, None
-    for i, tag in enumerate(tags + ["O"]):
-        if tag.startswith("B-") or tag == "O" or (tag.startswith("I-") and tag[2:] != label):
-            if start is not None:
-                spans.append((start, i, label))
-                start, label = None, None
-            if tag.startswith("B-") or tag.startswith("I-"):
-                start, label = i, tag[2:]
-    return set(spans)
-
-def entity_f1(true_tags, pred_tags):
-    tp = fp = fn = 0
-    for t, p in zip(true_tags, pred_tags):
-        ts, ps = bio_to_spans(t), bio_to_spans(p)
-        tp += len(ts & ps); fp += len(ps - ts); fn += len(ts - ps)
-    prec = tp / (tp + fp) if tp + fp else 0.0
-    rec = tp / (tp + fn) if tp + fn else 0.0
-    return prec, rec, (2 * prec * rec / (prec + rec) if prec + rec else 0.0)
-
-tokens = ["Spicy", "chicken", "burger", "with", "vegan", "mayo", "330", "ml"]
-true = [["B-ATTR", "B-ING", "B-DISH", "O", "B-DIET", "B-ING", "B-SIZE", "I-SIZE"]]
-pred = [["B-ATTR", "B-DISH", "I-DISH", "O", "B-DIET", "B-ING", "B-SIZE", "I-SIZE"]]
-print(bio_to_spans(true[0]))
-print(entity_f1(true, pred))
-
-# LDA
-reviews = ["cold food arrived late", "courier was rude and late", "pizza was cold", "great sushi fresh fish",
-           "delivery late again", "fresh tasty sushi rolls", "packaging leaked sauce everywhere",
-           "sauce spilled bag wet", "rider friendly fast", "fast delivery hot food"] * 5
-cv = CountVectorizer(stop_words="english")
-Xc = cv.fit_transform(reviews)
-lda = LatentDirichletAllocation(n_components=3, random_state=0).fit(Xc)
-vocab = np.array(cv.get_feature_names_out())
-for k, comp in enumerate(lda.components_):
-    print(k, vocab[np.argsort(-comp)[:5]])
-
-# class-based TF-IDF for cluster labels (BERTopic idea)
-def c_tf_idf(docs, cluster_ids, top_n=5):
-    df = pd.DataFrame({"doc": docs, "c": cluster_ids})
-    joined = df.groupby("c")["doc"].apply(" ".join)        # one big document per cluster
-    cv = CountVectorizer(stop_words="english")
-    counts = cv.fit_transform(joined).toarray().astype(float)
-    tf = counts / counts.sum(axis=1, keepdims=True)
-    avg_words = counts.sum() / len(joined)
-    idf = np.log(1 + avg_words / counts.sum(axis=0))
-    scores = tf * idf
-    vocab = cv.get_feature_names_out()
-    return {c: [vocab[i] for i in np.argsort(-row)[:top_n]] for c, row in zip(joined.index, scores)}
-clusters = [0, 0, 0, 1, 0, 1, 2, 2, 3, 3] * 5
-print(c_tf_idf(reviews, clusters))
-
-# ROUGE
-def rouge_n(candidate, reference, n=1):
-    grams = lambda t: Counter(tuple(t[i:i + n]) for i in range(len(t) - n + 1))
-    c, r = grams(candidate.lower().split()), grams(reference.lower().split())
-    overlap = sum((c & r).values())
-    prec = overlap / max(sum(c.values()), 1)
-    rec = overlap / max(sum(r.values()), 1)
-    return 2 * prec * rec / (prec + rec) if prec + rec else 0.0
-
-def lcs_len(a, b):
-    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
-    for i in range(1, len(a) + 1):
-        for j in range(1, len(b) + 1):
-            dp[i][j] = dp[i-1][j-1] + 1 if a[i-1] == b[j-1] else max(dp[i-1][j], dp[i][j-1])
-    return dp[-1][-1]
-
-def rouge_l(candidate, reference):
-    c, r = candidate.lower().split(), reference.lower().split()
-    lcs = lcs_len(c, r)
-    prec, rec = lcs / max(len(c), 1), lcs / max(len(r), 1)
-    return 2 * prec * rec / (prec + rec) if prec + rec else 0.0
-
-ref = "customers praise the fresh sushi but complain about late delivery"
-good = "reviews like the fresh sushi but say delivery is often late"
-wrong = "customers praise the late delivery but complain about the fresh sushi"
-for name, cand in [("faithful paraphrase", good), ("meaning reversed", wrong)]:
-    print(name, round(rouge_n(cand, ref, 1), 2), round(rouge_n(cand, ref, 2), 2), round(rouge_l(cand, ref), 2))
+# mean pooling with mask
+def mean_pool(h, mask):
+    m = mask.unsqueeze(-1).float(); return (h * m).sum(1) / m.sum(1).clamp(min=1e-9)
+h = torch.randn(2, 5, 4); mask = torch.tensor([[1,1,1,0,0],[1,1,1,1,1]])
+print(torch.allclose(mean_pool(h, mask)[0], h[0, :3].mean(0)))
