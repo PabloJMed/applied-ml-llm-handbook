@@ -144,3 +144,45 @@ caches = [{} for _ in model.blocks]
 model(seq[:, :19], caches); inc = model(seq[:, 19:], caches, start=19)[:, -1]
 print("cache match", torch.allclose(full, inc, atol=1e-5))
 print("".join(itos[i] for i in model.generate(data[:10].unsqueeze(0), 40, top_k=5)[0].tolist()))
+
+# ---- second-edition additions ------------------------------------------------------------
+import numpy as np
+
+# 10.2 worked example: one query attending over three keys
+K3 = np.array([[1.0, 0.0], [0.0, 2.0], [1.0, 1.0]])      # keys for "the", "order", "late"
+V3 = np.array([[1.0, 0.0], [0.0, 1.0], [0.5, 0.5]])
+q = np.array([0.0, 1.5])                                  # query for "it"
+scores = K3 @ q
+scaled = scores / np.sqrt(2)
+w = np.exp(scaled - scaled.max()); w /= w.sum()
+print("worked example: scores", scores.round(3).tolist(), "scaled", scaled.round(3).tolist(),
+      "weights", w.round(3).tolist(), "output", (w @ V3).round(3).tolist())
+
+# 10.9 tiled attention with an online softmax (the FlashAttention idea) equals ordinary attention
+def tiled_attention(Q, K, V, tile=4):
+    T, d = Q.shape
+    out = np.zeros_like(Q); m = np.full(T, -np.inf); l = np.zeros(T)
+    for s in range(0, K.shape[0], tile):
+        Kt, Vt = K[s:s + tile], V[s:s + tile]
+        S = Q @ Kt.T / np.sqrt(d)                          # scores for this tile only
+        m_new = np.maximum(m, S.max(1))
+        scale = np.exp(m - m_new)                          # rescale what we accumulated so far
+        P = np.exp(S - m_new[:, None])
+        l = l * scale + P.sum(1)
+        out = out * scale[:, None] + P @ Vt
+        m = m_new
+    return out / l[:, None]
+rng = np.random.default_rng(0)
+Qr, Kr, Vr = rng.standard_normal((6, 8)), rng.standard_normal((16, 8)), rng.standard_normal((16, 8))
+S = Qr @ Kr.T / np.sqrt(8); P = np.exp(S - S.max(1, keepdims=True)); P /= P.sum(1, keepdims=True)
+print("tiled online-softmax attention == full attention:", np.allclose(tiled_attention(Qr, Kr, Vr), P @ Vr))
+
+# 10.1 parameter count of an 8B-shaped decoder (vocab 128,256, d 4,096, 32 layers, 32 query / 8 KV heads, FFN 14,336)
+vocab, dm, L, kvh, hd, ff = 128256, 4096, 32, 8, 128, 14336
+emb = vocab * dm
+attn = L * (dm * dm + dm * kvh * hd * 2 + dm * dm)        # Wq, Wk, Wv (GQA), Wo
+ffn = L * 3 * dm * ff                                      # SwiGLU: gate, up, down
+norms = L * 2 * dm + dm
+total = 2 * emb + attn + ffn + norms                       # untied input and output embeddings
+print(f"8B-shaped decoder: embeddings 2 x {emb/1e9:.2f}B, attention {attn/1e9:.2f}B, FFN {ffn/1e9:.2f}B, total {total/1e9:.2f}B")
+print(f"forward FLOPs per token ~ 2 x params = {2*total/1e9:.1f} GFLOPs; weights in bf16 {2*total/1e9:.1f} GB")

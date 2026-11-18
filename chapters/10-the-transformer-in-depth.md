@@ -33,18 +33,51 @@ A decoder-only language model (GPT, Llama, Claude-style models) turns a sequence
 
 Training is next-token prediction with cross-entropy over trillions of tokens; generation samples one token at a time and feeds it back in (Chapter 21).
 
+**Following one token through a real-sized model.** Abstract boxes hide the numbers that matter, so take an 8B-parameter model shaped like Llama 3 8B: a vocabulary of 128,256 tokens, model width d = 4,096, 32 layers, 32 query heads and 8 key–value heads of dimension 128, and a SwiGLU feed-forward block of width 14,336.
+
+1. The token id (say 9,821 for " order") selects row 9,821 of the embedding matrix: a vector of 4,096 numbers. Nothing else happens at the input; the embedding matrix is a lookup table.
+2. In each of the 32 layers, that vector is normalised, projected to a query (32 heads × 128 = 4,096 numbers), a key and a value (8 heads × 128 = 1,024 numbers each), rotated by RoPE, and compared with the keys of every earlier token. The weighted mix of values is projected back to 4,096 numbers and **added** to the token's vector.
+3. The vector is normalised again, expanded to 14,336 numbers by two projections, gated, projected back to 4,096 and added again.
+4. After layer 32, a final normalisation and the output matrix (4,096 × 128,256) give one score per vocabulary token.
+
+The vector that flows through this process, and that every sub-layer reads from and adds to, is called the **residual stream**. It is the single most useful mental model of a transformer: layers do not replace the representation, they write increments into it, and later layers can read anything earlier layers wrote (Chapter 26 builds interpretability on this view).
+
+![Diagram](images/10-fig-5.png)
+
+*Parameter count by component, computed in `code/ch10_check.py`. The feed-forward blocks hold 70% of the parameters; attention holds 17%.*
+
+Two rules of thumb fall out of this count. A forward pass costs about **2 FLOPs per parameter per token** (one multiply and one add for each weight), so about 16 GFLOPs per generated token for this model, plus attention over the context. And the weights alone take **2 bytes per parameter in bf16**: 16 GB, before any memory for the context (10.8).
+
 ## 10.2 Scaled dot-product attention
 
 **Intuition.** Each position asks a question (its **query**), every position advertises what it contains (its **key**), and carries content to share (its **value**). A position's output is a weighted average of all values, with weights from how well its query matches each key. "it" in "the order arrived late because it was stuck" can attend strongly to "order".
+
+A useful analogy is a **soft dictionary lookup**. A Python dictionary returns the value whose key matches the query exactly. Attention returns a blend of *all* values, weighted by how well each key matches, and the matching is learned: the model chooses, through its projection matrices, what "matching" means in each head. Because the blend is differentiable, gradient descent can learn which questions to ask and which content to advertise.
+
+**A worked example.** Take a two-dimensional head and three earlier tokens, "the", "order" and "late", with keys (1, 0), (0, 2) and (1, 1) and values (1, 0), (0, 1) and (0.5, 0.5). The token "it" produces the query (0, 1.5).
+
+| Step | "the" | "order" | "late" |
+|---|---|---|---|
+| Score q·k | 0.000 | 3.000 | 1.500 |
+| Scaled by 1/√2 | 0.000 | 2.121 | 1.061 |
+| Softmax weight | 0.082 | 0.682 | 0.236 |
+
+The output is 0.082 × (1, 0) + 0.682 × (0, 1) + 0.236 × (0.5, 0.5) = (0.2, 0.8): mostly the value of "order", with a little of the others. Nothing in the mechanism knows about grammar; the projections that produced these queries and keys were learned because routing information this way reduced the training loss.
 
 **Maths.** With Q, K, V matrices (one row per position, created by learned linear projections of the input):
 
 `Attention(Q, K, V) = softmax(Q Kᵀ / √dₖ + M) V`
 
 - Q Kᵀ gives every pair's similarity: a T × T matrix.
-- **Dividing by √dₖ:** dot products of random dₖ-dimensional vectors have variance about dₖ; without scaling, large scores push softmax into saturation where gradients vanish.
+- **Dividing by √dₖ:** if the entries of q and k have unit variance, their dot product is a sum of dₖ terms of unit variance, so it has variance dₖ and standard deviation √dₖ. Without scaling, wider heads produce larger scores, softmax saturates (nearly all weight on one key), and its gradients vanish. Dividing by √dₖ keeps the scores at unit scale whatever the head size. The figure below measures it with random vectors and 64 keys.
 - **M is the mask:** −∞ above the diagonal in a decoder (causal mask), so position t cannot see future positions; padding positions are masked too.
 - Softmax turns each row into weights summing to 1; multiplying by V mixes the values.
+
+![Diagram](images/10-fig-1.png)
+
+*Average weight on the single best-matching key among 64, for random queries and keys. Unscaled, a 128-dimensional head puts 86% of its attention on one key; scaled, about 11% at every width.*
+
+**Masks in practice.** The causal mask sets every score above the diagonal to −∞ before the softmax, so exp(−∞) = 0 weight. Batches of different-length sequences also need a **padding mask** so real tokens never attend to padding. Two implementation details cause real bugs: use −∞ (or a very large negative number), never 0, since a score of 0 still gets weight; and a row whose positions are *all* masked produces 0/0 = NaN, which appears with left-padding at the start of a sequence and must be handled explicitly.
 
 ```python
 import numpy as np
@@ -69,6 +102,14 @@ out, weights = attention(Q, K, V, causal)              # row 1 has weights only 
 ## 10.3 Multi-head attention
 
 One attention pattern cannot capture everything (syntax, coreference, position, topic). Multi-head attention runs h attention operations in parallel on smaller projections (d_model / h dimensions each), concatenates the results, and mixes them with an output projection. Same cost as one big head; much more expressive.
+
+**The shapes.** For a batch of B sequences of T tokens with width d and h heads: the input is (B, T, d); the query projection produces (B, T, d), reshaped to (B, h, T, d/h) so each head works on its own slice; scores are (B, h, T, T); the weighted values are (B, h, T, d/h), reshaped back to (B, T, d) and mixed by the output projection Wₒ. The four projection matrices hold 4d² parameters per layer (fewer with grouped-query attention, which shrinks Wₖ and Wᵥ).
+
+**What heads learn.** Trained heads specialise, and some patterns recur across models. The figure shows two heads from a tiny two-layer model trained in `code/ch26_check.py` to continue repeated random sequences. A **previous-token head** in layer 0 attends to the position just before each query: it copies "what came before me" into each token's residual stream. An **induction head** in layer 1 uses that information: when the current token appeared earlier, it attends to the token that *followed* the earlier occurrence and predicts it again. Together they implement in-context copying, [A][B] … [A] → [B], and circuits like this appear in large models too, where their formation coincides with a jump in in-context learning (Chapter 26).
+
+![Diagram](images/10-fig-2.png)
+
+*Attention weights on a sequence whose positions 2–11 are repeated at 12–21 (darker = more weight). Left: each query attends to the position before it. Right: in the second copy, each query attends to the position after its earlier occurrence; before the repeat, the head parks its attention on the first token, an "attention sink" (10.11).*
 
 The module below also supports **grouped-query attention** (fewer key/value heads than query heads, 10.9) and a **KV cache** for generation (10.8):
 
@@ -142,6 +183,16 @@ def rope(x, base=10000.0):
 
 (This uses the "half split" pairing used by Llama-style code; the original paper pairs adjacent dimensions. Both are equivalent up to a permutation.)
 
+**Why rotation encodes relative position.** Take one pair of dimensions and treat it as a 2-D vector. RoPE rotates the query at position m by angle mθ and the key at position n by nθ. A rotation by angle a is a matrix R(a) with R(a)ᵀ = R(−a) and R(a)R(b) = R(a + b), so
+
+(R(mθ) q) · (R(nθ) k) = qᵀ R(mθ)ᵀ R(nθ) k = qᵀ R((n − m)θ) k.
+
+The score depends on the positions only through n − m. Each pair uses a different frequency θᵢ = base^(−2i/d), like the hands of a clock: the first pairs spin fast and distinguish neighbouring tokens; the last pairs turn so slowly that they separate only very distant positions. The figure shows the resulting wavelengths, which is also the key to extending context (10.11).
+
+![Diagram](images/10-fig-3.png)
+
+*Wavelength (tokens per full turn) of each of the 64 rotation pairs of a 128-dimensional head. With base 10,000 the slowest pairs complete less than a turn within 4k tokens; position interpolation stretches every pair by 8×, NTK-aware scaling stretches mostly the slow ones.*
+
 ## 10.5 Residual connections and normalisation
 
 **Residuals** (x + sublayer(x)) give gradients a direct path through deep stacks and let each layer learn a small correction instead of a whole transformation. Without them, deep transformers do not train.
@@ -153,11 +204,20 @@ def rope(x, base=10000.0):
 
 **RMSNorm** (Llama and most current models) drops the mean-centring and bias, dividing only by the root mean square: cheaper, and works as well.
 
+```python
+def rms_norm(x, weight, eps=1e-6):
+    return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps) * weight
+```
+
+**Why pre-norm is more stable.** With pre-norm, the output of layer L is x₀ + f₁(·) + f₂(·) + … + f_L(·): the input reaches the top through a chain of additions, and the gradient reaches the bottom the same way, untouched by any normalisation. With post-norm, every layer's output passes through a normalisation, so the gradient to early layers is rescaled L times, which makes deep post-norm models sensitive to the learning rate early in training (hence their long warm-ups). The price of pre-norm is that the residual stream grows with depth, so later layers' contributions are relatively smaller; a final normalisation before the output head, careful initialisation of output projections (Chapter 7) and, in some models, extra normalisation of queries and keys (QK-norm) handle this.
+
 ## 10.6 The feed-forward block and SwiGLU
 
-Each block's MLP is applied to every position independently, usually expanding to about 4× the model width and back. It holds roughly two-thirds of a model's parameters and is thought to store much of its factual knowledge.
+Each block's MLP is applied to every position independently, usually expanding to about 4× the model width and back. It holds roughly two-thirds of a model's parameters (70% in the 8B example above) and is thought to store much of its factual knowledge.
 
-Modern LLMs use **gated** variants. SwiGLU multiplies a SiLU-activated projection by a second linear projection, element-wise, before projecting back (hidden size is reduced to about 8/3 × d to keep the parameter count equal):
+**A key–value memory view.** Write the FFN as W₂ · σ(W₁ x). Each row of W₁ is a pattern ("key") that the input is compared with; σ turns the match into an activation; each column of W₂ is a vector ("value") added to the residual stream in proportion to that activation. Attention moves information *between* positions; the FFN looks up and writes information *at* each position. Experiments that edit individual FFN weights to change a stored fact (Chapter 26) rely on this picture.
+
+Modern LLMs use **gated** variants. SwiGLU multiplies a SiLU-activated projection by a second linear projection, element-wise, before projecting back. The gate lets each hidden unit's output depend on the product of two learned features of the input, a richer function than a single activation, and it consistently gives lower loss at equal compute. It has three matrices instead of two, so the hidden size is reduced to about 8/3 × d to keep the parameter count equal: 3 × d × (8/3)d = 8d², the same as 2 × d × 4d. (Llama 3 8B rounds 8/3 × 4,096 ≈ 10,923 up to 14,336, a slightly larger FFN than the matched size.)
 
 ```python
 class SwiGLU(nn.Module):
@@ -187,6 +247,8 @@ Decoder-only models won for general LLMs because one simple objective scales smo
 
 **Cost per layer** for a sequence of T tokens with width d: attention is O(T²·d) (every pair of positions) and the feed-forward block O(T·d²). For short sequences the FFN dominates; for long ones attention does, and attention memory grows with T² unless computed in tiles (FlashAttention).
 
+**Prefill versus decode, with numbers.** For the 8B model, processing a 2,000-token prompt (prefill) costs about 2 × 8 × 10⁹ × 2,000 = 3.2 × 10¹³ FLOPs of matrix multiplication, done in large parallel matmuls that keep a GPU's arithmetic units busy. Generating each following token costs only about 1.6 × 10¹⁰ FLOPs, but it must read all 16 GB of weights (and the cache) from memory to do so: about one FLOP per byte read. A GPU that performs around 1,000 TFLOP/s but reads memory at around 3 TB/s needs roughly 300 FLOPs per byte to stay busy, so single-sequence decoding uses a fraction of a percent of its arithmetic. Decoding is **memory-bound**; this is why batching many sequences together (each weight read then serves every sequence in the batch), quantisation and speculative decoding matter so much (Chapter 21).
+
 **Generation and the KV cache.** A model generates one token at a time. Without caching, each new token would recompute keys and values for the whole prefix. The KV cache stores every layer's past keys and values, so each step only computes the new token's query, key and value and attends over the cache. In the mini-GPT below, logits from a cached incremental step match a full forward pass exactly.
 
 The cache's memory is often the bottleneck of LLM serving:
@@ -203,6 +265,10 @@ kv_cache_gb(32, 8, 128, 8192)    # ~1.1 GB with 8 KV heads (GQA): 4x more sequen
 
 That is why serving engines manage the cache in pages (vLLM's PagedAttention), quantise it, and why architectures cut KV heads (Chapter 21).
 
+![Diagram](images/10-fig-4.png)
+
+*KV-cache memory for one sequence of an 8B-shaped model (32 layers, head dimension 128, bf16). With full multi-head attention a 128k-token context needs 69 GB, four times the model's own weights; grouped-query attention with 8 KV heads cuts it to 17 GB.*
+
 ## 10.9 Attention variants
 
 | Variant | Idea | Why |
@@ -213,6 +279,24 @@ That is why serving engines manage the cache in pages (vLLM's PagedAttention), q
 | Sliding-window attention | Each token attends only to the last w tokens | Linear cost; information still flows across layers; often mixed with some global layers |
 | Sparse and linear attention, state-space models | Restrict or approximate attention, or replace it with recurrent state (Mamba-style) | Very long sequences; hybrids are an active research area |
 | Multi-head latent attention (MLA) | Compress keys and values into a small latent vector cached per token (DeepSeek) | Very small KV cache |
+
+**How FlashAttention can be exact.** Attention seems to need the whole row of scores before the softmax, because the normaliser Σ exp(sⱼ) runs over every key. The trick is an **online softmax**: process keys in tiles, keep for each query a running maximum m, a running normaliser l and a running weighted sum of values, and whenever a new tile raises the maximum, rescale what has been accumulated by exp(m_old − m_new). At the end, dividing by l gives exactly the same result as the full softmax, but the T × T matrix never exists in slow GPU memory: each tile is computed, used and discarded in fast on-chip memory. The algorithm does slightly more arithmetic and far less memory traffic, which is the scarce resource.
+
+```python
+def tiled_attention(Q, K, V, tile=4):
+    T, d = Q.shape
+    out = np.zeros_like(Q); m = np.full(T, -np.inf); l = np.zeros(T)
+    for s in range(0, K.shape[0], tile):
+        S = Q @ K[s:s + tile].T / np.sqrt(d)          # scores for this tile only
+        m_new = np.maximum(m, S.max(1))
+        scale = np.exp(m - m_new)                     # rescale the running sums
+        P = np.exp(S - m_new[:, None])
+        l = l * scale + P.sum(1)
+        out = out * scale[:, None] + P @ V[s:s + tile]
+        m = m_new
+    return out / l[:, None]
+# equals softmax(QKᵀ/√d)V to floating-point precision (checked in code/ch10_check.py)
+```
 
 ## 10.10 A mini-GPT from scratch
 
@@ -292,7 +376,7 @@ Context extension also needs data (real long documents, not just concatenated sh
 
 ## Interview questions
 
-Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
+Questions 1–5 basic, 6–11 intermediate, 12–17 senior.
 
 **1. Explain self-attention.** Each position computes a query, key and value by linear projections; attention weights are the softmax of scaled query-key dot products; each output is the weighted sum of values. It lets every token gather information from relevant tokens anywhere in the (allowed) context.
 
@@ -324,6 +408,10 @@ Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
 
 **15. Walk me through what happens when an LLM generates one token.** The new token is embedded; in each layer, it is normalised, projected to Q, K, V (RoPE on Q, K), K and V appended to the cache, attention computed over the cache, added to the residual, then the FFN; after the last layer, normalisation and the output projection give logits; sampling (temperature, top-p) picks the token.
 
+**16. How many parameters does a decoder have, roughly, and where are they?** Per layer about 4d² for attention (less with GQA) and 8d² for a SwiGLU FFN of matched size, so about 12d² per layer, plus 2 × vocabulary × d for untied embeddings. For d = 4,096, 32 layers and a 128k vocabulary: about 8B, 70% in the FFNs.
+
+**17. Explain the online softmax behind FlashAttention.** Keep a running maximum, normaliser and weighted value sum per query; when a tile raises the maximum, rescale the accumulated sums by exp(m_old − m_new); divide at the end. The result is exact, and only one tile of scores exists at a time.
+
 ## Practice
 
 1. **Attention from scratch** in NumPy with a causal mask, then in PyTorch; compare with `F.scaled_dot_product_attention` (`is_causal=True`).
@@ -333,6 +421,8 @@ Questions 1–5 basic, 6–11 intermediate, 12–15 senior.
 5. **KV cache:** confirm cached and uncached generation give identical logits; time both for 200 tokens.
 6. **Karpathy's "Let's build GPT"** video and nanoGPT repository: follow along, then rebuild without looking.
 7. **Memory maths:** compute KV-cache and weight memory for three open models from their config files.
+8. **Online softmax:** implement `tiled_attention` for a causal mask (skip tiles entirely above the diagonal) and check it against `F.scaled_dot_product_attention`.
+9. **Research exercise:** train the mini-GPT with and without the 1/√d scaling at head dimensions 16, 64 and 256 (three seeds each) and plot the training loss after 500 steps. Does the unscaled version fail more as heads get wider, as 10-fig-1 predicts?
 
 ## Read next
 
