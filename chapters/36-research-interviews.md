@@ -151,6 +151,38 @@ Research roles vary enormously in what you actually do. Ask:
 - What is the publication policy?
 - How is impact evaluated at performance reviews?
 
+## 36.8 A worked paper discussion: DPO
+
+The interviewer asks you to discuss *Direct Preference Optimization* (Rafailov et al., 2023), which you were told to read beforehand. A strong 15-minute discussion has five parts.
+
+1. **The claim in two sentences.** RLHF's KL-regularised reward maximisation has a closed-form optimal policy. So the reward can be written in terms of that policy and the reference model, and the preference likelihood can be optimised directly with a classification-style loss. This replaces reward-model training and PPO with one supervised objective that is simpler, more stable and cheaper.
+2. **The key step.**
+   - The optimal policy is π*(y|x) ∝ π_ref(y|x) exp(r(x, y)/β). Inverting it gives r = β log(π*/π_ref) + β log Z(x).
+   - Under the Bradley–Terry model only reward differences between two responses to the same prompt matter, so log Z cancels.
+   - Write out the loss (Chapter 18) and explain what the gradient does: it raises the chosen response's likelihood relative to the reference, lowers the rejected one's, and weights each pair by how wrong the implicit reward currently is.
+3. **The evidence and its limits.**
+   - Experiments: controlled sentiment generation, summarisation and single-turn dialogue.
+   - Models: up to a few billion parameters.
+   - Evaluation: largely GPT-4 win rates against references or PPO.
+   - Questions to raise: the judge's biases (length, position); the scale; the fact that preference data was collected offline from other policies; and how well PPO baselines were tuned.
+4. **What later work found.**
+   - Because the data are offline, DPO can lower the likelihood of both chosen and rejected responses.
+   - It can exploit length.
+   - It can overfit when preferences are nearly deterministic, which motivated IPO and other variants.
+   - Online or iterative DPO, with fresh samples from the current policy, often closes much of the gap to online RL.
+   - Reference-free variants (SimPO) change the implicit reward.
+   - Mention one or two with what each changes, not a list of names.
+5. **Your own follow-up.** Propose one experiment. For example: at matched preference data and compute, compare offline DPO, iterative DPO and PPO at two scales, with length-controlled win rates and a held-out human evaluation, to separate the effect of on-policy data from the effect of the objective.
+
+**What interviewers listen for:**
+
+- **Precise mathematics.** Can you derive the loss, not only name it?
+- **Evidence-weighing.** Do you separate what the paper shows from what it claims?
+- **Awareness of later work.** Do you know what came after, and why?
+- **A testable follow-up.** Do you propose an experiment, not just an opinion?
+
+Prepare three papers to this depth in your area. Include one you disagree with: explaining a disagreement precisely is one of the strongest signals in a research loop.
+
 ## Pitfalls
 
 - Answering a design question with a single "with vs without" experiment.

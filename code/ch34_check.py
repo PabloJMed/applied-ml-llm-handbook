@@ -49,3 +49,10 @@ def run(seed):
     w = torch.randn(64, 64); x = torch.randn(32, 64)
     return (x @ w).relu().sum().item()
 print("same seed twice:", run(1) == run(1), " different seed:", run(1) == run(2))
+
+# 34.11 budget of the worked curriculum study: 3 sizes at 20 tokens/param, 2 arms x 3 seeds, 40% MFU on 989 TFLOP/s
+sizes = (125e6, 350e6, 760e6)
+per_set = sum(6 * n * 20 * n for n in sizes)
+total = per_set * 6
+print("FLOPs per set of sizes %.2e; total %.2e = %.0f GPU-hours" % (per_set, total, total / (0.4 * 989e12) / 3600))
+print("largest single run: %.1f GPU-hours" % (6 * 760e6 * 20 * 760e6 / (0.4 * 989e12) / 3600))

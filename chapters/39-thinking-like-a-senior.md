@@ -113,6 +113,32 @@ Seniority in research looks different from seniority in product engineering:
 - **Connecting research to decisions**: knowing which results would change what the lab trains next, and prioritising those.
 - **Compute stewardship**: spending large runs only after small-scale evidence justifies them.
 
+## 39.9 A worked scoping conversation
+
+**Request from a product director:** "Can we add an AI assistant to the merchant app by next quarter? Competitors have one."
+
+A junior answer starts estimating how long it takes to build a chatbot. A senior answer turns the request into a decision.
+
+1. **Find the problem.** Ask what merchants would use it for, and what metric should move.
+   - Suppose the answer is that support tickets from merchants cost €1.2M a year.
+   - 60% of them are about three topics: payouts, menu changes and promotion set-up.
+   - The goal is fewer tickets and faster resolution, not "having AI".
+2. **Offer options with costs and risks.**
+
+   | Option | What it does | Effort | Main risk |
+   |---|---|---|---|
+   | A. Better help content and in-app forms for the three topics | Merchants fix things themselves | 4–6 weeks, no ML | Does not handle unusual cases |
+   | B. RAG assistant over help articles and policies | Answers questions with citations | 8–10 weeks | Wrong answers about payouts are costly; needs evaluation and guardrails |
+   | C. Agent that can change menus and promotions | Takes actions for the merchant | A quarter or more | Permissions, errors that change real listings, abuse |
+
+3. **Recommend and say why.** Do A now, because a large part of the volume is form-shaped. Run B in parallel as a pilot for payouts questions only, where the documentation is good, measured by the deflection rate and the wrong-answer rate on an evaluation set built from past tickets. Defer C until B shows that merchants trust the assistant, and build it with tools that have server-side limits (Chapter 33).
+4. **State what would change the plan.**
+   - If the pilot's wrong-answer rate on payouts cannot get below an agreed threshold (say 2%), keep B internal as a tool for support agents rather than shipping it to merchants.
+   - If A alone removes most of the volume, B's business case shrinks.
+5. **Write it down.** A one-page proposal: the problem with its numbers, the options table, the recommendation, the metrics with targets, the evaluation plan, and the date of the first decision review.
+
+The director asked for an assistant and receives a plan that is more likely to reduce tickets by next quarter. It still includes an assistant, scoped to where it can be shown to work. That is what "scoping and saying no" (39.3) looks like in practice: saying yes to the goal, and choosing the means deliberately.
+
 ## Pitfalls
 
 - Treating "senior" as "knows more algorithms".

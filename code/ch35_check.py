@@ -167,3 +167,31 @@ def grpo_loss(logp_new, logp_old, rewards, mask, eps_lo=0.2, eps_hi=0.28):
 G, T = 4, 5
 lp_old = -torch.rand(G, T); lp_new = lp_old + 0.05 * torch.randn(G, T)
 print("GRPO loss (toy):", round(grpo_loss(lp_new, lp_old, torch.tensor([1., 0., 1., 0.]), torch.ones(G, T)).item(), 4))
+
+# 35.10 ROC-AUC from scratch (rank / Mann-Whitney form, ties get average ranks)
+import numpy as np
+def roc_auc(y_true, scores):
+    y = np.asarray(y_true); s = np.asarray(scores, dtype=float)
+    n_pos, n_neg = int((y == 1).sum()), int((y == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        raise ValueError("AUC needs both classes")
+    order = np.argsort(s, kind="mergesort"); s_sorted = s[order]
+    ranks = np.empty(len(s)); i = 0
+    while i < len(s):                                    # average ranks over tied scores
+        j = i
+        while j + 1 < len(s) and s_sorted[j + 1] == s_sorted[i]:
+            j += 1
+        ranks[order[i:j + 1]] = (i + j) / 2 + 1
+        i = j + 1
+    return (ranks[y == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+
+def roc_auc_pairs(y, s):                                 # O(n^2) definition, for testing
+    pos = [b for a, b in zip(y, s) if a == 1]; neg = [b for a, b in zip(y, s) if a == 0]
+    return sum((p > q) + 0.5 * (p == q) for p in pos for q in neg) / (len(pos) * len(neg))
+
+from sklearn.metrics import roc_auc_score
+rng = np.random.default_rng(0); y = rng.integers(0, 2, 500); s = np.round(rng.random(500) + 0.3 * y, 1)   # many ties
+assert abs(roc_auc(y, s) - roc_auc_score(y, s)) < 1e-12 and abs(roc_auc(y, s) - roc_auc_pairs(y, s)) < 1e-12
+assert roc_auc([0, 0, 1, 1], [0.1, 0.2, 0.8, 0.9]) == 1.0 and roc_auc([0, 0, 1, 1], [0.9, 0.8, 0.2, 0.1]) == 0.0
+assert roc_auc([0, 1, 0, 1], [0.5, 0.5, 0.5, 0.5]) == 0.5
+print("35.10 roc_auc matches sklearn and the pairwise definition: %.4f" % roc_auc(y, s))

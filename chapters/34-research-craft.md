@@ -109,6 +109,12 @@ Training runs differ by seed: initialisation, data order, dropout, non-determini
 
 When the effect is comparable to the noise, a handful of seeds cannot establish it. Options: reduce the noise (larger evaluation sets, continuous metrics such as loss, paired evaluation on the same items, Chapter 23), increase the effect (test at a scale where it is larger), or run many seeds of cheap configurations. At minimum, run 2–3 seeds of the baseline once to know the noise floor of your setup.
 
+![Diagram](images/34-fig-1.png)
+
+*Power of a one-sided t-test at 5% to detect a true gain, by seeds per arm, for gains of 1.5, 0.75 and 0.375 times the seed-to-seed standard deviation. The middle curve is the table's case (a 0.3-point gain with 0.4-point noise): about 23 seeds per arm reach 80% power.*
+
+The curve gives a planning rule. Measure the seed noise first, then express the effect you care about in units of it. Effects above about 1.5 standard deviations are visible with 5–7 seeds per arm. Effects below about 0.75 need either many cheap runs or a less noisy measurement.
+
 **Winner's curse.** In a sweep of 12 configurations that are all equally good, with evaluation noise of 0.5 points, the best observed score averages 70.81 against a true 70.00. Re-running the winner regresses to 70.00. Always confirm a sweep's winner with fresh seeds before reporting it, and report the sweep, not only its maximum.
 
 **Report**: means and intervals over seeds, the number of seeds, and all configurations tried.
@@ -164,6 +170,31 @@ Figures: label axes with units, show intervals, use the same scale for compared 
 - Report all configurations and seeds, not the best ones; report failed replications.
 - Never adjust evaluations after seeing results to make a method look better; if you must change the evaluation, re-run every method.
 - Share code and data where you can; reproducibility is a service to the field and to your future self.
+
+## 34.11 A worked project: does a data curriculum help?
+
+**Question.** Does ordering pretraining data from easy to hard (by a quality-classifier score, say) lower the final loss at a fixed token budget? The answer feeds a decision about the data loader for next quarter's runs.
+
+1. **Read first.** Prior results on curricula for language-model pretraining are mixed. Benefits often appear early in training and shrink by the end, and some vanish once the learning-rate schedule is tuned. So the prior is a small effect, and the design must be able to see one.
+2. **Choose the metrics.**
+   - Primary: final loss on a fixed held-out set of 50M tokens from the target distribution. Loss is continuous and low-noise, so it suits small effects.
+   - Secondary: five benchmarks, reported with intervals and not used for the decision unless they agree with the loss.
+3. **Reproduce the baseline.** The random-order baseline at 125M parameters must match the team's known loss curve within seed noise before anything else is run.
+4. **Measure the noise.** Run three baseline seeds at 125M. Suppose the final loss varies with a standard deviation of 0.003 nats. An effect of 0.005 nats is then 1.7 standard deviations: by the curve above, 5–6 seeds per arm give good power, 3 give about 50%.
+5. **Design with a control for the obvious confound.**
+   - A curriculum changes not only the order but also which data the model sees during the final learning-rate decay. Add a third arm that keeps random order but places the hardest data in the last 10% of tokens.
+   - If that arm matches the full curriculum, the effect comes from the end of training (an annealing effect, Chapter 16), not from ordering.
+6. **Budget.**
+   - Use three sizes (125M, 350M, 760M) at 20 tokens per parameter, with 3 seeds each. Two arms cost 5.2 × 10²⁰ FLOPs, about 360 GPU-hours at 40% MFU; the third arm brings it to about 540.
+   - The largest single run takes about 49 GPU-hours, so the whole study fits in a week on a small cluster.
+7. **Set the kill criteria in advance.** Stop if the 125M difference is below one seed standard deviation and the 350M difference is smaller still. A shrinking effect with scale is the most common outcome and is a result worth reporting.
+8. **Write it up.**
+   - Loss against compute for each arm and size.
+   - The effect with intervals at each size, and the fitted trend.
+   - The control arm's result.
+   - A one-paragraph recommendation that names its scope ("up to 760M parameters and 15B tokens").
+
+The plan takes a page and about an hour to write. It will save weeks of runs that could not have answered the question.
 
 ## Pitfalls
 

@@ -1062,6 +1062,21 @@ def ch33():
     ax.set_title("Resending the history makes agent cost grow quadratically")
     save(fig, "33-fig-1.png")
 
+def ch34():
+    from scipy import stats
+    n = np.arange(2, 31)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for es, c, ls in ((1.5, S3, DASH[2]), (0.75, S1, DASH[0]), (0.375, S2, DASH[1])):
+        df = 2 * n - 2; nc = es * np.sqrt(n / 2); tc = stats.t.ppf(0.95, df)
+        pw = 1 - stats.nct.cdf(tc, df, nc)                     # one-sided, as in code/ch34_check.py
+        ax.plot(n, pw, color=c, ls=ls, label=f"true gain = {es:g} × seed std")
+        print(f"effect {es}: power at 3 seeds {pw[1]:.2f}, 5 seeds {pw[3]:.2f}, 10 seeds {pw[8]:.2f}; seeds for 80%: {n[np.argmax(pw >= 0.8)] if (pw >= 0.8).any() else '>30'}")
+    ax.axhline(0.8, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(30, 0.82, "80% power", color=INK2, fontsize=7.5, ha="right")
+    ax.legend(fontsize=7.5, loc="center right", bbox_to_anchor=(1, 0.45)); ax.set_xlim(2, 30); ax.set_ylim(0, 1.02)
+    ax.set_xlabel("seeds per arm"); ax.set_ylabel("power (one-sided t-test, 5%)")
+    ax.set_title("Effects smaller than the seed noise need many seeds")
+    save(fig, "34-fig-1.png")
+
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]
     for ch in wanted:

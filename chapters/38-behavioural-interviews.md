@@ -162,6 +162,41 @@ Research-scientist loops add questions that applied loops rarely ask. Prepare a 
 
 Research stories still follow STAR, but the "Result" should include what you learned about doing research, not just the outcome.
 
+## 38.9 A worked answer, before and after
+
+**Question:** "Tell me about a time you disagreed with a teammate."
+
+**Before (a typical first draft):**
+
+> "We had a disagreement about which model to use. My colleague wanted a deep learning model and I thought gradient boosting was better. We discussed it and in the end we went with my approach, and it worked well. I think communication is really important."
+
+What is wrong with it:
+
+- There is no situation or stakes, and no description of the disagreement's substance.
+- The resolution is "we discussed it".
+- There is no number, and no sign of how the candidate treated the colleague's view.
+- The lesson is a platitude.
+
+**After:**
+
+> **S:** "Our team was replacing the delivery-time estimate shown at checkout. Late deliveries against the promise drove about a third of complaints."
+>
+> **T:** "I owned the model. A senior colleague owned the serving system and preferred a sequence model over recent courier pings. I thought gradient boosting on aggregated features would be as accurate and much easier to run."
+>
+> **A:** "Instead of arguing, I proposed we agree on the test first: p90 error on two weeks of held-out orders, sliced by city and by peak hours, plus serving latency. I built the boosting model, and helped my colleague get the sequence model onto the same evaluation. The sequence model was 4% better on p90 error overall, but only at peak hours in the two biggest cities, and it doubled serving cost. We agreed on a hybrid: boosting everywhere, with the sequence model's prediction as a feature at peak hours in those cities. The data pipeline it needed was my colleague's idea, and it was better than either of our starting positions."
+>
+> **R:** "p90 error fell 11% against the old system, late-against-promise complaints fell 18% over the next quarter, and serving cost rose 15% instead of 100%. The lesson I took: when two people disagree about a method, agree on the evaluation first; the argument usually gets smaller or disappears."
+
+Why it works:
+
+- It names a real trade-off: accuracy against cost and complexity.
+- It shows the candidate changing the frame from opinions to a shared test.
+- It credits the colleague specifically.
+- The outcome is quantified.
+- The lesson is concrete enough to be reused, so it gives the interviewer something to ask about next.
+
+It also takes under three minutes to say. Practise it aloud with a timer.
+
 ## Pitfalls
 
 - **"We" all the way through,** so the interviewer cannot tell what you did.

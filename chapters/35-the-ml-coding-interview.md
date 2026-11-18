@@ -293,6 +293,45 @@ def grpo_loss(logp_new, logp_old, rewards, mask, eps_lo=0.2, eps_hi=0.28):
 
 Interviewers probe the details: why subtract the max, what happens at p = 1, how beam search handles finished sequences and length bias, why the GRPO loss uses a token-level mean and asymmetric clipping (Chapter 19).
 
+## 35.10 A worked question: ROC-AUC from scratch in 15 minutes
+
+**Prompt:** "Implement ROC-AUC without scikit-learn."
+
+1. **Clarify (1 minute).**
+   - Are the labels 0 and 1? Can scores tie? What should happen if only one class is present?
+   - Answers: 0/1 labels; ties possible; raise an error for a single class.
+2. **Example (1 minute).** Labels [0, 0, 1, 1] with scores [0.1, 0.2, 0.8, 0.9] give 1.0. Reversed scores give 0.0. All-equal scores give 0.5.
+3. **Plan (1 minute).** "AUC is the probability that a random positive scores above a random negative, with ties counting half. The pairwise definition is O(n²); the rank form is O(n log n): sort, give tied scores their average rank, then AUC = (sum of positive ranks − n₊(n₊ + 1)/2) / (n₊ n₋)."
+4. **Code (8 minutes).**
+
+```python
+import numpy as np
+
+def roc_auc(y_true, scores):
+    y = np.asarray(y_true); s = np.asarray(scores, dtype=float)
+    n_pos, n_neg = int((y == 1).sum()), int((y == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        raise ValueError("AUC needs both classes")
+    order = np.argsort(s, kind="mergesort"); s_sorted = s[order]
+    ranks = np.empty(len(s)); i = 0
+    while i < len(s):                                    # average ranks over tied scores
+        j = i
+        while j + 1 < len(s) and s_sorted[j + 1] == s_sorted[i]:
+            j += 1
+        ranks[order[i:j + 1]] = (i + j) / 2 + 1
+        i = j + 1
+    return (ranks[y == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+```
+
+5. **Test (3 minutes).** Run the three hand examples. Then compare with a brute-force pairwise version on random data with many ties. The check script does both and also matches scikit-learn to 12 decimal places.
+6. **Discuss (1 minute).**
+   - Complexity is dominated by the sort.
+   - For data too large to sort in memory, bin the scores into a histogram per class and sum over bins. This is exact if the scores are already discrete, approximate otherwise, and it parallelises in Spark or SQL.
+   - For weighted samples, replace counts with sums of weights.
+   - AUC ignores calibration and class balance, so report it with a precision–recall view when positives are rare (Chapter 4).
+
+What earns the points is the order of the steps: confirming the tie and single-class behaviour, stating the probabilistic meaning, choosing the O(n log n) method deliberately, and testing against a definition. A correct but untested one-liner earns less.
+
 ## Pitfalls
 
 - **Coding before clarifying.**
