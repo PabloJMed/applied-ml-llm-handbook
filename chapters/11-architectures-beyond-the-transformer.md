@@ -51,6 +51,12 @@ class MoE(nn.Module):
 
 **Auxiliary-loss-free balancing** (used in DeepSeek-V3) adds a per-expert bias to the router scores *only for choosing* the top k, not for weighting outputs. After each step, overloaded experts' biases go down and underloaded ones go up. In the check script, a router with a built-in preference starts with expert loads between 0.009 and 0.350 and ends, after 200 updates, between 0.123 and 0.127, with no gradient interference in the main loss.
 
+![Diagram](images/11-fig-1.png)
+
+*Share of routed tokens per expert (top 2 of 8) for a router with built-in preferences, before and after 200 bias updates. The dashed line is perfectly uniform load.*
+
+**Why balance matters for systems as well as quality.** With expert parallelism (Chapter 17), each expert lives on a different GPU, and every MoE layer waits for the slowest GPU. If one expert receives 35% of the tokens while the average is 12.5%, its GPU does almost three times the work and the other seven GPUs wait: the layer runs at the speed of the hottest expert. Balancing is therefore a throughput requirement as much as a training-quality one.
+
 **The modern design space** (DeepSeekMoE onwards, and most large open models since):
 
 - **Fine-grained experts**: many small experts (64–384) rather than 8 large ones, with more of them active (top 6–8). More combinations of specialists per token.
@@ -96,7 +102,13 @@ That is an RNN with a matrix-valued state: constant memory per token at inferenc
 - **The delta rule (DeltaNet, Gated DeltaNet).** Before writing value v for key k, subtract what the state currently returns for k: S ← S + β k (v − kᵀS)ᵀ. It overwrites rather than accumulates; with a gate it can also forget. In the same test it returns exactly the newest value ([0, 3, 0, 0]).
 - **RWKV and xLSTM** are recurrent architectures in the same family with their own gating designs.
 
+**A worked recall example.** Write three associations into the state: key 0 → value 2, key 1 → value 3, then key 0 → value 1 (an update). With the additive rule the state for key 0 holds both values: querying it returns [0, 3, 3, 0] (scaled one-hot codes for "2" and "1" mixed). With the delta rule, the second write first subtracts what the state already returned for key 0, so the query returns [0, 3, 0, 0]: only the newest value, as a key–value store should. This is the single most important idea in modern linear recurrences: a fixed-size memory is only useful if it can overwrite.
+
 **Where they stand.** Recurrent layers match transformers on perplexity at moderate scale and are far cheaper at long context: the recurrent state below is 0.03 GB regardless of length, against an attention KV cache that reaches 137 GB at a million tokens for an 8B-shaped model. Their weakness is **exact recall from long context**: copying, retrieving a specific fact from far back, multi-hop lookups. Benchmarks for associative recall and needle retrieval separate them clearly from attention. That weakness is why the field converged on hybrids.
+
+![Diagram](images/11-fig-2.png)
+
+*Memory per sequence for a 32-layer, 8B-shaped model in bf16. Full attention grows linearly to 137 GB at a million tokens; a hybrid with one attention layer in four needs a quarter of that; pure recurrent layers stay at 0.03 GB.*
 
 ## 11.5 Hybrid models
 
@@ -144,6 +156,17 @@ Most "X beats the transformer" claims dissolve under these checks:
 | Recall and long-context tasks, not only perplexity | Recurrent models hide their weakness in perplexity |
 | Wall-clock and memory on real hardware | Linear in theory is not fast without kernels |
 | Seeds and confidence intervals (Chapter 23) | Small differences are often noise |
+
+## 11.9 A worked design: a long-context model on a fixed budget
+
+Suppose you must serve an 8B-scale assistant with 256k-token contexts on GPUs with 80 GB of memory, at 16 concurrent sequences per GPU. Work through the options with the numbers from this chapter and Chapter 10.
+
+- **Dense transformer with GQA-8.** Weights take 16 GB in bf16. The KV cache is 2 × 32 layers × 8 heads × 128 × 2 bytes = 131 KB per token, so 256k tokens is 34 GB per sequence. Sixteen sequences need 550 GB: impossible on one GPU; even one sequence leaves little room. You would need cache quantisation, multi-GPU serving, or far fewer concurrent users.
+- **MLA instead of GQA.** With a 512 + 64 latent per token per layer, the cache is 32 × 576 × 2 bytes = 37 KB per token, about 9.7 GB per 256k-token sequence. Two to six sequences fit next to the weights, depending on the activation headroom you keep.
+- **Hybrid 1:3 (one attention layer in four, the rest Gated DeltaNet).** Only 8 layers keep a KV cache: 33 KB per token with GQA-8, 8.6 GB per sequence, plus a fixed recurrent state of a few megabytes per layer. Combined with MLA in the attention layers the cache falls to about 2.4 GB per sequence, and sixteen sequences fit.
+- **Sliding-window attention (4k window) in most layers** bounds those layers' cache at 4k tokens regardless of context, at the price of relying on the few global layers for long-range retrieval.
+
+The arithmetic narrows the space; it does not decide it. The hybrid and sliding-window designs must then pass the recall and long-context evaluations of 11.8 at the target length, because the memory they save comes precisely from the information they no longer store exactly. A responsible recommendation states both: "the hybrid fits sixteen users per GPU; it loses 3 points on multi-needle retrieval at 256k against the dense baseline; here is whether that matters for our use case".
 
 ## Pitfalls
 

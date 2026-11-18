@@ -56,3 +56,23 @@ tok.train_from_iterator(texts, trainer)
 for t in ["chicken shawarma", "شاورما دجاج", "shawerma 3al fa7m"]:
     e = tok.encode(t); print(t, len(e.ids), e.tokens[:8])
 print(len("شاورما دجاج".encode("utf-8")), len("chicken shawarma".encode("utf-8")))
+
+# ---- second-edition worked example: the first BPE merges with their pair counts --------------
+import collections as _c
+words = ("low lower lowest newer newest wider widest " * 5 + "order ordered ordering reorder reordered " * 8).split()
+vocab = _c.Counter(tuple(w) + ("</w>",) for w in words)
+for step in range(4):
+    pairs = _c.Counter()
+    for sym, f in vocab.items():
+        for a, b in zip(sym, sym[1:]): pairs[(a, b)] += f
+    best, cnt = pairs.most_common(1)[0]
+    runner = pairs.most_common(3)[1:]
+    print(f"merge {step+1}: {best} count {cnt}; next best {runner}")
+    new = _c.Counter()
+    for sym, f in vocab.items():
+        out, i = [], 0
+        while i < len(sym):
+            if i < len(sym) - 1 and (sym[i], sym[i + 1]) == best: out.append(sym[i] + sym[i + 1]); i += 2
+            else: out.append(sym[i]); i += 1
+        new[tuple(out)] += f
+    vocab = new

@@ -61,6 +61,12 @@ These constants give exponents of 0.45 and 0.55 and tokens-per-parameter ratios 
 
 ## 13.4 Fitting scaling laws in practice
 
+![Diagram](images/13-fig-1.png)
+
+*IsoFLOP curves from the parametric fit: for each compute budget, loss against model size, with tokens set by D = C/6N. Each curve has a minimum (the dots); the dotted line through them is the compute-optimal frontier.*
+
+**Why the curves are U-shaped.** At fixed compute, a model that is too small runs out of capacity: it has seen plenty of data but cannot represent more. A model that is too large is starved of data: with D = C/6N, every extra parameter means fewer training tokens, and it stops before learning what its size allows. The minimum balances the two error terms A/N^α and B/D^β, and because both are power laws, the location of the minimum moves along a straight line on log–log axes as compute grows.
+
 **Method 1: IsoFLOP profiles.** Pick 5–10 compute budgets. At each, train 5–10 model sizes, choosing tokens so that 6ND equals the budget. Each budget gives a U-shaped curve of loss against log N; fit a parabola and take its minimum. Then fit a line through (log C, log N_opt). On synthetic runs generated from the formula with 0.3% noise, the check script recovers the exponent (0.45) and extrapolates N_opt at 1e23 FLOPs to 14.1B against a true 14.6B: two orders of magnitude beyond the largest budget, about 4% off.
 
 **Method 2: fit the parametric form directly** on all runs, minimising a robust (Huber) loss between predicted and observed log-loss, from several initialisations. The check script recovers E = 1.70, α = 0.34, β = 0.28 from 36 noisy runs.
@@ -86,6 +92,10 @@ Target: the loss of the compute-optimal 1e23 model (2.005).
 | 1e12 | 10.9B | 1.58T | 145 |
 | 1e13 | 6.1B | 3.77T | 617 |
 | 1e14 | 3.6B | 14.3T | 4,014 |
+
+![Diagram](images/13-fig-2.png)
+
+*The best model size for a fixed target loss (that of the compute-optimal 1e23-FLOP model) as expected lifetime inference grows. Each annotation gives the size and the tokens per parameter of the cheapest option at that volume.*
 
 This is why current small open models are trained on 15–40T tokens, hundreds to thousands of tokens per parameter. Their loss keeps improving with more data, just more slowly than a compute-optimal allocation would give, and the extra training cost is repaid in serving. Data supply, not compute, becomes the limit.
 
@@ -123,7 +133,11 @@ Loss scales smoothly; benchmark accuracy often does not. Wei et al. (2022) docum
 |---|---|---|---|---|---|---|
 | Exact match, 10-token answer | 0.001 | 0.012 | 0.083 | 0.197 | 0.434 | 0.904 |
 
-A smooth improvement looks like a sudden jump. With continuous metrics (per-token log-likelihood of the correct answer, Brier score) the same tasks usually improve smoothly.
+A smooth improvement looks like a sudden jump.
+
+![Diagram](images/13-fig-3.png)
+
+*If per-token accuracy improves linearly with scale, a 10-token exact-match score stays near zero until per-token accuracy passes about 0.8, then shoots up.* With continuous metrics (per-token log-likelihood of the correct answer, Brier score) the same tasks usually improve smoothly.
 
 Practical ways to **predict downstream performance**: fit task accuracy as a sigmoid of the pretraining loss (or of the loss on the task's correct answers) across a ladder of small models, then extrapolate along the loss law. Several labs use such "model ladders" to forecast benchmark scores before a large run, with errors of a few points on stable benchmarks. Some abilities still arrive abruptly (multi-step tasks, tasks needing a capability that only exists above some loss), so forecasts come with wide intervals.
 
@@ -143,6 +157,19 @@ Coverage grows fast, but turning coverage into accuracy needs a way to pick the 
 **Compute-optimal inference.** Snell et al. (2024) showed that for some problems, spending more inference compute on a smaller model beats a model 10× larger; the best strategy (parallel sampling, sequential revision, search) depends on problem difficulty. Reasoning models trained with RL (Chapter 19) learn to spend inference compute themselves, and their accuracy rises roughly linearly in the logarithm of the thinking budget over a wide range.
 
 The full cost picture now has three terms: pretraining, post-training (increasingly large RL runs) and inference. Deciding where the next unit of compute goes is the scaling question of this period.
+
+## 13.10 A worked scaling study
+
+Suppose you want to know whether a new data mixture improves models at the scale you will train next (about 1e23 FLOPs), and you can spend about 6% of that budget on the study.
+
+1. **Choose the ladder.** Four model sizes spaced roughly 2.5× apart (150M, 400M, 1B, 2.5B) and, for each, three token budgets around the compute-optimal point (half, equal and double). That is 12 runs per mixture, 24 for the comparison.
+2. **Cost it.** At 6ND FLOPs with about 20 tokens per parameter, the largest runs dominate: a 2.5B model on 50B tokens is 7.5e20 FLOPs, about 530 GPU-hours at 40% MFU on a 989-TFLOP/s GPU. With the half, equal and double token budgets, the ladder costs about 3e21 FLOPs per mixture, 6e21 for both: about 6% of the target run.
+3. **Control the recipe.** Same tokenizer, architecture, schedule shape (WSD, decayed at each budget, Chapter 7) and learning rates tuned or transferred with µP. Fully decay every point.
+4. **Fit and compare.** Fit L(N, D) separately for each mixture. A mixture that is genuinely better shifts the whole surface down; a mixture that only helps small models shows a shallower slope and crosses the baseline before 1e23. Report the predicted loss at the target scale with an interval from bootstrapping over runs.
+5. **Validate.** Hold out the largest runs from the fit and check that the fit predicts them; if it does not, do not extrapolate further.
+6. **Check downstream.** Fit task accuracy against loss on the same ladder (13.8) for the two or three benchmarks that matter, to see whether the loss gain translates.
+
+The output is a sentence a lab can act on: "mixture B lowers predicted loss at 1e23 FLOPs by 0.02 ± 0.006, equivalent to about 1.3× compute; downstream gains are significant on maths and flat on knowledge".
 
 ## Pitfalls
 

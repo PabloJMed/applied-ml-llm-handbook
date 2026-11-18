@@ -29,6 +29,8 @@ Part III · Transformers and architectures.
 
 **Encoder-decoder: T5, BART, mT5, Flan-T5.** The encoder reads the input bidirectionally; the decoder generates with causal self-attention plus cross-attention to the encoder. T5 framed every task as text-to-text ("translate English to German: …", "sst2 sentence: …") and used span corruption as the objective. Strong for translation and summarisation at small sizes; less common now at the frontier.
 
+**What each objective teaches.** Masked language modelling gives every position information from both sides, so its representations are excellent for understanding a fixed text, but the model never learns to produce text left to right. In BERT, 15% of tokens are selected; of those, 80% are replaced by `[MASK]`, 10% by a random token and 10% left unchanged, so the model cannot learn that only `[MASK]` positions matter (the mask token never appears at fine-tuning time). Next-token prediction uses only the left context, which makes every position a training example (no 85% of positions wasted) and makes generation the native operation. Span corruption (T5) hides whole spans and asks the decoder to write them out, a middle ground suited to input-to-output tasks.
+
 ## 12.2 Sentence transformers
 
 A vanilla BERT `[CLS]` vector is a poor sentence embedding. Sentence-BERT (Reimers and Gurevych, 2019) fixed this by fine-tuning a siamese encoder so that cosine similarity of pooled outputs matches semantic similarity, later with contrastive losses on large pair datasets (E5, GTE, BGE and the multilingual variants). Pooling is usually the masked mean:
@@ -38,6 +40,8 @@ def mean_pool(h, mask):              # h: (B, T, d) last hidden states, mask: (B
     m = mask.unsqueeze(-1).float()
     return (h * m).sum(1) / m.sum(1).clamp(min=1e-9)
 ```
+
+**Why `[CLS]` is a poor sentence vector out of the box.** Pretraining never asked the `[CLS]` position to summarise meaning in a way that makes cosine similarity meaningful (next-sentence prediction was a weak signal, and RoBERTa dropped it). Raw BERT representations are also strongly anisotropic: all sentences point in similar directions, so cosines cluster near the top of the range and say little. Mean pooling over tokens is more robust, and contrastive fine-tuning (Chapter 29) is what turns any of them into a usable similarity space.
 
 Bi-encoder (embed separately, compare with a dot product, indexable) vs cross-encoder (feed both texts together, much more accurate, not indexable) is the key retrieval trade-off; Chapters 29–30 go deep.
 
@@ -116,6 +120,14 @@ Same compute, four times fewer parameters, lower loss: Gopher was undertrained. 
 
 ## 12.6 Small vs large: choosing a model
 
+**The arithmetic first.** A forward pass costs about 2 FLOPs per parameter per token. Classifying a 64-token text costs about 14 GFLOPs with BERT-base (110M parameters), 1,024 GFLOPs with an 8B LLM and 8,960 GFLOPs with a 70B model:
+
+![Diagram](images/12-fig-1.png)
+
+*Forward-pass compute per 64-token request, 2 × parameters × tokens (the LLMs would also generate at least one output token).*
+
+At 20,000 requests per second, the BERT-base option needs about 0.3 PFLOP/s of sustained compute, a handful of GPUs; the 70B option needs about 180 PFLOP/s, hundreds of GPUs. The right question is never "which model is best?" but "which is the smallest model that meets the quality bar on my evaluation set, at my volume and latency?". The usual pattern is to prototype with a large model, measure, then distil or fine-tune a small one for the volume path (Chapters 19 and 41).
+
 | Situation | Usually the right first choice |
 |---|---|
 | Fixed labels, high volume, tight latency (query intent, review tagging) | Fine-tuned encoder (DeBERTa, XLM-R) or a small LLM distilled from a large one |
@@ -130,6 +142,22 @@ The path most teams follow: prototype with a large API model, measure on a label
 ## 12.7 Where to go deeper
 
 This chapter is the overview. For the modern mixture-of-experts design space (many fine-grained experts with top-8 routing, shared experts, auxiliary-loss-free balancing) and other architecture changes, see Chapter 11; most leading open-weight models released since 2024 are MoEs, and the "top-1 or top-2 of 8 experts" design described in 12.3 is the earlier, Mixtral-era version. For scaling laws in depth (derivations, fitting, inference-aware over-training, data constraints, test-time compute), see Chapter 13. For multimodal models beyond CLIP, see Chapter 14.
+
+## 12.8 Reading a model card
+
+Every model release comes with a card or report. Read it for these facts, in this order, before you read any benchmark table:
+
+| Item | Why it matters | Where it bites |
+|---|---|---|
+| Architecture and size: dense or MoE, total and active parameters | Memory comes from total, speed from active | A "30B" MoE may need the memory of a 30B dense model and run like a 3B one |
+| Context length, and how it was reached (native vs extended) | Extended contexts often degrade before the advertised limit | Long-document products |
+| Tokenizer and vocabulary size | Cost and quality per language (Chapter 9) | Multilingual products |
+| Training tokens and data description | Indicates over-training, knowledge cut-off, domain coverage | Freshness, niche domains |
+| Post-training: instruction-tuned, reasoning, safety tuning | Decides default behaviour and refusal patterns | Agents, sensitive domains |
+| Licence and acceptable-use terms | Whether you can ship it, and fine-tune or distil from it | Every commercial use |
+| Evaluation setup: prompts, shots, decoding, contamination checks | Without it, numbers are not comparable (Chapter 23) | Model selection |
+
+Then run the candidate on 100–300 of your own examples. Public benchmarks rank models on average tasks; your evaluation set ranks them on yours, and the two orders often differ.
 
 ## Pitfalls
 

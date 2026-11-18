@@ -571,6 +571,139 @@ def ch08():
     print(f"gradient after 20 steps: RNN {(g_rnn/g_rnn[0])[20]:.1e}, LSTM {(g_lstm/g_lstm[0])[20]:.1e}")
     save(fig, "08-fig-1.png")
 
+# ---------------------------------------------------------------------------------------------
+def ch09():
+    from tokenizers import Tokenizer, models, trainers, pre_tokenizers
+    text = "\n".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "chapters").glob("*.md")))
+    lines = [l for l in text.split("\n") if l.strip() and not l.startswith("```")]
+    train, test = lines[: int(len(lines) * 0.9)], lines[int(len(lines) * 0.9):]
+    sizes = [300, 1000, 2000, 4000, 8000, 16000, 32000]; cpt = []
+    for v in sizes:
+        tok = Tokenizer(models.BPE()); tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+        tok.train_from_iterator(train, trainers.BpeTrainer(vocab_size=v, initial_alphabet=pre_tokenizers.ByteLevel.alphabet(), show_progress=False))
+        n_tok = sum(len(tok.encode(l).ids) for l in test); n_chr = sum(len(l) for l in test)
+        cpt.append(n_chr / n_tok)
+    fig, axes = plt.subplots(1, 2, figsize=(W, 2.2))
+    axes[0].plot(sizes, cpt, color=S1, marker="o", ms=3); axes[0].set_xscale("log")
+    for x, y in zip(sizes, cpt):
+        if x in (300, 4000, 32000): axes[0].annotate(f"{y:.2f}", (x, y), xytext=(0, 6), textcoords="offset points", ha="center", color=INK2, fontsize=7.5)
+    axes[0].set_ylim(1, 4.6); axes[0].set_xlabel("vocabulary size"); axes[0].set_ylabel("characters per token"); axes[0].set_title("Compression: diminishing returns")
+    emb = [2 * v * 4096 / 1e6 for v in sizes]
+    axes[1].plot(sizes, emb, color=S2, ls=DASH[1], marker="o", ms=3); axes[1].set_xscale("log")
+    axes[1].set_xlabel("vocabulary size"); axes[1].set_ylabel("embedding + output params (M)"); axes[1].set_title("Cost: linear in vocabulary (d = 4,096)")
+    fig.tight_layout(w_pad=2); save(fig, "09-fig-1.png")
+    print("chars/token by vocab:", dict(zip(sizes, [round(c, 2) for c in cpt])))
+
+
+def ch11():
+    rng = np.random.default_rng(0)
+    # 11-fig-1: expert load before and after auxiliary-loss-free balancing (same simulation as code/ch11_check.py idea)
+    n = 8; scores = rng.standard_normal((4096, n)) + np.array([1.5, 1.0, 0.5, 0, 0, 0, -0.5, -1.0])
+    bias = np.zeros(n); loads = []
+    for step in range(200):
+        top = np.argsort(-(scores + bias), axis=1)[:, :2]
+        load = np.bincount(top.ravel(), minlength=n) / top.size
+        if step == 0: loads.append(load)
+        bias -= 0.01 * np.sign(load - 1 / n)
+    loads.append(load)
+    fig, axes = plt.subplots(1, 2, figsize=(W, 2.1), sharey=True)
+    for ax, l, t in ((axes[0], loads[0], "Before: router prefers a few experts"), (axes[1], loads[1], "After 200 bias updates")):
+        ax.bar(range(1, n + 1), l, color=S1, width=0.6); ax.axhline(1 / n, color=S2, lw=0.9, ls=DASH[1])
+        ax.set_title(t); ax.set_xlabel("expert"); ax.set_xticks(range(1, n + 1)); ax.grid(axis="x", visible=False)
+    axes[0].set_ylabel("share of routed tokens"); axes[1].text(8.4, 1 / n, "uniform", color=INK2, fontsize=7.5, va="center")
+    fig.tight_layout(w_pad=1.5); save(fig, "11-fig-1.png")
+
+    # 11-fig-2: memory per sequence vs context: full attention (GQA) vs recurrent state vs a 1:3 hybrid
+    T = np.linspace(0, 1_048_576, 300); L, kvh, hd = 32, 8, 128
+    att = 2 * 2 * L * kvh * hd * T / 1e9
+    state = np.full_like(T, 2 * L * 32 * 128 * 128 / 1e9)
+    hybrid = att / 4 + state * 3 / 4
+    fig, ax = plt.subplots(figsize=(W, 2.3))
+    for y, c, ls, lab in ((att, S2, DASH[1], "all attention layers (GQA-8)"), (hybrid, S1, DASH[0], "hybrid: 1 attention layer in 4"),
+                          (state, S3, DASH[2], "all recurrent layers (fixed state)")):
+        ax.plot(T / 1024, y, color=c, ls=ls); label_end(ax, 1024, y[-1], f"{lab}: {y[-1]:.0f} GB" if y[-1] > 1 else f"{lab}: {y[-1]:.2f} GB", c)
+    ax.set_xlim(0, 1700); ax.set_xticks([0, 256, 512, 768, 1024])
+    ax.set_xlabel("context length (thousands of tokens)"); ax.set_ylabel("memory per sequence (GB)")
+    ax.set_title("Why hybrids: the cache shrinks with the share of attention layers")
+    save(fig, "11-fig-2.png")
+
+
+def ch12():
+    models_ = [("BERT-base encoder\n110M", 110e6), ("BERT-large encoder\n340M", 340e6), ("8B LLM", 8e9), ("70B LLM", 70e9)]
+    tokens = 64
+    flops = [2 * p * tokens for _, p in models_]
+    fig, ax = plt.subplots(figsize=(W, 2.0))
+    names = [m[0] for m in models_][::-1]; vals = [f_ / 1e9 for f_ in flops][::-1]
+    ax.barh(names, vals, color=S1, height=0.55); ax.set_xscale("log")
+    for y, v in enumerate(vals):
+        ax.text(v * 1.15, y, f"{v:,.0f} GFLOPs" if v >= 10 else f"{v:.1f} GFLOPs", va="center", color=INK2, fontsize=8)
+    ax.set_xlim(5, 3e5); ax.grid(axis="y", visible=False); ax.set_xlabel("compute per 64-token classification (log scale)")
+    ax.set_title("Classifying one short text: about 640× more compute for a 70B LLM than BERT-base")
+    save(fig, "12-fig-1.png")
+
+
+def ch13():
+    E, A, B, al, be = 1.69, 406.4, 410.7, 0.34, 0.28
+    Lf = lambda N, D: E + A / N ** al + B / D ** be
+    # 13-fig-1: IsoFLOP curves
+    fig, ax = plt.subplots(figsize=(W, 2.5)); mins = []
+    for C, c, ls in ((1e19, S3, DASH[2]), (1e21, S2, DASH[1]), (1e23, S1, DASH[0])):
+        Ns = np.logspace(7, 12, 300); Ls = Lf(Ns, C / (6 * Ns)); k = int(np.argmin(Ls)); mins.append((Ns[k], Ls[k]))
+        ax.plot(Ns, Ls, color=c, ls=ls); ax.annotate(f"C = {C:.0e} FLOPs", (Ns[k], Ls[k]), xytext=(0, 9), textcoords="offset points", ha="center", color=INK2, fontsize=7.5)
+    mx, my = zip(*mins); ax.plot(mx, my, color=INK2, lw=0.8, ls=":", marker="o", ms=3.5)
+    ax.text(1.2e7, 3.72, "dotted: compute-optimal size\nfor each budget", color=INK2, fontsize=7.5)
+    ax.set_xscale("log"); ax.set_ylim(1.8, 4.0); ax.set_xlabel("model parameters N (tokens D = C / 6N)"); ax.set_ylabel("predicted loss")
+    ax.set_title("IsoFLOP curves: at fixed compute, too small and too big both lose")
+    save(fig, "13-fig-1.png")
+
+    # 13-fig-2: best model size as lifetime inference grows (same calculation as code/ch13_check.py)
+    G = (al * A / (be * B)) ** (1 / (al + be)); N0 = G * (1e23 / 6) ** (be / (al + be)); target = Lf(N0, 1e23 / (6 * N0))
+    infs = np.logspace(10, 14.5, 40); bestN, ratio = [], []
+    for I in infs:
+        Ns = np.logspace(9.3, 11, 600); ok = target - E - A / Ns ** al > 0; Ns = Ns[ok]
+        D = (B / (target - E - A / Ns ** al)) ** (1 / be); cost = 6 * Ns * D + 2 * Ns * I
+        k = int(np.argmin(cost)); bestN.append(Ns[k] / 1e9); ratio.append(D[k] / Ns[k])
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(infs, bestN, color=S1)
+    for I in (1e12, 1e13, 1e14):
+        k = int(np.argmin(abs(infs - I))); ax.annotate(f"{bestN[k]:.1f}B params,\n{ratio[k]:,.0f} tokens/param", (infs[k], bestN[k]), xytext=(6, 6),
+                                                          textcoords="offset points", ha="left", color=INK2, fontsize=7)
+    ax.set_xscale("log"); ax.set_ylim(0, 19); ax.set_xlabel("lifetime inference tokens"); ax.set_ylabel("best model size (B)")
+    ax.set_title("Same target loss: more serving means a smaller model trained longer")
+    save(fig, "13-fig-2.png")
+
+    # 13-fig-3: smooth per-token gains look like sudden emergence under exact match
+    p = np.linspace(0.3, 0.995, 200)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(p, p, color=S1); ax.plot(p, p ** 10, color=S2, ls=DASH[1])
+    ax.annotate("per-token accuracy", (0.55, 0.55), xytext=(-6, 8), textcoords="offset points", ha="right", color=INK2, fontsize=8)
+    ax.annotate("exact match, 10-token answer", (0.85, 0.85 ** 10), xytext=(-8, 6), textcoords="offset points", ha="right", color=INK2, fontsize=8)
+    ax.set_xlim(0.3, 1.0); ax.set_xlabel("per-token accuracy (improves smoothly with scale)"); ax.set_ylabel("score")
+    ax.set_title("The 'emergent' jump comes from the all-or-nothing metric")
+    save(fig, "13-fig-3.png")
+
+
+def ch14():
+    # 14-fig-1: vision tokens vs image side for 14-px patches, with and without 2x2 merging
+    side = np.arange(224, 1800, 16)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(side, (side // 14) ** 2, color=S2, ls=DASH[1]); ax.plot(side, (side // 28) ** 2, color=S1)
+    label_end(ax, side[-1], (side[-1] // 14) ** 2, "14-px patches", S2); label_end(ax, side[-1], (side[-1] // 28) ** 2, "after 2×2 merging", S1)
+    for s_ in (448, 896, 1344):
+        ax.axvline(s_, color=GRID, lw=0.8)
+    ax.set_xlim(200, 2300); ax.set_xlabel("image side (pixels)"); ax.set_ylabel("vision tokens")
+    ax.set_title("Tokens grow with the square of resolution")
+    save(fig, "14-fig-1.png")
+
+    # 14-fig-2: diffusion forward process: signal and noise weights over time (linear beta schedule)
+    betas = np.linspace(1e-4, 0.02, 1000); ab = np.cumprod(1 - betas); t = np.arange(1000)
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    ax.plot(t, np.sqrt(ab), color=S1); ax.plot(t, np.sqrt(1 - ab), color=S2, ls=DASH[1])
+    label_end(ax, 999, np.sqrt(ab)[-1], "signal weight √ᾱ", S1); label_end(ax, 999, np.sqrt(1 - ab)[-1], "noise weight √(1 − ᾱ)", S2)
+    ax.set_xlim(0, 1350); ax.set_xlabel("diffusion step t"); ax.set_ylabel("weight in x_t")
+    ax.set_title("Forward process: the image fades into noise over 1,000 steps")
+    save(fig, "14-fig-2.png")
+
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]

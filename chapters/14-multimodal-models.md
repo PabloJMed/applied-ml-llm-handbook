@@ -65,6 +65,10 @@ labels[answer_positions] = answer_ids
 | 896 | 4,096 | 1,024 |
 | 1,344 | 9,216 | 2,304 |
 
+![Diagram](images/14-fig-1.png)
+
+*Vision tokens against image side for 14-pixel patches, with and without 2 × 2 token merging. A 1,344-pixel page costs 9,216 tokens unmerged, more than many text prompts.*
+
 A document page needs high resolution to read small print; a photo of a cat does not. Three techniques manage this:
 
 - **Tiling**: cut a large image into encoder-sized tiles plus a downscaled overview (LLaVA-NeXT and others).
@@ -101,6 +105,12 @@ commit = F.mse_loss(z, zq.detach())
 
 **Diffusion.** Train a network to undo noise. The forward process mixes an image x₀ with Gaussian noise: x_t = √ᾱ_t x₀ + √(1 − ᾱ_t) ε. With the standard linear schedule over 1,000 steps, the signal weight is 1.000 at t = 0, 0.722 at t = 250, 0.279 at t = 500 and 0.006 at t = 999. The network predicts ε from (x_t, t); sampling starts from pure noise and removes predicted noise step by step. **Latent diffusion** runs the process in the compressed latent space of an autoencoder, which is far cheaper. **Flow matching** learns a velocity field along straight paths from noise to data and samples in fewer steps; most recent image and video generators use it with transformer backbones (diffusion transformers).
 
+![Diagram](images/14-fig-2.png)
+
+*The weights of the original image and of the noise in x_t over the 1,000-step linear schedule. By step 600 the image contributes less than 10% of x_t; generation runs this curve backwards.*
+
+**Why predicting the noise is enough.** If the network predicts the noise ε in x_t, the clean image follows by rearranging the forward equation: x₀ = (x_t − √(1 − ᾱ_t) ε) / √ᾱ_t. Each sampling step uses this estimate to take a small step from x_t towards a slightly less noisy x_(t−1), adding a little fresh noise to keep the samples diverse. Early steps decide the layout and composition; late steps fill in fine detail. Training only ever asks one question, "what noise was added to this image at this noise level?", which is a simple regression with a stable loss, one reason diffusion training is far more stable than earlier generative adversarial networks.
+
 **Classifier-free guidance.** Train the same network with and without the text condition (by randomly dropping it), then at sampling time extrapolate: ε̂ = ε_uncond + w (ε_cond − ε_uncond), with w around 3–7. Higher w follows the prompt more closely at the cost of diversity.
 
 **Autoregressive image generation.** Generate image tokens from a VQ tokenizer one by one, like text (Chameleon), or predict tokens at progressively finer scales. Unified models that use next-token prediction for text and diffusion for images in one transformer (Transfusion) are an active line of work, because one model that both understands and generates can use the same knowledge for both.
@@ -124,6 +134,17 @@ Two checks a research scientist should always run:
 
 - **Blind baseline**: run the benchmark with the image removed or replaced by noise. If accuracy stays well above chance, the benchmark (or the model) is relying on language priors, and the gap to the blind score is the real visual contribution.
 - **Resolution sweep**: evaluate at several image resolutions and token budgets. A model "better at charts" may simply be using four times the tokens.
+
+## 14.9 A worked budget: question answering over a 20-page PDF
+
+A user uploads a 20-page report and asks questions about its charts and tables. What does one request cost with an 8B-scale VLM?
+
+- **Tokens.** At 896 pixels per page side with 2 × 2 merging, each page is 1,024 vision tokens: 20,480 tokens for the document, plus the question. At 1,344 pixels (needed for small footnotes) it is 2,304 per page: 46,080 tokens.
+- **Prefill compute.** About 2 × 8 × 10⁹ × 20,480 ≈ 3.3 × 10¹⁴ FLOPs at the lower resolution: under a second on one modern GPU at realistic utilisation, but far more than a typical text question.
+- **KV cache.** With GQA-8 at 131 KB per token (Chapter 10), 20k tokens hold 2.7 GB; 46k tokens hold 6 GB, per conversation, for as long as the user keeps asking follow-ups.
+- **Design levers.** Cache the document's prefix across follow-up questions (prefix caching, Chapter 22); render text-heavy pages through OCR into text tokens, which are far fewer than vision tokens, and reserve vision tokens for pages with charts; retrieve only the relevant pages for each question (Chapter 31) instead of sending all 20; and choose resolution per page.
+
+A typical result of such a design: answer quality within a point or two of "send every page at full resolution", at a fifth of the tokens. The way to know is an evaluation set of questions over real documents, scored at each configuration.
 
 ## Pitfalls
 
