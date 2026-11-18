@@ -42,6 +42,12 @@ An LLM labels a large unlabelled set once (cheaply with a batch API), people aud
 
 **Questions that decide the approach:** How many predictions per day? What latency? How often does the label set change? How much does an error cost? Is there labelled data, and how good is it? What languages?
 
+![Diagram](images/41-fig-2.png)
+
+*Monthly cost against daily volume for a classification call of about 400 input and 10 output tokens at illustrative prices ($0.15 and $0.60 per million tokens), compared with a distilled encoder served from one GPU at $1 an hour. The real-time API crosses the GPU's cost near 380,000 calls a day, and the batch API near 760,000.*
+
+**Cost is only half of the comparison.** A single small GPU serves thousands of short-text classifications per second, so it is far from full at these volumes. The encoder's real costs are elsewhere: the distillation work, the engineering and on-call time to run a service, and re-training when the taxonomy changes. Below about 100,000 calls a day, and whenever labels change monthly, the LLM is usually the better choice. Above a million a day with a stable taxonomy, distillation usually wins. In between, decide by latency needs and by how often the taxonomy changes.
+
 ## 41.2 Text classification
 
 **Baseline first: TF-IDF + logistic regression.** Word n-grams catch meaningful words; character n-grams catch misspellings, morphology and transliterations ("farmasi", "pizeria"), which matters a lot for short texts like merchant names.
@@ -92,6 +98,15 @@ Trainer(model=model, args=args, train_dataset=ds["train"], eval_dataset=ds["vali
 - **Hierarchical taxonomies.** Predict the top level first, or predict the leaf and derive parents; evaluate at each level.
 - **Label noise.** Find likely mislabels by training with cross-validation and reviewing confidently wrong predictions (the idea behind confident learning and the cleanlab library).
 - **Abstaining.** Use calibrated probabilities (Chapter 4.3) and send low-confidence cases to review rather than forcing a guess.
+
+![Diagram](images/41-fig-1.png)
+
+*Accuracy on the items a calibrated classifier handles itself, when it keeps only its most confident predictions and sends the rest to review. Overall accuracy is 84%; keeping the most confident 43% gives 95%, and the most confident 17% gives 98%.*
+
+**Choosing the threshold.** Selective prediction turns one number (accuracy) into a curve: accuracy against coverage. Choose the operating point from the review team's capacity and the cost of an error, then read the threshold off the curve. Two conditions make this work:
+
+- **Calibration.** Confidence must be calibrated (Chapter 4.3), or the ordering is unreliable. LLM verbalised confidences ("high", "medium") are usually poorly calibrated; agreement between several samples or between two prompts is often a better signal.
+- **A fresh curve per slice.** Measure the curve separately for languages and rare classes, which tend to have lower confidence and lower accuracy at the same confidence.
 
 ## 41.3 Worked case: an LLM merchant classifier
 
@@ -320,6 +335,58 @@ def rouge_l(candidate, reference):
 | "customers praise the late delivery but complain about the fresh sushi" | Reversed | 0.95 | 0.74 | 0.57 |
 
 The summary that says the opposite scores higher on every ROUGE variant. That is why overlap metrics are, at most, a cheap regression check, and why faithfulness needs claim-level checks or calibrated judges. Use `sacrebleu` and `rouge-score` for standard implementations when you report numbers.
+
+## 41.10 A worked extraction evaluation: entity-level scores
+
+An order-notes extractor pulls dishes, restaurants and areas from free text. Take one note:
+
+> *Two shawarma plates and a large pepsi from Al Safadi in Dubai Marina, no onions*
+
+| Gold entities | Predicted entities |
+|---|---|
+| DISH "shawarma plates" | DISH "shawarma" |
+| DISH "large pepsi" | DISH "large pepsi" |
+| RESTAURANT "Al Safadi" | RESTAURANT "Al Safadi" |
+| AREA "Dubai Marina" | AREA "Marina" |
+| | DISH "onions" |
+
+Two scorings, from the check script:
+
+- **Exact match** (same type and boundaries): 2 of 5 predictions are right and 2 of 4 gold entities are found, so precision 0.40, recall 0.50, F1 0.44.
+- **Partial match** (same type and overlapping): precision 0.80, recall 1.00, F1 0.89.
+
+Neither number is "the" score. What each scoring hides:
+
+- **Exact match** punishes boundary errors. "Shawarma" for "shawarma plates" may be harmless if the downstream step searches the menu anyway, but "Marina" for "Dubai Marina" could match the wrong area.
+- **Partial match** hides those boundary problems.
+- **Both** count "onions" as a dish, which is a semantic error: the customer asked to remove an ingredient.
+
+So report both, per entity type, and add the checks that matter for the product:
+
+- Does the extracted area resolve to the right delivery zone?
+- Does each dish match a menu item?
+- Are negations ("no onions") handled?
+
+For LLM extractors, add two more checks. Every extracted string should appear in the source, which catches hallucinated entities. And the output should be valid against its schema, which catches format failures before they are counted as wrong answers.
+
+## 41.11 A worked decision: LLM or distilled classifier
+
+Suppose a platform classifies 600,000 new listings a day into 120 categories, and the taxonomy changes about twice a year. The accuracies below are illustrative; the costs follow from the prices above.
+
+1. **Measure the LLM option first.**
+   - With definitions and examples in a cached prompt, a strong LLM reaches 92% accuracy on a 1,000-item expert-labelled test set.
+   - At the illustrative prices above, it costs about $1,200 a month in real time, or $600 through the batch API. Listings can wait an hour, so batch is acceptable.
+2. **Measure the distilled option.**
+   - Label 200,000 listings with the LLM through the batch API (about $7 of tokens) and fine-tune a multilingual encoder on them.
+   - Evaluate on the same test set: 90%. The student almost matches its teacher, losing mostly on rare categories.
+   - Serving costs about $730 a month for a GPU, plus the engineering time to run the service.
+3. **Decide.** At this volume the costs are close, and the LLM is more accurate and simpler to change when the taxonomy does. Choose the batch LLM now.
+   - Revisit if volume triples.
+   - Revisit if real-time classification becomes a requirement, for example for listing previews.
+   - Keep the distillation pipeline ready, because its labels double as training data for a fallback model.
+4. **Add selective review either way.** Send the least confident 5% to human review, using the agreement between two prompts as the confidence signal, and feed the corrections into the evaluation set.
+
+The numbers in such a decision change every few months as prices fall. The structure does not: measure quality on the same test set, cost both options at the actual volume, and weigh how often the task changes.
 
 ## Pitfalls
 

@@ -116,3 +116,28 @@ good = "reviews like the fresh sushi but say delivery is often late"
 wrong = "customers praise the late delivery but complain about the fresh sushi"
 for name, cand in [("faithful paraphrase", good), ("meaning reversed", wrong)]:
     print(name, round(rouge_n(cand, ref, 1), 2), round(rouge_n(cand, ref, 2), 2), round(rouge_l(cand, ref), 2))
+
+# 41.10 entity-level evaluation: exact vs partial span matching
+def spans(text, items):
+    """(type, phrase) -> (type, start, end) character spans, found left to right."""
+    out = []
+    for typ, phrase in items:
+        start = text.index(phrase); out.append((typ, start, start + len(phrase)))
+    return out
+
+def span_f1(gold, pred, mode="exact"):
+    """mode 'exact': same type and boundaries; 'partial': same type and any overlap (each gold used once)."""
+    used, tp = set(), 0
+    for t, s, e in pred:
+        for k, (gt, gs, ge) in enumerate(gold):
+            if k in used or t != gt:
+                continue
+            if (mode == "exact" and (s, e) == (gs, ge)) or (mode == "partial" and s < ge and gs < e):
+                used.add(k); tp += 1; break
+    p, r = tp / len(pred), tp / len(gold)
+    return round(p, 2), round(r, 2), round(2 * p * r / (p + r) if p + r else 0.0, 2)
+
+text = "Two shawarma plates and a large pepsi from Al Safadi in Dubai Marina, no onions"
+gold = spans(text, [("DISH", "shawarma plates"), ("DISH", "large pepsi"), ("RESTAURANT", "Al Safadi"), ("AREA", "Dubai Marina")])
+pred = spans(text, [("DISH", "shawarma"), ("DISH", "large pepsi"), ("RESTAURANT", "Al Safadi"), ("AREA", "Marina"), ("DISH", "onions")])
+print("exact", span_f1(gold, pred, "exact"), "partial", span_f1(gold, pred, "partial"))

@@ -1192,6 +1192,85 @@ def ch48():
     ax.set_title("The same raw agreement means less when one class dominates")
     save(fig, "48-fig-1.png")
 
+def ch37():
+    import re as _re
+    text = (OUT.parent / "37-ml-depth-question-bank.md").read_text(encoding="utf-8")
+    secs = _re.split(r"^## ([A-E])\. (.+)$", text, flags=_re.M)
+    names, counts = [], []
+    for i in range(1, len(secs), 3):
+        short = {"A": "Foundations", "B": "Deep learning and LLMs", "C": "Building with LLMs", "D": "Recsys, search, systems", "E": "LLM research"}
+        body = secs[i + 2]; names.append(f"{secs[i]}. {short[secs[i]]}")
+        counts.append([len(_re.findall(rf"^\*\*\d+\. \[{lv}\]", body, flags=_re.M)) for lv in "BIS"])
+    counts = np.array(counts); print(dict(zip(names, counts.tolist())), "total", counts.sum())
+    fig, ax = plt.subplots(figsize=(W, 1.9)); y = np.arange(len(names))[::-1]
+    left = np.zeros(len(names))
+    for j, (lab, col) in enumerate((("basic", S3), ("intermediate", S1), ("senior", S2))):
+        ax.barh(y, counts[:, j], left=left, color=col, height=0.6, edgecolor="white", linewidth=1.2, label=lab)
+        for yy, l, v in zip(y, left, counts[:, j]):
+            if v >= 6: ax.text(l + v / 2, yy, str(v), ha="center", va="center", color="white", fontsize=7.5)
+        left += counts[:, j]
+    for yy, t in zip(y, left): ax.text(t + 1, yy, str(int(t)), va="center", color=INK2, fontsize=8)
+    ax.set_yticks(y); ax.set_yticklabels(names); ax.grid(axis="y", visible=False); ax.set_xlim(0, left.max() * 1.1)
+    ax.legend(fontsize=7.5, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.35)); ax.set_xlabel("questions")
+    ax.set_title("Where the 240 questions sit, by area and level")
+    save(fig, "37-fig-1.png")
+
+
+def ch41():
+    rng = np.random.default_rng(0); n = 200_000
+    conf = np.clip(rng.beta(6, 1.1, n), 0.34, 1.0); correct = rng.random(n) < conf     # a calibrated classifier
+    order = np.argsort(-conf); acc = np.cumsum(correct[order]) / np.arange(1, n + 1); share = np.arange(1, n + 1) / n
+    fig, ax = plt.subplots(figsize=(W, 2.1)); ax.plot(share * 100, acc * 100, color=S1)
+    for tgt in (0.95, 0.98):
+        k = np.max(np.flatnonzero(acc >= tgt)); ax.plot([share[k] * 100], [acc[k] * 100], "o", color=S1, ms=3.5)
+        ax.annotate(f"{tgt:.0%} accurate: {share[k]:.0%} automated", (share[k] * 100, acc[k] * 100), xytext=(6, 4), textcoords="offset points", ha="left", color=INK2, fontsize=7.5)
+        print(f"target {tgt}: automate {share[k]:.3f} (threshold {conf[order][k]:.3f})")
+    print("overall accuracy", correct.mean().round(3))
+    ax.axhline(correct.mean() * 100, color=MUTED, lw=0.6, ls=DASH[2]); ax.text(2, correct.mean() * 100 + 0.4, f"accuracy if everything is automated ({correct.mean():.0%})", color=INK2, fontsize=7.5)
+    ax.set_xlim(0, 100); ax.set_ylim(80, 100.5); ax.set_xlabel("share of items handled automatically (most confident first, %)")
+    ax.set_ylabel("accuracy on those items (%)"); ax.set_title("Abstaining on low-confidence items buys accuracy")
+    save(fig, "41-fig-1.png")
+    vol = np.logspace(4, 7, 100); per_call = 400 * 0.15e-6 + 10 * 0.60e-6
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    ax.plot(vol, vol * 30 * per_call, color=S2, ls=DASH[1], label="LLM API, real time")
+    ax.plot(vol, vol * 30 * per_call / 2, color=S3, ls=DASH[2], label="LLM batch API (half price)")
+    ax.plot(vol, np.full_like(vol, 730.0), color=S1, label="distilled encoder on one GPU ($1/hour)")
+    for v in (vol[np.argmin(np.abs(vol * 30 * per_call - 730))], vol[np.argmin(np.abs(vol * 30 * per_call / 2 - 730))]):
+        print(f"break-even near {v:,.0f} calls/day")
+    ax.set_xscale("log"); ax.set_yscale("log"); ax.legend(fontsize=7.5, loc="upper left")
+    ax.set_xticks([1e4, 1e5, 1e6, 1e7]); ax.set_xticklabels(["10k", "100k", "1M", "10M"])
+    ax.set_xlabel("predictions per day"); ax.set_ylabel("monthly cost ($)"); ax.set_title("Above a few hundred thousand calls a day, a distilled model is cheaper")
+    save(fig, "41-fig-2.png")
+
+
+def ch44():
+    rel = np.array([3, 2, 2, 1, 1, 1, 0, 0, 0, 0]); gains = 2.0 ** rel - 1; disc = 1 / np.log2(np.arange(10) + 2)
+    idcg = np.sum(np.sort(gains)[::-1] * disc)
+    M = np.abs((gains[:, None] - gains[None]) * (disc[:, None] - disc[None])) / idcg
+    fig, ax = plt.subplots(figsize=(4.2, 3.2)); im = ax.imshow(M, cmap=BLUES, vmin=0)
+    for i in range(10):
+        for j in range(10):
+            if M[i, j] >= 0.005: ax.text(j, i, f"{M[i, j]:.2f}"[1:], ha="center", va="center", fontsize=6.2, color="white" if M[i, j] > 0.15 else INK)
+    ax.set_xticks(range(10)); ax.set_xticklabels(range(1, 11)); ax.set_yticks(range(10)); ax.set_yticklabels([f"{p} (grade {g})" for p, g in zip(range(1, 11), rel)])
+    ax.grid(False); ax.set_xlabel("swapped with position"); ax.set_title("|ΔNDCG@10| for swapping two results")
+    for s_ in ax.spines.values(): s_.set_visible(False)
+    print("swap 1<->2:", round(M[0, 1], 3), "1<->7:", round(M[0, 6], 3), "4<->7:", round(M[3, 6], 3), "6<->7:", round(M[5, 6], 3))
+    save(fig, "44-fig-1.png")
+
+
+def ch46():
+    parts = [("network and gateway", 20), ("user features", 10), ("candidate retrieval (parallel sources)", 25), ("filtering", 5),
+             ("candidate features (500 items)", 30), ("ranking model (batched)", 40), ("re-ranking and rules", 5), ("headroom", 65)]
+    fig, ax = plt.subplots(figsize=(W, 2.3)); left = 0; y = np.arange(len(parts))[::-1]
+    for (name, ms), yy in zip(parts, y):
+        col = MUTED if name == "headroom" else S1
+        ax.barh(yy, ms, left=left, color=col, height=0.6); ax.text(left + ms + 2, yy, f"{ms} ms", va="center", color=INK2, fontsize=7.5)
+        left += ms
+    ax.set_yticks(y); ax.set_yticklabels([p[0] for p in parts]); ax.grid(axis="y", visible=False); ax.set_xlim(0, 215)
+    ax.axvline(200, color=S2, lw=0.8, ls=DASH[1]); ax.text(198, y[0] + 0.1, "200 ms p99 target", color=INK2, fontsize=7.5, ha="right")
+    ax.set_xlabel("milliseconds (cumulative)"); ax.set_title("A latency budget for the restaurant feed")
+    save(fig, "46-fig-1.png")
+
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]
     for ch in wanted:

@@ -216,6 +216,12 @@ This is the most-asked LTR story in interviews. Tell it in three steps.
 2. **LambdaRank (2006).** NDCG is what we care about, but it is not differentiable (it depends on sorted positions). The trick: skip writing the loss and define the gradients directly as RankNet's pair gradient multiplied by **|ΔNDCG|**, the change in NDCG if i and j swapped positions. Swapping positions 1 and 2 changes NDCG a lot; swapping 50 and 51 barely at all, so the model concentrates on the top of the list.
 3. **LambdaMART (2008–2010).** Use those lambdas as the pseudo-gradients in gradient-boosted trees (MART: multiple additive regression trees). Each new tree fits the lambdas. It won the 2010 Yahoo! Learning to Rank Challenge and is still the default production ranker for tabular features.
 
+![Diagram](images/44-fig-1.png)
+
+*|ΔNDCG@10| for swapping the results at two positions of an ideally ordered list with grades 3, 2, 2, 1, 1, 1, 0, 0, 0, 0. Swapping the top result with a bottom one costs 0.40–0.43; swapping positions 4 and 7 costs 0.01.*
+
+This matrix is the weight LambdaRank puts on each pair's gradient. Mistakes involving the top result get 10 to 40 times more weight than mistakes among the lower positions, so model capacity goes where users look. It also explains a common surprise: a LambdaMART model can have worse pairwise accuracy than a RankNet model, yet better NDCG, because it trades many cheap mistakes low in the list for fewer expensive ones at the top.
+
 **LambdaRank in code:** the RankNet pair loss, weighted by |ΔNDCG| computed from the current ranking.
 
 ```python
@@ -329,6 +335,30 @@ A common bug: computing the ideal DCG only from the retrieved list. Then a syste
 | Time to order from search | Speed of a successful search |
 
 For comparing two rankers, **team-draft interleaving** is the standard tool in search: build each result list by alternately drafting from the two rankers, and credit each click or order to the ranker that contributed that result. It detects differences with much less traffic than an A/B test. Use A/B tests for the final decision on business metrics, and always segment by query type (head, torso, tail; navigational vs dish vs cuisine), because averages hide that a change helped head queries and broke the tail.
+
+## 44.10 A worked ranking iteration
+
+The team wants to add a "dish match" feature to restaurant search: how well the query matches the restaurant's menu items, not only its name and cuisine.
+
+1. **Start from failing queries.** Pull 200 queries with low conversion and read their result pages. Many are dish queries ("chicken biryani", "acai bowl"): the ranker shows restaurants with matching cuisines first, even when another restaurant has the exact dish and better reviews.
+2. **Build the feature point in time.** BM25 and embedding similarity between the query and the restaurant's menu items, computed from the menu as it was at each logged search (Chapter 48.3). Today's menu would leak future information into old searches.
+3. **Evaluate offline on two label sources.**
+   - **Engagement labels.** Train and test on 8 weeks of logged searches, with labels 0–3 from shown, clicked, added to cart and ordered. Weight by inverse propensity of position (Chapter 43.9).
+   - **Human labels.** Score the golden set of 1,500 queries, judged 0–3 by humans.
+   - **Comparing.** Use a paired bootstrap over queries for NDCG@10.
+   - Suppose NDCG@10 rises from 0.612 to 0.627 on the golden set, with a 95% interval for the difference of +0.008 to +0.022, and by +0.05 on the dish-query slice. Navigational queries are unchanged, which they must be: the named restaurant still ranks first.
+4. **Check that nothing else moved.**
+   - Zero-result rate: unchanged, because ranking does not change retrieval.
+   - Latency: menu similarity is precomputed per restaurant and query term, adding 2 ms at p99.
+   - Supply concentration: does the change push more orders to a few restaurants at peak? Check the top-10 share of orders under the new ranking in replay.
+5. **Interleave before the A/B test.** Team-draft interleaving on 5% of traffic for a week detects the preference quickly. Suppose the new ranker wins 53% of the decided searches, with a clear interval.
+6. **Run the A/B test for the business metric.** Use search conversion as the primary metric, with the reformulation rate and the order cancellation rate as guardrails. The interleaving result already makes the direction likely. The A/B test measures the size of the effect, and catches anything interleaving cannot see, such as a change in what users order.
+7. **Write it up:**
+   - the failing-query analysis that motivated the change;
+   - the offline gain with its interval, overall and by slice;
+   - the interleaving and A/B results;
+   - what did not change;
+   - the next idea, for example dish-level results for dish queries.
 
 ## Pitfalls
 

@@ -282,6 +282,14 @@ print(f"${llm_cost_usd(10e6, 300, 50, 0.15, 0.60, batch_discount=0.5):,.0f}")
 # $375
 ```
 
+**A latency budget.** Split the p99 target across the stages before choosing models, because the budget decides what each stage can afford.
+
+![Diagram](images/46-fig-1.png)
+
+*An example p99 budget for the restaurant feed. The stages run in sequence except the candidate sources, which run in parallel within their 25 ms. The ranking model gets 40 ms for 500 candidates, which is what decides between a gradient-boosted model and a larger neural ranker. A third of the budget is kept as headroom for tail effects.*
+
+If the ranking model needs 100 ms, the budget shows the options: score fewer candidates, use a cheaper first-pass ranker to cut 500 to 100 first, precompute item-side parts of the model, or relax the target. Saying this in an interview shows you understand the funnel as a cost structure, not only as a diagram.
+
 **Rough latency numbers worth remembering** (orders of magnitude, not benchmarks): an in-memory lookup takes well under a millisecond; a network call within a data centre about half a millisecond; a cache or key-value store read around 1 ms; a gradient-boosted model scoring a few hundred candidates a few milliseconds; an approximate nearest-neighbour search over millions of vectors a few milliseconds; an LLM call hundreds of milliseconds to seconds. That last one is why LLMs rarely sit in a 150 ms request path.
 
 ## Designing LLM systems
@@ -320,6 +328,77 @@ Research-scientist loops sometimes replace product design questions with researc
 **"Design an RLHF / RLVR pipeline."** Prompt sources and difficulty filtering, reward models or verifiers and how they are audited, the algorithm (DPO, PPO or GRPO variants) and its stability measures, rollout infrastructure (inference engine, asynchronous generation), monitoring for reward hacking and over-optimisation (gold evaluations, KL, length), and iteration with fresh on-policy data (Chapters 18–19).
 
 **"Design an ablation plan for a new architecture."** Hypotheses, matched baselines with tuned learning rates, a model ladder with scaling-law fits, recall and long-context evaluations, throughput measurements, seeds, decision criteria (Chapters 11, 13 and 34).
+
+## A complete design in 45 minutes
+
+Question: *"Design the ranking of restaurants on the home feed of a food-delivery app."* Here is how the eight steps fit into a 45-minute round, with what you would actually say or draw.
+
+| Minutes | Step | What you produce |
+|---|---|---|
+| 0–5 | Clarify | Goal, scale, constraints |
+| 5–9 | Frame | Prediction target and objective |
+| 9–14 | Data | Logs, labels and their biases |
+| 14–20 | Features | Feature groups and freshness |
+| 20–28 | Model | Funnel, model per stage, loss |
+| 28–34 | Evaluation | Offline metrics, online test |
+| 34–40 | Serving | Budget, caching, fallbacks |
+| 40–45 | Monitoring | Dashboards, retraining, risks |
+
+**Clarify.**
+
+- **Goal.** Orders per session, with guardrails on delivery time and partner fairness.
+- **Scale.** 10M daily users and 5 feed loads each, so about 1,700 QPS at peak. About 20,000 restaurants are in delivery range across cities, a few hundred per user location.
+- **Latency.** 200 ms p99 for the whole feed.
+- **Context.** Personalised? Yes. New users and new restaurants: yes, both matter.
+
+**Frame.** Rank the restaurants available to this user now by P(order | impression, context). That probability can be combined with business terms at the re-ranking stage. Pointwise, multi-task heads for click and order, combined at serving.
+
+**Data.**
+
+- **Labels and logs.** Impression logs with position, clicks and orders, joined point in time to the user and restaurant state.
+- **Bias.** Labels are biased by the old ranker's positions, so log the position and use it as a training feature set to a constant at serving, or use IPS.
+- **Freshness.** Restaurants are open and closed at different times; the features must reflect the moment of the impression.
+
+**Features.**
+
+- User: history embeddings, recent cuisines, price level, time since last order.
+- Restaurant: rating, prep time now, ETA to this user, delivery fee, promotions, open status, current load.
+- Context: hour, day, weather, device.
+- Cross features: the user's past orders from this restaurant, cuisine affinity.
+- Freshness: say which come from a batch store and which must be real time (ETA, load).
+
+**Model.**
+
+- **Funnel.** Retrieval from several sources (a two-tower model, "ordered before", popular nearby), then filters (open, in range), then a LightGBM ranker with multi-task objectives, then re-ranking for diversity, sponsored slots and new-restaurant exploration.
+- **The ladder.** Mention it (heuristic, logistic regression, GBDT, deep), and say you would stop at GBDT for ranking unless a sequence model shows clear gains.
+
+**Evaluation.**
+
+- **Offline.** NDCG@10 and order recall@10 on time-split data, by segment (new users, small cities). Calibration of P(order).
+- **Online.** An A/B test on orders per session, with guardrails on ETA, cancellations and the concentration of orders on top restaurants. Switchbacks only if the change affects courier supply.
+
+**Serving.** The latency budget above, with:
+
+- user embeddings cached per session;
+- restaurant features updated every minute;
+- a fallback to "popular nearby" if the ranker times out;
+- shadow-mode launch, then a ramp.
+
+**Monitoring.**
+
+- Prediction and feature drift.
+- Calibration against realised orders.
+- Feed conversion by segment.
+- Partner-side metrics (exposure share, orders per partner).
+- Weekly retraining with a gate on the offline metrics.
+
+**Risks to name:**
+
+- Feedback loops: popular restaurants get more popular, so reserve exploration slots.
+- Overloading kitchens at peak: add a load feature, and throttle.
+- Unfair exposure for new partners: add an exploration boost with a budget.
+
+The point of rehearsing a full run is timing. Most candidates spend 20 minutes on the model and never reach serving or monitoring, which interviewers score as heavily as the model. Practise with a timer until all eight steps fit.
 
 ## Pitfalls
 

@@ -11,6 +11,16 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 - **Go deeper** where an answer feels thin: the chapter number in each section heading points to the full treatment.
 - **Senior questions** usually have no single right answer; the model answer shows the structure a strong response follows.
 
+![Diagram](images/37-fig-1.png)
+
+*The bank by area and level. Research topics carry most of the senior questions. Foundations and applied LLM work are weighted towards basic and intermediate questions, which come early in most loops.*
+
+**From short answer to strong answer.** The model answers below are deliberately short: they are the skeleton you should be able to produce in a few seconds. In an interview, a senior question deserves one to two minutes, and the extra time should go on structure, not on more facts. Section F at the end of the chapter expands five senior questions into full answers, to show what the extra time is for:
+
+- **Order.** Go from the most likely cause, or the cheapest check, to the least.
+- **Numbers.** Put rough magnitudes where they exist.
+- **Decisions.** Say what you would do with each finding.
+
 ## A. Foundations (Chapters 1–4 and 40)
 
 ### Maths and probability
@@ -560,6 +570,104 @@ Every topic in this bank is explained, with links to go deeper, in the **Key con
 **239. [I] Zero of 100 dangerous-capability attempts succeeded. What can you claim?** The per-attempt rate is below about 3% at 95% confidence under that elicitation, not that the capability is absent.
 
 **240. [S] What would convince you that a safety mitigation works?** Measured on held-out attacks or environments, against adaptive adversaries, with intervals, without having trained on the evaluation, and robust when the model is optimised against it.
+
+## F. Five senior answers in full
+
+Each starts from the bank's short answer and shows the spoken version: about two minutes, in an order an interviewer can follow.
+
+**Question 17. An A/B test shows +4% but leadership doubts it. What do you check?**
+
+> "I'd treat their doubt as a hypothesis and check the things that most often produce a false +4%, cheapest first.
+>
+> **The assignment.** A sample-ratio mismatch test: if the split is 50.6/49.4 on a million users, something filtered users differently, and the result is void until that is fixed.
+>
+> **The metric pipeline.** Did logging change with the feature, so the treatment counts events the control does not?
+>
+> **The effect over time.** If it was +7% in week one and +1% in week three, it is mostly novelty.
+>
+> **Consistency.** Is the gain present across platforms, cities and new versus returning users? Or is it driven by one segment, or a few heavy users?
+>
+> **Statistics.** Was the test powered for 4%, or is this a lucky draw from an underpowered test? How many metrics and variants were looked at? The winner of many comparisons is biased upwards.
+>
+> **Interference.** In a marketplace, treatment users may take couriers or stock from control users, which inflates the difference.
+>
+> **Guardrails.** Are cancellations, latency and complaints flat?
+>
+> If all of that holds, I would propose a holdback: keep 5% of users on the old experience for a month after launch. That measures the long-run effect and answers the doubt with data rather than argument."
+
+**Question 65. Why is attention quadratic, and what are the main ways around it?**
+
+> "Each of T queries computes a score with each of T keys, so the score matrix is T × T. Compute grows as T², and naive memory does too.
+>
+> At 128k tokens that is 16 billion scores per head per layer, which is why long context is expensive. There are two different costs, and the fixes address different ones.
+>
+> **Memory traffic.** FlashAttention keeps the computation exact but never materialises the T × T matrix: it tiles the computation in on-chip memory. Memory becomes linear in T and it is much faster, but the FLOPs are still quadratic.
+>
+> **The computation itself.**
+> - Sliding-window and sparse attention restrict which keys each query sees.
+> - Linear attention and state-space models replace the softmax over all keys with a fixed-size state, which makes them linear in T but weaker at exact recall of distant tokens.
+> - Hybrids keep a few full-attention layers among many linear or local ones to get the recall back.
+>
+> **Decoding.** During generation the quadratic cost becomes a KV cache that grows linearly per token. So for serving, the levers are fewer KV heads (GQA), compressed caches (MLA) and cache quantisation.
+>
+> In practice, frontier models use FlashAttention everywhere, plus some mix of local and global layers, plus GQA or MLA for the cache."
+
+**Question 82. Estimate the monthly cost of an LLM feature.**
+
+> "I'd write the formula, plug in rough numbers aloud, then name the levers.
+>
+> **Formula:** cost = calls × (input tokens × input price + output tokens × output price).
+>
+> **Example.** Say 3 million calls a month, 3,000 tokens of fixed instructions plus 500 of user input, 150 tokens out, at $3 and $15 per million. That is about $38,000 a month, of which $27,000 is the fixed prefix.
+>
+> **The levers.**
+> - Prompt caching for the prefix brings it to about $16,000.
+> - Shorter outputs are the next lever after that.
+> - A batch API halves the price if the feature can wait.
+> - A smaller model for easy cases, with escalation, cuts it again.
+>
+> **Self-hosting.** Compare with GPU-hours at realistic utilisation, often 30–50%, plus engineering and on-call time.
+>
+> **What I'd ask.** Is the cost per call small relative to the value of the action it supports? A €0.01 call that saves a €4 support contact is cheap at any volume."
+
+**Question 136. Offline NDCG up 3%, A/B flat. Why?**
+
+> "I'd go through the gap between what we measured offline and what users experience.
+>
+> **Candidates.** Offline we re-rank logged candidates; online the new ranker sees a different candidate set, or a retrieval change made the logged set unrepresentative.
+>
+> **Labels against the goal.** NDCG on clicks can improve while orders do not, for example if the model learned to promote clickable thumbnails.
+>
+> **Position bias in the evaluation labels.** Clicks logged by the old ranker favour what it put on top. A new ranker that agrees more with the old one looks better offline for that reason alone, so I'd use IPS-weighted or human-judged labels.
+>
+> **The page.** Re-ranking rules and ads may override most of the change on the actual page. I'd check how many slots actually differ between arms.
+>
+> **Power.** A 3% NDCG gain may translate to a 0.2% conversion change, which the test cannot detect. I'd look at interleaving, which is far more sensitive.
+>
+> **Segments.** Gains for heavy users and losses for new users can cancel out.
+>
+> Then I'd fix the offline evaluation so it predicts online results, because that is the lasting problem."
+
+**Question 188. Your training throughput fell 20% overnight. What do you check?**
+
+> "First, is it everywhere or one rank? In a synchronous run one slow GPU slows everyone, so I'd look at per-rank step times. A straggler points to a node: thermal throttling, a degraded GPU, ECC errors, or a bad network link, which shows in NCCL timings. The fix is to cordon the node and restart from the last checkpoint.
+>
+> If all ranks slowed equally, check what changed:
+>
+> - **Configuration.** A config or code deploy, a new data shard with longer sequences or different packing, a library or driver update.
+> - **Data loading.** The loader falling behind: GPU utilisation dips between steps, and storage or network I/O are saturated.
+> - **Checkpoints.** Checkpoint saves taking longer, or happening more often.
+> - **Cluster.** Other jobs sharing the network fabric.
+>
+> I'd compare MFU and the step-time breakdown (compute, communication, data wait) with yesterday's profile, since that usually localises it within minutes. Afterwards I'd add alerts on per-rank step-time spread and data-wait time, so the next one is caught in an hour, not overnight."
+
+**What these answers have in common:**
+
+- **Hypotheses in a deliberate order.** Each starts by naming its structure, then goes through the likely causes, cheapest or most likely first.
+- **Numbers.** Each puts magnitudes on the claims.
+- **A next step.** Each ends with a decision or a change that prevents the problem from recurring.
+
+Practise turning five short answers a day into this shape, aloud, and record yourself once a week.
 
 ---
 
