@@ -70,3 +70,15 @@ def finetune_memory_gb(n_params_b, mode):
         return n * 0.5 / 1e9
 for m in ["full_adam_mixed", "lora_bf16", "qlora_4bit"]:
     print(m, finetune_memory_gb(7, m))
+
+import numpy as np
+# 20.4 NF4 vs uniform 4-bit on normal weights, block size 64, absmax scaling
+NF4 = np.array([-1, -0.6962, -0.5251, -0.3949, -0.2844, -0.1848, -0.0911, 0, 0.0796, 0.1609, 0.2461, 0.3379, 0.4407, 0.5626, 0.7230, 1])
+w = np.random.default_rng(0).normal(0, 0.02, (20000, 64)); amax = np.abs(w).max(1, keepdims=True)
+for name, lv in (("NF4", NF4), ("uniform int4", np.linspace(-1, 1, 16))):
+    q = lv[np.abs((w / amax)[..., None] - lv).argmin(-1)] * amax
+    print(f"{name}: relative RMS error {np.sqrt(((q - w) ** 2).mean()) / w.std():.3f}")
+print("bits/param for constants: %.3f plain, %.3f double-quantised" % (32 / 64, 8 / 64 + 32 / (64 * 256)))
+# 20.12 LoRA r=16 on all linear layers of a 7B Llama-style model (32 layers, d=4096, MLP 11008)
+lp = 32 * (4 * 16 * (4096 + 4096) + 3 * 16 * (4096 + 11008))
+print(f"LoRA params {lp/1e6:.1f}M ({lp/6.74e9:.2%}); adapter weights+grads+Adam {lp*16/1e9:.2f} GB; 4-bit base {6.74e9*0.5/1e9:.2f} GB")

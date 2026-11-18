@@ -134,6 +134,18 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
 
 - **Sequence-level distillation**: generate outputs with the teacher (often with reasoning traces) and SFT the student on them. This is how most small "reasoning" models are made, and it is the practical route for you: label 50k menu items with a large API model, check a sample by hand, fine-tune a small model on the rest. Check the provider's terms of service before training on API outputs.
 
+**Why soft targets carry more than labels.** A hard label says only "shawarma". The teacher's full distribution says more: falafel and kebab are plausible confusions, sushi is not. Hinton called this information **dark knowledge**. At T = 1 it is almost invisible, because the top class takes 87% of the mass and the five others share 13%. Dividing the logits by a temperature flattens the distribution and makes the similarity structure visible to the student's loss, as the figure shows.
+
+![Diagram](images/15-fig-1.png)
+
+*One teacher's logits for a dish photo, softened at three temperatures. At T = 1 the runner-up gets 7%; at T = 5 the order and rough ratios of all six classes are visible, which is what the student learns from.*
+
+Three practical points follow:
+
+- **The T² factor matters.** Gradients of the softened KL term shrink as 1/T², so without the factor a high temperature quietly turns distillation off.
+- **T is a hyperparameter.** Values of 1–4 are usual for classification. For language models, T = 1 over the full vocabulary is common, because the teacher's next-token distribution is already spread out.
+- **Forward or reverse KL.** The standard loss, KL(teacher ‖ student), makes the student cover every mode the teacher assigns mass to. A small student that cannot cover them all spreads its probability thinly. **On-policy distillation** instead samples from the student and minimises the reverse KL on those samples, which concentrates the student on modes it can actually represent. It also trains the student on its own mistakes, as RL does, but with a dense per-token signal. Recent small-model recipes use it after a round of sequence-level distillation.
+
 ## 15.8 What each stage explains
 
 | Symptom | Likely origin |
@@ -145,6 +157,25 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
 | Refuses harmless requests | Over-weighted harmlessness data |
 | Long, careful reasoning on maths and code | RL with verifiable rewards |
 | Small model nearly as good on a narrow task | Distillation |
+
+## 15.9 A worked pipeline: where the compute goes
+
+Take a 7B model through the whole recipe and count the FLOPs. Training costs 6N per token; a forward-only pass or a generated token costs 2N.
+
+| Stage | Data | FLOPs | Share of pre-training |
+|---|---|---|---|
+| Pre-training | 2T tokens | 8.4 × 10²² | 100% |
+| SFT | 100k examples × 1k tokens × 3 epochs | 1.3 × 10¹⁹ | 0.015% |
+| DPO | 50k pairs × 2 responses × 1k tokens (policy trained, reference forward) | 5.6 × 10¹⁸ | 0.007% |
+| RLVR | 1,000 steps × 512 prompts × 8 samples × 2k tokens (generate, then train) | 4.6 × 10²⁰ | 0.55% |
+
+Three lessons follow.
+
+1. **Post-training is cheap in FLOPs and expensive in everything else.** Its compute is a rounding error next to pre-training. Its cost is in the data: writing and checking SFT examples, collecting preference pairs, building verifiers. It also needs many short experiments, because results are sensitive to small choices.
+2. **RL costs more than its FLOPs suggest.** Generation is memory-bound decoding at low utilisation (Chapter 21), so the 1.1 × 10²⁰ FLOPs of sampling can take more wall-clock time than the 3.4 × 10²⁰ FLOPs of training. RL systems are built around fast generation (Chapter 19).
+3. **Behaviour comes from the small stages.** The chat format, refusals, tone and long reasoning all come from stages that use less than 1% of the compute. That is why changing post-training data is the fastest way to change a model, and why its problems (sycophancy, over-refusal, verbosity) look the way the table in 15.8 suggests.
+
+A checklist for each stage: a held-out evaluation that the stage is meant to move, one that it must not hurt (general capability, safety), and a comparison with the checkpoint before the stage. A stage that moves its target and nothing else is the exception; measure the side effects.
 
 ## Pitfalls
 

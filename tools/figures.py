@@ -704,6 +704,147 @@ def ch14():
     ax.set_title("Forward process: the image fades into noise over 1,000 steps")
     save(fig, "14-fig-2.png")
 
+# ---------------------------------------------------------------------------------------------
+def ch15():
+    logits = np.array([6.0, 3.5, 3.0, 1.0, 0.5, 0.0]); names = ["shawarma", "falafel", "kebab", "pizza", "sushi", "salad"]
+    fig, ax = plt.subplots(figsize=(W, 2.2)); x = np.arange(6); wdt = 0.26
+    for k, (T, c) in enumerate(((1, S1), (2, S2), (5, S3))):
+        p = np.exp(logits / T); p /= p.sum()
+        ax.bar(x + (k - 1) * wdt, p, width=wdt - 0.03, color=c, label=f"T = {T}")
+        print(f"T={T}:", np.round(p, 3).tolist())
+    ax.set_xticks(x); ax.set_xticklabels(names); ax.set_ylabel("teacher probability"); ax.grid(axis="x", visible=False)
+    ax.legend(fontsize=7.5, loc="upper right"); ax.set_title("Higher temperature reveals what the teacher thinks is similar")
+    save(fig, "15-fig-1.png")
+
+
+def ch16():
+    s_ = np.linspace(0, 1, 300)
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for (b, r), c, ls in (((16, 8), S1, DASH[0]), ((20, 5), S2, DASH[1]), ((32, 4), S3, DASH[2])):
+        p = 1 - (1 - s_ ** r) ** b; thr = (1 / b) ** (1 / r)
+        ax.plot(s_, p, color=c, ls=ls, label=f"{b} bands × {r} rows (threshold ≈ {thr:.2f})")
+    ax.legend(fontsize=7.5, loc="lower right")
+    ax.set_xlabel("Jaccard similarity of two documents"); ax.set_ylabel("P(flagged as candidates)")
+    ax.set_title("LSH turns similarity into a tunable S-curve")
+    save(fig, "16-fig-1.png")
+
+    ep = np.arange(1, 41); U = 100.0; R = ep - 1
+    eff = U + U * 15.4 * (1 - np.exp(-R / 15.4))
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    ax.plot(ep, ep * U / 1000, color=MUTED, ls=DASH[1]); ax.plot(ep, eff / 1000, color=S1)
+    ax.text(22, 2.75, "tokens seen (if repeats were\nas good as new data)", color=INK2, fontsize=7.5, ha="right")
+    ax.annotate("effective tokens", (40, eff[-1] / 1000), xytext=(-4, 8), textcoords="offset points", ha="right", color=INK2, fontsize=8)
+    for e in (4, 16):
+        ax.annotate(f"{e} epochs: {eff[e-1]:.0f}B effective", (e, eff[e - 1] / 1000), xytext=(6, -14), textcoords="offset points", color=INK2, fontsize=7.5)
+        ax.plot([e], [eff[e - 1] / 1000], "o", color=S1, ms=3)
+    ax.set_xlabel("epochs over 100B unique tokens"); ax.set_ylabel("trillions of tokens"); ax.set_xlim(0, 41); ax.set_ylim(-0.35, 4.2)
+    ax.set_title("Repeated data loses value after a few epochs")
+    save(fig, "16-fig-2.png")
+
+
+def ch17():
+    fig, ax = plt.subplots(figsize=(W, 1.9))
+    names = ["DDP", "ZeRO-1", "ZeRO-2", "ZeRO-3 / FSDP"][::-1]; vals = [1120.0, 293.1, 155.3, 17.5][::-1]
+    ax.barh(names, vals, color=S1, height=0.55); ax.axvline(80, color=S2, lw=0.9, ls=DASH[1])
+    ax.text(88, 1.5, "80 GB GPU", color=INK2, fontsize=7.5, va="center")
+    for y, v in enumerate(vals): ax.text(v + 12, y, f"{v:,.0f} GB" if v >= 20 else f"{v:.1f} GB", va="center", color=INK2, fontsize=8)
+    ax.set_xlim(0, 1300); ax.grid(axis="y", visible=False); ax.set_xlabel("memory per GPU for weights, gradients and Adam states (70B over 64 GPUs)")
+    ax.set_title("Only full sharding fits a 70B model's training state on 80 GB GPUs")
+    save(fig, "17-fig-1.png")
+
+    m = np.arange(1, 129)
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    for p, c, ls in ((4, S1, DASH[0]), (8, S2, DASH[1]), (16, S3, DASH[2])):
+        b = (p - 1) / (m + p - 1); ax.plot(m, b * 100, color=c, ls=ls)
+        k = 7; ax.annotate(f"{p} stages", (m[k], b[k] * 100), xytext=(5, 3), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.axhline(15, color=MUTED, lw=0.7, ls=":"); ax.text(100, 17, "15%", color=MUTED, fontsize=7.5)
+    ax.set_xscale("log", base=2); ax.set_xlabel("micro-batches per batch"); ax.set_ylabel("idle time (%)")
+    ax.set_title("The pipeline bubble shrinks with more micro-batches")
+    save(fig, "17-fig-2.png")
+
+
+def ch19():
+    rng = np.random.default_rng(0)
+    p = np.linspace(0, 1, 300)
+    fig, ax = plt.subplots(figsize=(W, 2.1))
+    for G, c, ls in ((4, S2, DASH[1]), (8, S1, DASH[0]), (16, S3, DASH[2])):
+        z = p ** G + (1 - p) ** G; ax.plot(p, z, color=c, ls=ls)
+        ax.annotate(f"group of {G}", (0.12 if G == 4 else (0.16 if G == 8 else 0.2), (lambda q: q ** G + (1 - q) ** G)(0.12 if G == 4 else (0.16 if G == 8 else 0.2))),
+                    xytext=(7, 5), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.set_xlabel("prompt pass rate under the current policy"); ax.set_ylabel("P(no learning signal)")
+    ax.set_title("Groups that are all right or all wrong teach GRPO nothing")
+    save(fig, "19-fig-1.png")
+
+    # pass@k before and after RL in the tabular simulation of code/ch19_check.py
+    J, S_ = 200, 6; q = np.zeros((J, S_)); q[:, 0] = rng.uniform(0.3, 0.9, J); q[:, 0] *= rng.random(J) > 0.25
+    q[:, 1:] = rng.uniform(0, 0.05, (J, S_ - 1)); hard = q[:, 0] == 0; q[hard, 5] = 0.8
+    logits = np.log(np.array([0.70, 0.12, 0.08, 0.05, 0.04, 0.01]))[None].repeat(J, 0); theta = np.zeros(S_)
+    def policy():
+        z = logits + theta; z -= z.max(1, keepdims=True); e = np.exp(z); return e / e.sum(1, keepdims=True)
+    base = policy()
+    for step in range(400):
+        js = rng.integers(0, J, 32); grad = np.zeros(S_); pi = policy()
+        for j in js:
+            acts = rng.choice(S_, 8, p=pi[j]); r = (rng.random(8) < q[j, acts]).astype(float)
+            if r.std() == 0: continue
+            A_ = (r - r.mean()) / r.std()
+            for a, adv in zip(acts, A_):
+                g = -pi[j].copy(); g[a] += 1; grad += adv * g
+        theta += 0.05 * grad / len(js)
+    after = policy(); ks = np.array([1, 2, 4, 8, 16, 32, 64, 128, 256])
+    pk = lambda pi: [(1 - (1 - (pi * q).sum(1)) ** k).mean() for k in ks]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(ks, pk(base), color=S2, ls=DASH[1], marker="o", ms=3); ax.plot(ks, pk(after), color=S1, marker="o", ms=3)
+    label_end(ax, ks[-1], pk(base)[-1], "base policy", S2); label_end(ax, ks[-1], pk(after)[-1], "after RL", S1)
+    ax.set_xscale("log", base=2); ax.set_xticks(ks); ax.set_xticklabels(ks); ax.set_xlim(0.8, 900)
+    ax.set_xlabel("k (samples per problem)"); ax.set_ylabel("pass@k"); ax.set_title("RL wins at k = 1 and loses at large k: sharpening, not new solutions")
+    save(fig, "19-fig-2.png")
+
+    from collections import Counter
+    def maj(pc, n, wrong=5, trials=4000):
+        w = 0
+        for _ in range(trials):
+            ans = np.where(rng.random(n) < pc, 0, rng.integers(1, wrong + 1, n)); c = Counter(ans.tolist()); top = max(c.values())
+            win = [a for a, v in c.items() if v == top]; w += (0 in win) / len(win)
+        return w / trials
+    ns = [1, 3, 5, 9, 15, 25, 41]
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    for (pc, wrong, lab), c, ls in (((0.5, 5, "50% correct, errors spread"), S1, DASH[0]), ((0.3, 5, "30% correct, errors spread"), S3, DASH[2]),
+                                    ((0.3, 1, "30% correct, one popular wrong answer"), S2, DASH[1])):
+        ys = [maj(pc, n, wrong) for n in ns]; ax.plot(ns, ys, color=c, ls=ls, marker="o", ms=3); label_end(ax, ns[-1], ys[-1], lab, c)
+    ax.set_xlim(0, 75); ax.set_xlabel("samples voted on"); ax.set_ylabel("accuracy of the majority answer")
+    ax.set_title("Voting amplifies whatever answer the model believes most")
+    save(fig, "19-fig-3.png")
+
+
+def ch20():
+    import torch, torch.nn as nn
+    torch.manual_seed(0)
+    # pretrain a small MLP on task A, fine-tune fully on a related task B, look at the update's singular values
+    d = 64; Wt = torch.randn(d, d) / 8
+    XA = torch.randn(4000, d); yA = torch.tanh(XA @ Wt) @ torch.randn(d, 1)
+    net = nn.Sequential(nn.Linear(d, 256), nn.ReLU(), nn.Linear(256, 256), nn.ReLU(), nn.Linear(256, 1))
+    opt = torch.optim.Adam(net.parameters(), 1e-3)
+    for _ in range(1500):
+        loss = (net(XA) - yA).pow(2).mean(); opt.zero_grad(); loss.backward(); opt.step()
+    W0 = net[2].weight.detach().clone()
+    yB = yA + 0.5 * torch.relu(XA[:, :3].sum(1, keepdim=True))          # a related task with a small new component
+    opt = torch.optim.Adam(net.parameters(), 3e-4)
+    for _ in range(800):
+        loss = (net(XA) - yB).pow(2).mean(); opt.zero_grad(); loss.backward(); opt.step()
+    dW = net[2].weight.detach() - W0
+    sv = torch.linalg.svdvals(dW).numpy(); energy = np.cumsum(sv ** 2) / np.sum(sv ** 2)
+    rnd = torch.linalg.svdvals(torch.randn(256, 256)).numpy(); er = np.cumsum(rnd ** 2) / np.sum(rnd ** 2)
+    fig, ax = plt.subplots(figsize=(W, 2.2)); r = np.arange(1, 257)
+    ax.plot(r, energy, color=S1); ax.plot(r, er, color=MUTED, ls=DASH[1])
+    for k in (4, 16): ax.annotate(f"rank {k}: {energy[k-1]:.0%}", (k, energy[k - 1]), xytext=(6, -10), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.annotate("random 256×256 matrix", (120, er[119]), xytext=(6, -12), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.annotate("fine-tuning update ΔW", (1, energy[0]), xytext=(8, -2), textcoords="offset points", color=INK2, fontsize=7.5)
+    ax.set_xscale("log", base=2); ax.set_xlabel("rank kept"); ax.set_ylabel("share of ΔW's energy captured")
+    ax.set_title("A fine-tuning update is approximately low rank")
+    print(f"fine-tune update energy: rank4 {energy[3]:.3f} rank16 {energy[15]:.3f}; random rank16 {er[15]:.3f}")
+    save(fig, "20-fig-1.png")
+
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or ["10", "18"]

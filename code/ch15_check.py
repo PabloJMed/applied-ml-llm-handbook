@@ -39,3 +39,10 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
     kd = F.kl_div(F.log_softmax(student_logits / T, -1), F.softmax(teacher_logits / T, -1), reduction="batchmean") * T * T
     return alpha * kd + (1 - alpha) * F.cross_entropy(student_logits, y)
 s, t = torch.randn(4, 5), torch.randn(4, 5); print("distill", round(distill_loss(s, t, torch.tensor([0,1,2,3])).item(), 3), round(distill_loss(t, t, torch.tensor([0,1,2,3]), alpha=1).item(), 4))
+
+# 15.9 compute of each stage for a 7B model (6N FLOPs per trained token, 2N per forward-only or generated token)
+N = 7e9; pre = 6 * N * 2e12
+sft = 6 * N * 100_000 * 1000 * 3; dpo = (6 + 2) * N * 50_000 * 2 * 1000
+rl_tok = 1000 * 512 * 8 * 2000; rl = (2 + 6) * N * rl_tok
+for k, v in [("pre-training", pre), ("SFT", sft), ("DPO", dpo), ("RLVR", rl)]:
+    print(f"{k}: {v:.2e} FLOPs = {v / pre:.4%} of pre-training")

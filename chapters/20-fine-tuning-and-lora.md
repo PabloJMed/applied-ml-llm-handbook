@@ -54,6 +54,12 @@ Full fine-tuning is still right for smaller encoders (BERT-sized classifiers, Ch
 
 **The idea (Hu et al., 2021).** The weight change needed to adapt a model to a task has low intrinsic rank. So instead of learning a full update ΔW (d × k), learn it as the product of two thin matrices: ΔW = B·A, with B of size d × r and A of size r × k, r much smaller than d and k. The pretrained W stays frozen.
 
+![Diagram](images/20-fig-1.png)
+
+*Cumulative share of a full fine-tuning update's squared singular values kept by its best rank-r approximation. Here a small network is pretrained on one task and fully fine-tuned on a related one, and the update of a 256 × 256 hidden layer is measured. Rank 4 keeps 85% of the update and rank 16 keeps 96%; a random matrix of the same size needs most of its 256 dimensions.*
+
+This is the observation behind LoRA. Measurements on real language-model fine-tunes (Aghajanyan et al., 2020, on intrinsic dimension, and the LoRA paper's own analysis of ΔW) show the same shape: a few directions carry most of the change. LoRA restricts training to such updates from the start. The restriction is mild for narrow tasks such as formats, styles, classification or extraction. It bites for tasks that need much new knowledge (a new language, a large new domain), where LoRA at small rank trails full fine-tuning. There, higher rank, full fine-tuning or continued pretraining (20.11) works better.
+
 ![Diagram](images/16-01.png)
 
 *LoRA · frozen W plus a trainable low-rank path*
@@ -108,6 +114,15 @@ QLoRA (Dettmers et al., 2023) fine-tunes LoRA adapters on top of a base model **
 - **NF4 (4-bit NormalFloat):** a 4-bit data type whose levels are spaced for normally distributed weights.
 - **Double quantisation:** quantising the quantisation constants too, saving a bit more memory.
 - **Paged optimisers:** moving optimiser state to CPU memory during spikes to avoid out-of-memory errors.
+
+**How NF4 works.** Pretrained weights are roughly normally distributed around zero. QLoRA quantises them in blocks of 64:
+
+1. Divide each block by its largest absolute value, so every weight lies in [−1, 1].
+2. Round each weight to the nearest of 16 levels. In NF4 the levels sit at quantiles of a standard normal (−1, −0.70, −0.53, −0.39, −0.28, −0.18, −0.09, 0, 0.08, 0.16, 0.25, 0.34, 0.44, 0.56, 0.72, 1). Levels are dense near zero, where most weights are, and sparse in the tails. Zero is exactly representable.
+
+On normally distributed weights, NF4's relative RMS error is 9.2% against 10.1% for 16 evenly spaced levels.
+
+**What double quantisation saves.** Each block of 64 needs a scaling constant. Stored in fp32, that is 32/64 = 0.5 extra bits per parameter. Quantising the constants themselves to 8 bits, in blocks of 256 with one fp32 constant each, brings the overhead to 0.127 bits: about 0.33 GB saved on a 7B model and 3.3 GB on a 70B model.
 
 Weights are de-quantised to bf16 on the fly for each matrix multiplication; gradients flow through them into the bf16 LoRA adapters. Quality is close to 16-bit LoRA in the paper's experiments. The cost: slower training than bf16 LoRA. After training, merge the adapter into a 16-bit copy of the base model for serving, rather than into the 4-bit weights.
 
@@ -228,6 +243,37 @@ Managed alternatives: most LLM providers offer fine-tuning APIs for some of thei
 Merging is cheap and widely used to combine specialised fine-tunes or checkpoints from different training runs; its results are empirical and need the same evaluation as any other model.
 
 **Reinforcement fine-tuning.** For tasks with checkable outcomes (structured extraction with a validator, code with tests, maths, classification with clear rubrics), fine-tuning with RL against a grader (Chapter 19) can beat SFT, especially with few labelled examples, because the model learns from its own attempts. Several providers offer it as a managed service with user-defined graders; the grader then becomes the specification and needs the same hardening as any verifier (Chapter 27).
+
+## 20.12 A worked fine-tune: one 24 GB GPU
+
+Goal: adapt a 7B Llama-style model (32 layers, width 4,096, MLP width 11,008) to extract fields from customer emails into JSON. The budget is one 24 GB GPU and a day.
+
+**Will it fit?**
+
+| Item | Full fine-tuning | LoRA on bf16 base | QLoRA |
+|---|---|---|---|
+| Base weights | 13.5 GB bf16 (plus fp32 master copy) | 13.5 GB | 3.4 GB NF4 + 0.1 GB constants |
+| Trainable parameters | 6.74B | 40M (0.59%) | 40M (0.59%) |
+| Gradients, Adam state and fp32 copies of trainable parameters | about 94 GB | 0.6 GB | 0.6 GB |
+| Total before activations | about 108 GB | about 14 GB | about 4 GB |
+
+The LoRA rows assume r = 16 on all seven linear layers per block: r(d_in + d_out) parameters each, giving 1.25M per layer. Full fine-tuning is out. bf16 LoRA fits, with about 10 GB left for activations. QLoRA leaves about 20 GB, which buys longer sequences or bigger batches.
+
+**Activations.** Use gradient checkpointing, which stores each layer's input (s × 4,096 × 2 bytes per sequence) and recomputes the rest. Then 8 sequences of 2,048 tokens need about 4 GB, plus one layer's full working set during recomputation. Pick bf16 LoRA if it fits, because it is faster and avoids quantisation error. Use QLoRA when you need the room.
+
+**Data and run.**
+
+- **Examples.** 3,000 labelled emails, 10% held out, formatted with the model's chat template. Mask the loss on the prompt tokens.
+- **Training.** 3 epochs at learning rate 2e-4 with cosine decay and 3% warm-up, an effective batch of 32, α = 32.
+- **Size.** At about 300 tokens per email, about 900k tokens per epoch, so the run takes minutes to an hour, not a day. Spend the rest of the day on evaluation.
+
+**Evaluate.**
+
+- Exact-match accuracy per field and JSON validity on the held-out set.
+- A small general benchmark against the base model, to check for forgetting (20.8).
+- A slice of the hardest emails (long threads, several languages), read by hand.
+
+If accuracy plateaus below target, look at the errors before raising the rank. Label noise and template mistakes are more common causes than capacity.
 
 ## Pitfalls
 

@@ -70,6 +70,12 @@ Careful analysis in 2025 found that the original GRPO objective has biases, and 
 
 **Zero-signal groups.** If every response in a group gets the same reward, all advantages are zero and the prompt contributes nothing. With 8 samples, a prompt with a 2% or 98% pass rate gives no signal 85% of the time; one at 50% almost never. **Dynamic sampling** (DAPO) keeps sampling until the batch is filled with groups that have mixed results.
 
+![Diagram](images/19-fig-1.png)
+
+*Probability that a group of G samples is all correct or all wrong (and so gives zero advantage) as a function of the prompt's pass rate. Larger groups shrink the dead zone at both ends but never remove it.*
+
+Larger groups help at the edges. A prompt with a 5% pass rate gives no signal 66% of the time with G = 8 and 44% with G = 16. One at 20% drops from 17% to 3%. The cost is twice the generation per prompt, so in practice teams use G = 8–16 together with a difficulty filter and dynamic sampling.
+
 **Entropy collapse and clip-higher.** RL quickly reduces the policy's entropy: it commits to the strategies that already work and stops exploring. Symmetric clipping at 1 ± 0.2 lets a token with probability 0.01 rise to only 0.012 per update, while confident tokens can be reinforced freely. DAPO's **clip-higher** raises the upper bound (to 1.28), which lets rare, useful tokens grow faster and keeps entropy up. Other tools: entropy bonuses, a higher sampling temperature, and removing the KL penalty (DAPO removes it, since the policy is supposed to move far from the reference in long-reasoning RL).
 
 **Overlong responses.** Responses cut at the length limit get no reward though their reasoning may be fine, which adds noise. DAPO masks truncated samples from the loss or applies a soft penalty as responses approach the limit.
@@ -96,6 +102,18 @@ The check script builds a toy version: 200 problems, six solution strategies; on
 
 pass@1 rises; pass@64 falls, because the rare strategy, reinforced too seldom to compete, is squeezed out. This is entropy collapse in miniature. The lesson for practice: **report pass@k curves, not only pass@1**, monitor entropy, and keep exploration alive (clip-higher, temperature, diverse prompts) if you want RL to find new solutions rather than only sharpen old ones.
 
+![Diagram](images/19-fig-2.png)
+
+*pass@k against k for the base and RL-trained policies in the toy simulation. The curves cross: RL improves the first sample and loses the tail, because the rare strategy that solves the hard problems was squeezed out.*
+
+**Reading a pass@k plot.**
+
+- **The k = 1 end** measures how reliably the model finds a solution it knows.
+- **The large-k end** measures what it can find at all.
+- **Where the curves sit.** An RL run that only sharpens the policy lifts the left end and leaves the right end unchanged or lower. An RL run that genuinely extends the model's reach lifts both ends.
+
+Compute pass@k with the unbiased estimator from n ≥ k samples (Chapter 13), on held-out problems, at the same temperature for both models. Comparing a base model at temperature 1.0 with an RL model at 0.6 is a common way to fool yourself.
+
 ## 19.7 Process supervision
 
 An outcome reward model (ORM), or a verifier, judges the final answer. A **process reward model (PRM)** scores each step of the reasoning. Lightman et al. (2023) trained a PRM on 800k human step labels (PRM800K) and found that, for selecting the best of many solutions, process supervision beat outcome supervision on competition maths. Math-Shepherd labelled steps automatically: a step's label is the fraction of continuations from that step that reach the right answer (a Monte Carlo estimate of its value).
@@ -112,7 +130,13 @@ PRMs are used for: reranking samples, guiding search (beam search over steps, tr
 | Sequential revision | Answer, critique, revise | A model that can find its own errors |
 | Longer thinking | Train the model to think longer; control the budget | RL-trained reasoning model |
 
-**Self-consistency** works when the correct answer is the most common one. With a 30% single-sample accuracy and wrong answers spread over five options, majority voting over 25 samples reaches 70%; at 50% accuracy it reaches 99%. But if one wrong answer is more popular than the right one, voting makes things worse: with two wrong options, 30% accuracy and 25 votes, accuracy collapses to 2%. Voting amplifies whatever the model believes most.
+**Self-consistency** works when the correct answer is the most common one. With a 30% single-sample accuracy and wrong answers spread over five options, majority voting over 25 samples reaches 70%; at 50% accuracy it reaches 99%. But if one wrong answer is more popular than the right one, voting makes things worse: with a single wrong answer that takes the other 70%, the majority over 25 votes is right only 2% of the time. Voting amplifies whatever the model believes most.
+
+![Diagram](images/19-fig-3.png)
+
+*Accuracy of the majority answer as more samples are voted on. When the right answer is the plurality, voting climbs towards 100%; when a single wrong answer is more popular, voting drives accuracy towards zero.*
+
+The practical check before adding voting is cheap. Sample 20–40 answers on a few hundred dev problems and look at the answer histograms. If the right answer is usually the most common one, voting will help, and the curve tells you how many samples are worth paying for. If a wrong answer is often the plurality (a common misconception, an ambiguous question), use a verifier or reward model to pick instead.
 
 **Budget forcing** (s1, 2025) controls the thinking length at inference: stop thinking early by forcing the end-of-thinking token, or extend it by suppressing that token and appending "Wait". With only 1,000 curated SFT examples, accuracy rose with the forced budget. Reasoning models also **overthink**: they spend thousands of tokens on easy questions. Length penalties and adaptive budgets are an active area.
 
@@ -129,6 +153,48 @@ RL for reasoning is dominated by **generation**: sampling long responses for man
 - **Training–inference mismatch**: the inference engine and the trainer compute slightly different token probabilities (different kernels, precision). The PPO ratio then mixes real policy change with numerical noise, which can destabilise long runs. Fixes include recomputing log-probabilities in the trainer and importance-sampling corrections.
 - Long responses create imbalanced batches; pack and sort by length.
 - Open frameworks: verl, OpenRLHF, TRL, and others (Chapter 32).
+
+## 19.11 A worked RLVR run
+
+Plan a run for a 30B-class model on maths and code with verifiable rewards.
+
+**Prompt pool.** Start with 200k scraped maths problems and 50k coding tasks with tests.
+
+1. **Clean the answers.** Drop maths items whose reference answer fails a parser or disagrees with a strong model's majority vote. Then check a sample of the disagreements by hand, because a surprising share of them are wrong references.
+2. **Estimate pass rates.** Sample each prompt 8 times with the starting policy and record the pass rate.
+3. **Filter by difficulty.** Keep prompts between 10% and 90%. The kept pool is often a third of the original or less.
+
+**Group size and batch.** Use 512 prompts per step and G = 16 samples each, with a response limit of 8k tokens and an average near 4k.
+
+- **Generation per step.** That is 32.8M tokens.
+- **Where the time goes.** Generation dominates the wall-clock time, so the inference engine's throughput sets the pace of the run.
+- **Zero-signal groups.** With G = 16, a prompt that has drifted to a 5% or 95% pass rate is still dead 44% of the time. Re-estimate pass rates every few hundred steps and refill the pool.
+
+**Loss settings that most recent recipes converge on.**
+
+- Token-level averaging over the batch (no per-response length normalisation).
+- Clip-higher (0.8 to 1.28).
+- No KL penalty or a very small one.
+- Truncated samples masked from the loss.
+- Dynamic sampling so each batch contains only groups with mixed rewards.
+
+Change one at a time against a baseline, at a fixed generation budget.
+
+**Dashboard.**
+
+| Signal | Healthy | Warning sign |
+|---|---|---|
+| Training reward | Rising steadily | Jumps suddenly: check for a verifier exploit |
+| Response length | Rising slowly on hard prompts | Rising everywhere, including easy prompts: overthinking or a length bias |
+| Policy entropy | Falling slowly | Collapsing in the first few hundred steps |
+| Share of zero-signal groups | Stable | Rising: the pool has become too easy or too hard |
+| Held-out pass@1 and pass@64 | Both rising | pass@1 up, pass@64 down: sharpening only |
+
+**Reward-hacking audit.** Every few hundred steps, read 20 high-reward samples from the latest checkpoint. Exploits of the checker show up in the text long before they show up in the metrics:
+
+- answers that print the expected output without computing it;
+- code that special-cases the tests;
+- maths answers that list several values hoping the matcher picks one.
 
 ## Pitfalls
 

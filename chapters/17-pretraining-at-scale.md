@@ -65,6 +65,10 @@ Still, 140 GB of bf16 gradients for a 70B model across 64 GPUs at 50 GB/s effect
 | ZeRO-2 | + gradients | 155 GB |
 | ZeRO-3 / FSDP | + weights | 17.5 GB |
 
+![Diagram](images/17-fig-1.png)
+
+*Memory per GPU for the training state of a 70B model data-parallel over 64 GPUs, before activations. Each ZeRO stage shards one more piece of the replicated state; only full sharding fits under the 80 GB line with room for activations.*
+
 ZeRO-1 and ZeRO-2 cost no extra communication (a reduce-scatter plus all-gather is an all-reduce). ZeRO-3 (PyTorch's **FSDP**) gathers each layer's weights just before it is used and frees them after, adding about 50% more communication, which is hidden by prefetching the next layer while the current one computes. FSDP is the default starting point for models up to tens of billions of parameters; beyond that, or across slower networks, it is combined with the parallelisms below.
 
 ## 17.4 Tensor parallelism
@@ -84,6 +88,10 @@ The cost is the **bubble**: at the start and end of each batch, some stages are 
 | 8 | 8 | 46.7% |
 | 8 | 32 | 17.9% |
 | 16 | 64 | 19.0% |
+
+![Diagram](images/17-fig-2.png)
+
+*Idle fraction (p − 1)/(m + p − 1) for 4, 8 and 16 pipeline stages. Each stage count needs roughly 4–6 times as many micro-batches as stages to get under the 15% line.*
 
 More micro-batches shrink the bubble but need a large global batch. Schedules reduce it further: **1F1B** (alternate forward and backward passes to bound memory), **interleaved** stages (each GPU holds several non-adjacent chunks of layers), and **zero-bubble** schedules that split the backward pass into input-gradient and weight-gradient parts and fill idle slots with the latter.
 
@@ -130,6 +138,45 @@ At scale, hardware failure is routine. With a per-GPU mean time between failures
 | Per-domain held-out loss | Whether the mixture behaves as planned (Chapter 16) |
 | Small benchmark suite on regular checkpoints | Capability trends; early warning of regressions |
 | Restarts, lost hours, checkpoint durations | Effective throughput, which is what the budget sees |
+
+## 17.11 A worked memory and time budget
+
+Check the layout from 17.8 (70B parameters, 80 layers, width 8,192, 64 heads, 8k-token sequences, TP = 8, PP = 4, DP = 32 on 1,024 GPUs) before you launch it.
+
+**Memory per GPU.**
+
+| Item | Calculation | GB |
+|---|---|---|
+| bf16 weights and gradients | 70B / (8 × 4) = 2.19B parameters × 4 bytes | 8.8 |
+| Adam state and fp32 master weights | 2.19B × 12 bytes, sharded over 32 DP ranks (ZeRO-1) | 0.8 |
+| Activations per layer | s · h · 34 bytes / TP = 8,192 × 8,192 × 34 / 8 (attention scores recomputed, sequence parallel) | 0.29 |
+| Activations on the first stage | 20 layers × 0.29 GB × 4 micro-batches in flight (1F1B holds up to p) | 22.8 |
+| Total | | ≈ 32 |
+
+There is plenty of headroom on an 80 GB GPU, even after 10–20% for communication buffers and allocator fragmentation. The headroom can buy a longer sequence or a micro-batch of 2. Full activation recomputation would cut the activations to about 1.3 GB but cost about 33% more compute, so it is not worth it here. Note that the first pipeline stage holds the most in-flight micro-batches, so it is the one that runs out of memory first.
+
+**Time per step.** A 4M-token batch costs 6 × 70 × 10⁹ × 4.19 × 10⁶ = 1.76 × 10¹⁸ FLOPs. At 40% MFU on 1,024 GPUs that is 4.35 seconds per step, and 3.6M steps for 15T tokens: 180 days, as in the table of 17.1.
+
+**Communication.**
+
+- **Gradient sync.** Each GPU syncs 4.4 GB of bf16 gradients across its DP group. A ring sends about twice that: 0.17 s at 50 GB/s. That is 4% of the step, and it is hidden behind the backward pass when bucketed.
+- **Pipeline traffic.** Each micro-batch crosses each stage boundary as a 17 MB activation tensor (s · h · 2 bytes / TP): negligible.
+- **Tensor parallelism.** Its all-reduces stay on NVLink inside the node.
+
+**The bubble is the biggest loss.** With 4 stages and 16 micro-batches, (4 − 1)/(16 + 4 − 1) = 15.8% of each step is idle. An interleaved schedule with two chunks of layers per GPU cuts it to about 8.6%, saving roughly two weeks of the 180 days. The alternative fixes are worse:
+
+- A larger global batch to get more micro-batches risks passing the critical batch size.
+- Fewer stages needs more memory per GPU.
+
+The interleaved schedule is the right first change.
+
+**What to verify in the first hour.**
+
+- Measured step time within 10% of the estimate.
+- Peak memory on the first stage close to the prediction.
+- Loss in the first few hundred steps matching a smaller-scale run with the same recipe.
+
+A large gap on any of these is cheaper to find now than at day 20.
 
 ## Pitfalls
 

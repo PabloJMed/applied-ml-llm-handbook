@@ -101,6 +101,12 @@ Duplicates waste compute, encourage memorisation (including of personal data) an
 
 16 × 8 targets near-duplicates above about 0.75; 20 × 5 is looser and catches more pairs (and more false positives). The article pair matched in 5 of 16 bands, so it became a candidate. Candidates are then clustered (connected components) and one document per cluster is kept.
 
+![Diagram](images/16-fig-1.png)
+
+*Probability that two documents become LSH candidates as a function of their Jaccard similarity, for three band/row settings with 128 or 100 hashes. More rows per band push the threshold right and make the curve steeper; more bands pull it left.*
+
+**Choosing b and r.** The threshold sits near (1/b)^(1/r). Pick it slightly below the similarity you want to catch, because pairs just under the threshold are still sometimes caught and pairs just over it are sometimes missed. False positives cost only a verification step (compute the actual Jaccard similarity of each candidate pair); false negatives leave duplicates in the data. FineWeb, for example, used 112 hashes split into 14 bands of 8 rows (threshold about 0.72) on 5-gram shingles, aiming at pairs at least 75% similar. At this scale the bottleneck is no longer the hashing but the connected-components step over billions of candidate edges, which needs a distributed union-find.
+
 **How much to deduplicate** is itself an empirical question. FineWeb found that deduplicating each crawl snapshot separately worked better than deduplicating globally across all snapshots: global deduplication removed many good documents that recur across years and left a higher share of low-quality unique pages. Deduplication interacts with quality filtering and with how much repetition the run can afford.
 
 ## 16.6 Decontamination
@@ -127,6 +133,12 @@ A mixture assigns a sampling weight to each source. Natural proportions (by size
 | Books (300) | 2.3% | 8.6% | 15.4% |
 
 Upsampling has a price: at T = 2 a 15T-token run would see the maths data 7.5 times, past the point where repetition stops helping (Chapter 13). Mixtures are designed against both targets: enough of each skill, not too many epochs of any source.
+
+![Diagram](images/16-fig-2.png)
+
+*Effective tokens from repeating 100B unique tokens, using the data-constrained scaling fit of Muennighoff et al. (2023), where repeated tokens decay in value with a characteristic scale of about 15 epochs. Four epochs are worth nearly as much as fresh data; 16 epochs are worth about two-thirds of what they cost.*
+
+The fit gives a usable rule. Up to about four epochs, repeating good data costs almost nothing. Beyond that, each extra epoch adds less, and past roughly 40 epochs it adds almost nothing. The maths data in the T = 2 mixture, seen 7.5 times in a 15T run, gives about 630B effective tokens for the 750B it costs: acceptable. At T = 5 it would be seen 18.6 times and the waste would be large. This is why labs extend scarce domains with rephrased and synthetic data (16.9) rather than repeating them.
 
 **Choosing weights.**
 
@@ -163,6 +175,36 @@ Data decisions are only as good as the experiments behind them.
 - **Read the data**: sample 100 documents from what a filter keeps and from what it removes. Many filter bugs are obvious to a human in five minutes.
 
 **Legal and ethical constraints** shape what can be used: licences, website terms and robots.txt opt-outs (increasingly restrictive for AI crawlers), copyright litigation over books and news, personal data regulation. Research scientists are not lawyers, but they should keep provenance metadata for every source so data can be removed or re-weighted when policy changes.
+
+## 16.11 A worked data budget
+
+You are planning the data for two runs that share a mixture: a 2T-token run for a 7B model and a later 15T-token run for a 70B model. The sources are those in 16.7 and you start from T = 2.
+
+**Step 1: tokens and epochs per domain.**
+
+| Domain (unique tokens) | Share at T = 2 | 2T run: tokens (epochs) | 15T run: tokens (epochs) |
+|---|---|---|---|
+| English web (10,000B) | 49.9% | 998B (0.10) | 7,488B (0.75) |
+| Other-language web (2,000B) | 22.3% | 446B (0.22) | 3,349B (1.67) |
+| Code (800B) | 14.1% | 282B (0.35) | 2,118B (2.65) |
+| Maths (100B) | 5.0% | 100B (1.00) | 749B (7.49) |
+| Books (300B) | 8.6% | 173B (0.58) | 1,297B (4.32) |
+
+The small run repeats nothing. The large run repeats maths 7.5 times and books 4.3 times.
+
+**Step 2: decide what to do with the over-used domains.** You have three options.
+
+- Accept the repetition. 7.5 epochs of maths is about 84% as valuable as fresh data by the curve above.
+- Cap maths at about 4 epochs (400B tokens, 2.7% of the mixture) and give the rest to code and web.
+- Grow the domain: rephrase maths web pages and generate verified problem–solution pairs until it holds 200–300B unique tokens.
+
+The choice should come from an ablation, not from taste.
+
+**Step 3: the ablation.** Train three 1B-parameter proxies for 50B tokens each, one per option. That is 6 × 10⁹ × 50 × 10⁹ = 3 × 10²⁰ FLOPs per proxy, about 210 GPU-hours at 40% MFU on a 989 TFLOP/s GPU. Compare per-domain held-out loss and a maths and reasoning benchmark suite.
+
+Proxies cannot show the repetition effect directly, because at 50B tokens nothing repeats. So scale the repetition down with the run: subsample the maths source so it is seen 7.5 times within the proxy's budget. This is the standard trick for testing data-constrained regimes at small scale.
+
+**Step 4: decontaminate and freeze.** Run 13-gram decontamination against every evaluation set you will report, including the new maths set. Record the removed counts per domain, then freeze the mixture with a version number. The same frozen mixture, subsampled, feeds the scaling ladder (Chapter 13), so the ladder predicts the run you will actually do.
 
 ## Pitfalls
 

@@ -83,3 +83,13 @@ M, R = 3.0, 0.25
 for T in (0.25, 0.5, 1, 2):
     waste = (T / 2 + R) / M + (0.02 / T)             # + checkpoint overhead of ~1.2 min each time (synchronous)
     print(f"checkpoint every {T:4.2f} h: ~{waste:.1%} of time lost")
+
+# 17.11 worked budget for TP=8, PP=4, DP=32 on 1,024 GPUs (70B, 80 layers, h=8192, 64 heads, s=8192, micro-batch 1)
+s, h, L, tp, pp, dp, m = 8192, 8192, 80, 8, 4, 32, 16
+act_layer = s * h * 34 / tp / 1e9                      # attention scores recomputed (FlashAttention), sequence parallel
+print("activations per layer %.3f GB; first stage, %d micro-batches in flight: %.1f GB" % (act_layer, pp, act_layer * L / pp * pp))
+pg = 70e9 / tp / pp
+print("params/GPU %.2fB; bf16 weights+grads %.1f GB; sharded Adam %.2f GB" % (pg / 1e9, pg * 4 / 1e9, pg * 12 / dp / 1e9))
+step = 6 * 70e9 * 4 * 2**20 / (1024 * 989e12 * 0.40)
+print("step time %.2f s; grad sync per GPU %.2f s at 50 GB/s; bubble %.1f%%, interleaved x2 %.1f%%; %.0f days for 15T"
+      % (step, 2 * pg * 2 / 50e9, 100 * (pp - 1) / (m + pp - 1), 100 * (pp - 1) / (2 * m + pp - 1), 15e12 / (4 * 2**20) * step / 86400))

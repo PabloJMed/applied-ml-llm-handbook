@@ -105,3 +105,9 @@ print("epochs per domain for a 15T-token run at T=2:", {k: round(float(budget * 
 
 # 16.1 storage arithmetic
 print("15T tokens stored as token ids: %.0f TB as uint32, %.0f TB as uint16 (vocab < 65,536)" % (15e12 * 4 / 1e12, 15e12 * 2 / 1e12))
+
+# 16.11 tokens and epochs per domain at T=2 for a 2T-token run, and effective tokens of repeated data (R* = 15.4)
+for run in (2e12 / 1e9, 15e12 / 1e9):
+    print(f"{run:,.0f}B run:", {k: (round(float(run * pi)), round(float(run * pi / ni), 2)) for k, ni, pi in zip(tokens, n, p)})
+eff = lambda U, E: U + U * 15.4 * (1 - np.exp(-(E - 1) / 15.4))
+print("maths 100B seen 7.5 times: %.0fB effective of 750B" % eff(100, 7.5))
