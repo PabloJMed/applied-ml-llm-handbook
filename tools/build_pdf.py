@@ -48,9 +48,12 @@ PARTS = [
     ("", "Appendices", ["A", "B", "C", "D", "E", "F"]),
 ]
 
-# Page presets: page size, margins (left/right, top, bottom) and base font size.
+# Page presets: page size, margins (left/right, top, bottom), base font size, line height (lh),
+# vertical spacing between blocks (gap, a multiplier) and figure width (img, % of the text width).
+# The book preset was set denser in November 2026 (from 9 pt, lh 1.42, margins 48/58/54, gap 1.0,
+# img 78): 530 pages became 457. Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
 PRESETS = {
-    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=48, top=58, bottom=54, base=9.0),
+    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=8.6, lh=1.36, gap=0.85, img=72),
     "a4": dict(page=pymupdf.paper_rect("a4"), mx=66, top=70, bottom=62, base=9.8),
 }
 
@@ -61,8 +64,10 @@ RULE = (0.82, 0.80, 0.76)
 COVER_BG = (0.973, 0.961, 0.937)
 
 
-def css(base: float) -> str:
+def css(base: float, lh: float = 1.42, gap: float = 1.0, img: int = 78) -> str:
     s = lambda k: f"{base * k:.2f}pt"          # sizes relative to the body size
+    v = lambda k: f"{base * k * gap:.2f}pt"    # vertical spacing between blocks (scaled by `gap`)
+    r = lambda x: f"{x * lh / 1.42:.2f}"       # line heights, relative to the default 1.42
     return f"""
 @font-face {{ font-family: sans; src: url(Inter-Regular.ttf); }}
 @font-face {{ font-family: sans; src: url(Inter-Italic.ttf); font-style: italic; }}
@@ -76,59 +81,59 @@ def css(base: float) -> str:
 @font-face {{ font-family: mono; src: url(JetBrainsMono-Bold.ttf); font-weight: bold; }}
 @font-face {{ font-family: mono; src: url(JetBrainsMono-Italic.ttf); font-style: italic; }}
 
-body {{ margin: 0; padding: 0; font-family: serif; font-size: {s(1)}; line-height: 1.42; color: #1f1f1d; }}
-p {{ margin: 0 0 {s(0.55)} 0; text-align: left; }}
+body {{ margin: 0; padding: 0; font-family: serif; font-size: {s(1)}; line-height: {r(1.42)}; color: #1f1f1d; }}
+p {{ margin: 0 0 {v(0.55)} 0; text-align: left; }}
 strong, b {{ font-weight: bold; color: #141413; }}
 em, i {{ font-style: italic; }}
 a {{ color: #8f4a2c !important; text-decoration: none !important; }}
 
 h1, h2, h3, h4 {{ font-family: sans; font-weight: bold; color: #1a1a18; }}
-h2 {{ font-size: {s(1.32)}; line-height: 1.25; margin: {s(1.45)} 0 {s(0.5)} 0; }}
-h3 {{ font-size: {s(1.08)}; line-height: 1.3; margin: {s(1.15)} 0 {s(0.35)} 0; }}
-h4 {{ font-size: {s(1.0)}; margin: {s(1.1)} 0 {s(0.3)} 0; }}
+h2 {{ font-size: {s(1.32)}; line-height: {r(1.25)}; margin: {v(1.45)} 0 {v(0.5)} 0; }}
+h3 {{ font-size: {s(1.08)}; line-height: {r(1.3)}; margin: {v(1.15)} 0 {v(0.35)} 0; }}
+h4 {{ font-size: {s(1.0)}; margin: {v(1.1)} 0 {v(0.3)} 0; }}
 span.sec {{ color: #b8623f; }}
 
 code {{ font-family: mono; font-size: {s(0.82)}; color: #3b3a36; }}
-pre {{ font-family: mono; font-size: {s(0.72)}; line-height: 1.45; color: #2b2a27; background-color: #f5f2ec;
-      border-top: {s(0.55)} solid #f5f2ec; border-bottom: {s(0.55)} solid #f5f2ec;
-      padding: 0 {s(0.7)}; margin: {s(0.35)} 0 {s(1.0)} 0; white-space: pre-wrap; }}
+pre {{ font-family: mono; font-size: {s(0.72)}; line-height: {r(1.45)}; color: #2b2a27; background-color: #f5f2ec;
+      border-top: {v(0.55)} solid #f5f2ec; border-bottom: {v(0.55)} solid #f5f2ec;
+      padding: 0 {s(0.7)}; margin: {v(0.35)} 0 {v(1.0)} 0; white-space: pre-wrap; }}
 pre code {{ font-size: {s(0.72)}; color: #2b2a27; }}
 
-ul, ol {{ margin: 0 0 {s(0.7)} 0; padding-left: {s(1.6)}; }}
-li {{ margin: 0 0 {s(0.22)} 0; }}
-li p {{ margin: 0 0 {s(0.25)} 0; }}
-blockquote {{ margin: {s(0.4)} 0 {s(0.8)} 0; padding-left: {s(0.9)}; border-left: 1.2pt solid #c98a6c; color: #4f4d48; }}
+ul, ol {{ margin: 0 0 {v(0.7)} 0; padding-left: {s(1.6)}; }}
+li {{ margin: 0 0 {v(0.22)} 0; }}
+li p {{ margin: 0 0 {v(0.25)} 0; }}
+blockquote {{ margin: {v(0.4)} 0 {v(0.8)} 0; padding-left: {s(0.9)}; border-left: 1.2pt solid #c98a6c; color: #4f4d48; }}
 
-table {{ border-collapse: collapse; margin: {s(0.45)} 0 {s(1.05)} 0; font-family: sans; font-size: {s(0.8)};
-        line-height: 1.38; width: 100%; border-top: 0.9pt solid #3a3935; border-bottom: 0.9pt solid #3a3935; }}
-th {{ font-weight: bold; text-align: left; border-bottom: 0.6pt solid #3a3935; padding: {s(0.4)} {s(0.6)}; vertical-align: bottom; }}
-td {{ border-bottom: 0.35pt solid #dcd7cd; padding: {s(0.36)} {s(0.6)}; vertical-align: top; }}
+table {{ border-collapse: collapse; margin: {v(0.45)} 0 {v(1.05)} 0; font-family: sans; font-size: {s(0.8)};
+        line-height: {r(1.38)}; width: 100%; border-top: 0.9pt solid #3a3935; border-bottom: 0.9pt solid #3a3935; }}
+th {{ font-weight: bold; text-align: left; border-bottom: 0.6pt solid #3a3935; padding: {v(0.4)} {s(0.6)}; vertical-align: bottom; }}
+td {{ border-bottom: 0.35pt solid #dcd7cd; padding: {v(0.36)} {s(0.6)}; vertical-align: top; }}
 td code, th code {{ font-size: {s(0.74)}; }}
 td strong {{ font-family: sans; }}
 
-img {{ width: 78%; }}
-p.fig {{ text-align: center; margin: {s(0.5)} 0 {s(0.25)} 0; }}
-p.caption {{ font-family: sans; font-size: {s(0.78)}; color: #6e6c66; text-align: center; margin: 0 0 {s(1.0)} 0; }}
-hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {s(0.8)} 0; }}
+img {{ width: {img}%; }}
+p.fig {{ text-align: center; margin: {v(0.5)} 0 {v(0.25)} 0; }}
+p.caption {{ font-family: sans; font-size: {s(0.78)}; color: #6e6c66; text-align: center; margin: 0 0 {v(1.0)} 0; }}
+hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {v(0.8)} 0; }}
 
 .chapter {{ page-break-before: always; }}
 .brk {{ page-break-before: always; }}
 p.spacer {{ margin: 0; font-size: 1pt; line-height: 1; }}
-.tight p, .tight li {{ line-height: 1.36; }}
-.tight p {{ margin-bottom: {s(0.45)}; }}
-.tighter p, .tighter li {{ line-height: 1.31; }}
-.tighter p {{ margin-bottom: {s(0.38)}; }}
-.tighter h2 {{ margin-top: {s(1.2)}; }}
+.tight p, .tight li {{ line-height: {r(1.36)}; }}
+.tight p {{ margin-bottom: {v(0.45)}; }}
+.tighter p, .tighter li {{ line-height: {r(1.31)}; }}
+.tighter p {{ margin-bottom: {v(0.38)}; }}
+.tighter h2 {{ margin-top: {v(1.2)}; }}
 .partlabel {{ font-family: sans; font-weight: bold; font-size: {s(0.72)}; color: #b8623f; margin: {s(1.0)} 0 {s(1.6)} 0; }}
 .chapnum {{ font-family: sans; font-size: {s(0.95)}; color: #b8623f; margin: 0 0 {s(0.25)} 0; }}
 h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bottom: {s(0.9)};
      border-bottom: 0.6pt solid #d8d2c6; }}
 .partintro {{ font-style: italic; color: #5d5b56; margin: 0 0 {s(1.4)} 0; }}
 
-.box {{ border-left: 1.6pt solid #d9a184; padding: 0 0 0 {s(1.0)}; margin: {s(0.4)} 0 {s(1.2)} 0; }}
-.box h2 {{ font-size: {s(0.86)}; color: #b8623f; margin: 0 0 {s(0.45)} 0; }}
+.box {{ border-left: 1.6pt solid #d9a184; padding: 0 0 0 {s(1.0)}; margin: {v(0.4)} 0 {v(1.2)} 0; }}
+.box h2 {{ font-size: {s(0.86)}; color: #b8623f; margin: 0 0 {v(0.45)} 0; }}
 .box ul {{ margin-bottom: 0; }}
-.box p {{ margin-bottom: {s(0.45)}; }}
+.box p {{ margin-bottom: {v(0.45)}; }}
 
 .cover {{ page-break-after: always; }}
 .dedication {{ page-break-after: always; }}
@@ -363,9 +368,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--page", choices=sorted(PRESETS), default="book")
     ap.add_argument("--out", type=Path, default=OUT)
+    for k in ("base", "lh", "gap", "mx", "top", "bottom"):        # override a preset value, for layout tests
+        ap.add_argument(f"--{k}", type=float)
+    ap.add_argument("--img", type=int)
     args = ap.parse_args()
-    P = PRESETS[args.page]
+    P = dict(lh=1.42, gap=1.0, img=78) | PRESETS[args.page]
+    P |= {k: getattr(args, k) for k in ("base", "lh", "gap", "mx", "top", "bottom", "img") if getattr(args, k) is not None}
     PAGE, MX, TOP, BOTTOM, BASE = P["page"], P["mx"], P["top"], P["bottom"], P["base"]
+    LH, GAP, IMG = P["lh"], P["gap"], P["img"]
 
     global CODE_COLS
     code_size = BASE * 0.72
@@ -380,7 +390,7 @@ def main() -> int:
 
     collected: list = []
 
-    line = BASE * 1.42
+    line = BASE * LH
     floor = PAGE.height - BOTTOM                 # bottom of the text area
 
     def contentfn(positions):
@@ -399,7 +409,7 @@ def main() -> int:
 
     def layout():
         return pymupdf.Story.write_stabilized_with_links(
-            contentfn, rectfn, user_css=css(BASE), em=BASE, archive=archive, add_header_ids=False)
+            contentfn, rectfn, user_css=css(BASE, LH, GAP, IMG), em=BASE, archive=archive, add_header_ids=False)
 
     doc = layout()
     # Breaks only accumulate during a layout run, so a break added while earlier content sat
