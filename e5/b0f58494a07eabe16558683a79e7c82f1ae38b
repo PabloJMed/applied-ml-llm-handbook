@@ -1,0 +1,44 @@
+tools/build_pdf.py
+  s_6695b7a8fa5137::t_0160dc7f6fad75 14,117-118,282-289,291-292,294-338,349-351,353-355,453-455
+  s_6695b7a8fa5137::t_ed80a9180b29ed 293
+  s_6695b7a8fa5137::t_8c7485adad4e84 290
+chapters/02-statistics-and-experimentation.md
+  s_6695b7a8fa5137::t_3982ec3109d150 158-160
+chapters/18-post-training-sft-and-preferences.md
+  s_6695b7a8fa5137::t_3982ec3109d150 76,78,152-154,175-181,223-235,237-239
+  s_6695b7a8fa5137::t_c61f07b89bb715 77
+chapters/29-embeddings.md
+  s_6695b7a8fa5137::t_3982ec3109d150 52-54
+chapters/04-evaluation-and-metrics.md
+  s_6695b7a8fa5137::t_3982ec3109d150 130-136
+chapters/03-ml-fundamentals.md
+  s_6695b7a8fa5137::t_3982ec3109d150 38-40
+chapters/10-the-transformer-in-depth.md
+  s_6695b7a8fa5137::t_3982ec3109d150 69-71
+CHANGELOG.md
+  s_6695b7a8fa5137::t_844234f8d065d7 6
+  s_6695b7a8fa5137::t_fec335a126d3d8 3-5
+  s_6695b7a8fa5137::t_9276152fcead6a 7-8
+chapters/43-recommender-systems.md
+  s_6695b7a8fa5137::t_3982ec3109d150 101-103,107-109,447-449
+tools/check_book.py
+  s_6695b7a8fa5137::t_c119a78773af1e 10,71-75
+tools/requirements.txt
+  s_6695b7a8fa5137::t_4e10e606a1a67b 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5b0f58494a07eabe16558683a79e7c82f1ae38b",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
