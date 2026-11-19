@@ -35,7 +35,9 @@ Before choosing a model, answer these questions, in this order:
 
 A model's expected error on new data splits into three parts:
 
-`expected error = bias² + variance + irreducible noise`
+$$
+\mathrm{expected\ error} = \mathrm{bias}^2 + \mathrm{variance} + \mathrm{irreducible\ noise}
+$$
 
 - **Bias:** error from wrong assumptions; the model is too simple to capture the pattern (a straight line through a curve). Shows as high training error and similar validation error: **underfitting**.
 - **Variance:** error from sensitivity to the particular training sample; the model fits noise. Shows as low training error and much higher validation error: **overfitting**.

@@ -155,7 +155,9 @@ def srm_p_value(n_a, n_b, expected_ratio=0.5):
 
 **CUPED** (Deng et al., Microsoft, 2013) uses pre-experiment data to remove predictable variance. For each user, adjust the metric with their pre-period value of a correlated covariate X (often the same metric before the test):
 
-`Y_cuped = Y − θ(X − mean(X)), θ = cov(Y, X) / var(X)`
+$$
+Y_{\mathrm{cuped}} = Y - \theta\,(X - \bar{X}),\qquad \theta = \dfrac{\mathrm{Cov}(Y,X)}{\mathrm{Var}(X)}
+$$
 
 Randomisation makes X independent of treatment, so the effect estimate stays unbiased while its variance shrinks by a factor of (1 − ρ²), where ρ is the correlation between X and Y.
 

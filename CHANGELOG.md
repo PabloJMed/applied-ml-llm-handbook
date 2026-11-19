@@ -1,5 +1,11 @@
 # Changelog
 
+## Typeset display equations (November 2026)
+
+- Key equations are now set as numbered display formulas, centred with real fractions, sums and roots, instead of plain-text lines: CUPED (2), bias-variance (3), log loss (4), attention (10), reward-model, RLHF, PPO and DPO objectives (18), InfoNCE (29) and the matrix-factorisation and off-policy losses (43).
+- Source format: a `$$ ... $$` block of LaTeX on its own lines. GitHub renders it directly; `tools/build_pdf.py` typesets it with matplotlib mathtext (STIX fonts) and numbers it per chapter (Eq. 10.1). `tools/check_book.py` checks the delimiters.
+- `tools/requirements.txt` now lists matplotlib.
+
 ## PDF layout: denser book format (November 2026)
 
 - Body text 8.6 pt (was 9 pt), line height 1.36 (was 1.42), 15% less space between blocks, slightly narrower margins and figures at 72% of the text width (was 78%). The book PDF goes from 530 to 457 pages with the same fonts, colours and structure. The A4 preset is unchanged.

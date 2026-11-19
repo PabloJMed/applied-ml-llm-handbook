@@ -73,7 +73,9 @@ mask = (doc[:, None] == doc[None, :]) & causal               # token 6 sees only
 
 **The Bradley–Terry model.** Assume each response y to prompt x has a scalar reward r(x, y), and a person prefers y₁ over y₂ with probability σ(r(x, y₁) − r(x, y₂)). Fit r by maximising the likelihood of observed preferences:
 
-loss = −log σ(r(x, y_chosen) − r(x, y_rejected))
+$$
+\mathcal{L}_{\mathrm{RM}} = -\log\sigma\!\left(r(x,y_{c}) - r(x,y_{r})\right)
+$$
 
 The reward model is usually the SFT model with its output head replaced by a scalar head, trained for one epoch (more over-fits).
 
@@ -147,7 +149,9 @@ At reasoning-model lengths, full-sequence importance weights are useless. This i
 
 **RLHF: the objective.** Maximise expected reward while staying close to the reference (SFT) policy:
 
-maximise E[r(x, y)] over responses y sampled from π, minus β · KL(π(·|x) ‖ π_ref(·|x))
+$$
+\max_{\pi}\ \mathbb{E}_{x,\;y\sim\pi(\cdot\mid x)}\left[\,r(x,y)\,\right] - \beta\,\mathrm{KL}\!\left(\pi(\cdot\mid x)\,\Vert\,\pi_{\mathrm{ref}}(\cdot\mid x)\right)
+$$
 
 In practice the KL penalty is applied per token, and the reward model's score is added at the last token. Each generated token is an action; the "state" is the prompt plus tokens so far.
 
@@ -168,7 +172,13 @@ With a reward of 1 at the last token, values [0.4, 0.5, 0.6, 0.8] and γ = 1, λ
 
 Steps 1 and 2 (generation and three forward passes) usually dominate the time, which is why RLHF systems put a fast inference engine in the loop (Chapter 19).
 
-**The clipped objective** prevents a single update from moving the policy too far from the one that sampled the data. With probability ratio ρ = π_new / π_old and ε = 0.2, maximise min(ρA, clip(ρ, 1−ε, 1+ε)A):
+**The clipped objective** prevents a single update from moving the policy too far from the one that sampled the data. With ε = 0.2, maximise per token:
+
+$$
+\min\!\left(\rho A,\ \mathrm{clip}(\rho,\,1-\epsilon,\,1+\epsilon)\,A\right),\qquad \rho = \dfrac{\pi_{\mathrm{new}}}{\pi_{\mathrm{old}}}
+$$
+
+where ρ is the probability ratio between the new and the sampling policy:
 
 | Ratio | Advantage | Objective | Why |
 |---|---|---|---|
@@ -210,9 +220,23 @@ Gold peaks around n = 8–16 and ends worse than no optimisation at all. Defence
 
 **Derivation.** Start from the KL-regularised objective for one prompt: maximise Σ_y π(y) r(y) − β Σ_y π(y) log(π(y)/π_ref(y)). Define the distribution π*(y) = π_ref(y) exp(r(y)/β) / Z with Z = Σ_y π_ref(y) exp(r(y)/β). A line of algebra shows the objective equals −β KL(π ‖ π*) + β log Z. The second term does not depend on π, and a KL divergence is smallest (zero) when the two distributions are equal, so the optimum is π = π*. In words: the best KL-regularised policy reweights the reference by exp(reward/β). A small β trusts the reward and moves far; a large β stays close to the reference.
 
-The KL-regularised objective in 18.4 therefore has the closed-form optimal policy π*(y|x) = π_ref(y|x) exp(r(x, y)/β) / Z(x). Invert it: r(x, y) = β log(π*(y|x)/π_ref(y|x)) + β log Z(x). Substitute into the Bradley–Terry likelihood; Z(x) cancels between the two responses, leaving a loss on the policy alone:
+The KL-regularised objective in 18.4 therefore has the closed-form optimal policy
 
-loss = −log σ(β [log π(y_c|x)/π_ref(y_c|x) − log π(y_r|x)/π_ref(y_r|x)])
+$$
+\pi^{*}(y\mid x) = \dfrac{\pi_{\mathrm{ref}}(y\mid x)\,\exp\!\left(r(x,y)/\beta\right)}{Z(x)}
+$$
+
+Invert it:
+
+$$
+r(x,y) = \beta\log\dfrac{\pi^{*}(y\mid x)}{\pi_{\mathrm{ref}}(y\mid x)} + \beta\log Z(x)
+$$
+
+Substitute into the Bradley–Terry likelihood; Z(x) cancels between the two responses, leaving a loss on the policy alone:
+
+$$
+\mathcal{L}_{\mathrm{DPO}} = -\log\sigma\!\left(\beta\left[\log\dfrac{\pi(y_c\mid x)}{\pi_{\mathrm{ref}}(y_c\mid x)} - \log\dfrac{\pi(y_r\mid x)}{\pi_{\mathrm{ref}}(y_r\mid x)}\right]\right)
+$$
 
 **Check it.** On a four-response bandit with rewards [1, 0.5, 0, −1], β = 0.5 and reference probabilities [0.1, 0.2, 0.3, 0.4], the closed-form optimum is [0.451, 0.332, 0.183, 0.033]. Training a softmax policy with the DPO loss on Bradley–Terry preferences between all pairs converges to exactly [0.451, 0.332, 0.183, 0.033]. With infinite, perfectly modelled preference data, DPO and KL-regularised RLHF have the same solution.
 

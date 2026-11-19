@@ -98,11 +98,15 @@ def item_item_scores(R, user):
 
 *Explicit ratings:* minimise the error only on observed cells:
 
-`L = Σ over observed (u,i) of (rᵤᵢ − uᵤ·vᵢ)² + λ(‖uᵤ‖² + ‖vᵢ‖²)`
+$$
+\mathcal{L} = \sum_{(u,i)\,\mathrm{observed}}\left(r_{ui} - \mathbf{u}_u\cdot\mathbf{v}_i\right)^2 + \lambda\left(\Vert\mathbf{u}_u\Vert^2 + \Vert\mathbf{v}_i\Vert^2\right)
+$$
 
 *Implicit feedback (Hu, Koren and Volinsky, 2008):* every cell counts. The preference pᵤᵢ is 1 if the user interacted and 0 otherwise; the confidence cᵤᵢ = 1 + α·rᵤᵢ grows with the number of interactions:
 
-`L = Σ over all (u,i) of cᵤᵢ (pᵤᵢ − uᵤ·vᵢ)² + λ(‖uᵤ‖² + ‖vᵢ‖²)`
+$$
+\mathcal{L} = \sum_{u,i} c_{ui}\left(p_{ui} - \mathbf{u}_u\cdot\mathbf{v}_i\right)^2 + \lambda\left(\Vert\mathbf{u}_u\Vert^2 + \Vert\mathbf{v}_i\Vert^2\right)
+$$
 
 **ALS (alternating least squares)** solves this efficiently: fix the item vectors and each user vector has a closed-form solution, uᵤ = (VᵀCᵤV + λI)⁻¹ VᵀCᵤpᵤ; then fix the users and solve each item; repeat. Each step is a small ridge regression, so it parallelises well (Spark ALS).
 
@@ -440,7 +444,9 @@ ndcg_at_k([5, 3, 9, 1], relevant=[3, 7], k=3)     # ~0.39
 
 **Offline replay (off-policy evaluation).** Logs only tell you what happened for the items the old policy showed. To estimate how a new policy would have done, reweight logged rewards by how much more or less likely the new policy is to take the same action:
 
-`V̂(new) = (1/n) Σ rᵢ × π_new(aᵢ | xᵢ) / π_log(aᵢ | xᵢ)`
+$$
+\hat V(\mathrm{new}) = \dfrac{1}{n}\sum_{i=1}^{n} r_i\,\dfrac{\pi_{\mathrm{new}}(a_i\mid x_i)}{\pi_{\mathrm{log}}(a_i\mid x_i)}
+$$
 
 ```python
 def ips_value(rewards, p_new, p_logged, clip=10.0):

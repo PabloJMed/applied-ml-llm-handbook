@@ -127,7 +127,13 @@ AUC is also blind to calibration: multiply all scores by 0.1 and AUC does not ch
 
 When the model's probability is used as a number (multiplied by a value, compared with a bid, turned into an expected cost), it must be **calibrated**: of all cases scored 0.2, about 20% should be positive.
 
-**Log loss (cross-entropy)** punishes confident mistakes heavily: `−mean(y log p + (1−y)` `log(1−p))`. It is the training loss of logistic regression and most classifiers, and a good evaluation metric for probabilities.
+**Log loss (cross-entropy)** punishes confident mistakes heavily:
+
+$$
+\mathrm{LogLoss} = -\dfrac{1}{n}\sum_{i=1}^{n}\left[\,y_i\log p_i + (1-y_i)\log(1-p_i)\,\right]
+$$
+
+It is the training loss of logistic regression and most classifiers, and a good evaluation metric for probabilities.
 
 **Brier score** is the mean squared error of the probabilities: `mean((p − y)²)`. Less harsh on confident mistakes than log loss; easier to explain.
 

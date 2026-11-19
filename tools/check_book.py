@@ -7,6 +7,7 @@ Checks:
 - every relative link (chapters, code, images, #anchors in other chapters) points to a file or
   heading that exists;
 - every chapter file is listed in the README contents and in tools/build_pdf.py;
+- every $$ display-equation block is opened and closed on lines of its own;
 - every <details> block is closed (collapsible answers render on GitHub and are flattened in the PDF).
 
 Exits non-zero and lists the problems if any check fails.
@@ -66,6 +67,11 @@ def main() -> int:
         # <details> blocks balanced
         if text.count("<details>") != text.count("</details>"):
             problems.append(f"{rel}: {text.count('<details>')} <details> but {text.count('</details>')} </details>")
+
+        # $$ display equations: delimiters alone on their lines, in pairs, outside code blocks
+        no_code = re.sub(r"^```.*?^```", "", text, flags=re.S | re.M)
+        if len(re.findall(r"^\$\$[ \t]*$", no_code, flags=re.M)) % 2:
+            problems.append(f"{rel}: unbalanced $$ equation delimiters")
 
         # relative links and images
         prose = re.sub(r"^```.*?^```", "", text, flags=re.S | re.M)

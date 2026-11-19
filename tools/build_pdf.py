@@ -11,6 +11,7 @@ The PDF has a linked contents page, bookmarks, running headers and page numbers.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import re
 import shutil
@@ -113,6 +114,8 @@ td strong {{ font-family: sans; }}
 
 img {{ width: {img}%; }}
 p.fig {{ text-align: center; margin: {v(0.5)} 0 {v(0.25)} 0; }}
+p.eq {{ text-align: center; margin: {v(0.45)} 0 {v(0.75)} 0; }}
+p.eq img {{ width: 100%; }}
 p.caption {{ font-family: sans; font-size: {s(0.78)}; color: #6e6c66; text-align: center; margin: 0 0 {v(1.0)} 0; }}
 hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {v(0.8)} 0; }}
 
@@ -276,6 +279,63 @@ def wrap_box(body: str, heading: str) -> str:
     return body[:m.start()] + f'<div class="box"><h2>{heading}</h2>{m.group(1)}</div>' + body[m.end():]
 
 
+EQ_RE = re.compile(r"^\$\$[ \t]*\n(.*?)\n\$\$[ \t]*$", re.S | re.M)
+EQ_DIR: Path | None = None    # temporary folder holding the rendered equation images
+EQ_WIDTH = 416.0              # text width in pt, set in main()
+EQ_SIZE = 9.5                 # equation font size in pt, set in main()
+
+
+def equations(key: str, text: str) -> list[tuple[str, str]]:
+    """The display equations of a chapter, in order, as (LaTeX, number label). Chapters are numbered
+    Eq. 10.1, Eq. 10.2, ...; appendices are not. ("(10.1)" would read like a section reference.)"""
+    out = []
+    for n, m in enumerate(EQ_RE.finditer(text), 1):
+        label = f"Eq. {int(key)}.{n}" if key.isdigit() else ""
+        out.append((" ".join(m.group(1).split()), label))
+    return out
+
+
+def equation_name(latex: str, label: str) -> str:
+    return "eq-" + hashlib.sha1(f"{latex}|{label}|{EQ_WIDTH}|{EQ_SIZE}".encode()).hexdigest()[:12] + ".png"
+
+
+def render_equation(latex: str, label: str, path: Path) -> None:
+    """Typeset one display equation (matplotlib mathtext, STIX fonts) as a transparent PNG that is
+    exactly the text width wide: the formula centred, its number at the right margin."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    import matplotlib as mpl
+
+    mpl.rcParams["mathtext.fontset"] = "stix"
+    w = EQ_WIDTH / 72
+    fig = Figure(figsize=(w, 1.0))
+    FigureCanvasAgg(fig)
+    ink = "#1f1f1d"
+    t = fig.text(0.5, 0.5, f"${latex}$", ha="center", va="center", fontsize=EQ_SIZE, color=ink)
+    fig.canvas.draw()
+    bb = t.get_window_extent()
+    if bb.width > fig.bbox.width * 0.9:
+        raise SystemExit(f"equation too wide for the page: {latex[:60]}...")
+    h = bb.height / fig.dpi + 2 * 0.04
+    fig.set_size_inches(w, h)
+    t.set_position((0.5, 0.5))
+    if label:
+        fig.text(0.999, 0.5, label, ha="right", va="center", fontsize=EQ_SIZE * 0.9,
+                 color=ink, family="STIXGeneral")
+    fig.savefig(path, dpi=300, transparent=True)
+
+
+def prepare_equations() -> Path:
+    """Render every display equation of the book into a temporary folder (added to the Story archive)."""
+    tmp = Path(tempfile.mkdtemp(prefix="handbook-eq-"))
+    for key, path in chapter_files().items():
+        for latex, label in equations(key, path.read_text(encoding="utf-8")):
+            dst = tmp / equation_name(latex, label)
+            if not dst.exists():
+                render_equation(latex, label, dst)
+    return tmp
+
+
 def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = path.read_text(encoding="utf-8")
     text = re.sub(r"\n---\n\n\[[^\n]*\]\([^\n]*\)[^\n]*\s*$", "\n", text)   # drop the web navigation footer
@@ -286,7 +346,13 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = re.sub(r"\]\(\.\./((?:code|flashcards|tools)/[^)]*)\)", rf"](https://{REPO}/tree/main/\1)", text)
     first, _, rest = text.partition("\n")
     title = first.lstrip("# ").strip()
+    eqs = equations(key, rest)
+    it = iter(range(len(eqs)))
+    rest = EQ_RE.sub(lambda m: f"@@EQ{next(it)}@@", rest)
     body = md.render(wrap_code(rest, CODE_COLS))
+    for i, (latex, label) in enumerate(eqs):
+        alt = html.escape(latex, quote=True)
+        body = body.replace(f"<p>@@EQ{i}@@</p>", f'<p class="eq"><img src="{equation_name(latex, label)}" alt="{alt}"></p>')
     # The first paragraph repeats the part name ("Part I · Foundations. Assumes ..."); the part is
     # shown above the title, so drop it and set the rest as the chapter's italic intro.
     body = re.sub(r"^<p>Part [IVX]+ · (?:[^.<:]*\.\s*)?", '<p class="partintro">', body, count=1)
@@ -384,6 +450,9 @@ def main() -> int:
     archive = pymupdf.Archive()
     archive.add(pymupdf.Archive(str(font_dir)))
     archive.add(pymupdf.Archive(str(CHAPTERS)))
+    global EQ_WIDTH, EQ_SIZE
+    EQ_WIDTH, EQ_SIZE = PAGE.width - 2 * MX, BASE * 1.12
+    archive.add(pymupdf.Archive(str(prepare_equations())))
 
     def rectfn(rect_num, filled):
         return PAGE, pymupdf.Rect(MX, TOP, PAGE.width - MX, PAGE.height - BOTTOM), None

@@ -66,7 +66,9 @@ The output is 0.082 × (1, 0) + 0.682 × (0, 1) + 0.236 × (0.5, 0.5) = (0.2, 0.
 
 **Maths.** With Q, K, V matrices (one row per position, created by learned linear projections of the input):
 
-`Attention(Q, K, V) = softmax(Q Kᵀ / √dₖ + M) V`
+$$
+\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\left(\dfrac{QK^{\top}}{\sqrt{d_k}} + M\right)V
+$$
 
 - Q Kᵀ gives every pair's similarity: a T × T matrix.
 - **Dividing by √dₖ:** if the entries of q and k have unit variance, their dot product is a sum of dₖ terms of unit variance, so it has variance dₖ and standard deviation √dₖ. Without scaling, wider heads produce larger scores, softmax saturates (nearly all weight on one key), and its gradients vanish. Dividing by √dₖ keeps the scores at unit scale whatever the head size. The figure below measures it with random vectors and 64 keys.

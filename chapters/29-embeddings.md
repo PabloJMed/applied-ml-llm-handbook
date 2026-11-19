@@ -49,7 +49,9 @@ def mean_pool(token_embeddings, attention_mask):
 
 *in-batch contrastive training · a batch of 4 pairs*
 
-`L = − (1/B) Σᵢ log [ exp(sim(qᵢ, dᵢ)/τ) / Σⱼ exp(sim(qᵢ, dⱼ)/τ) ]`
+$$
+\mathcal{L} = -\dfrac{1}{B}\sum_{i=1}^{B}\log\dfrac{\exp(\mathrm{sim}(q_i,d_i)/\tau)}{\sum_{j=1}^{B}\exp(\mathrm{sim}(q_i,d_j)/\tau)}
+$$
 
 ```python
 import torch.nn.functional as F
