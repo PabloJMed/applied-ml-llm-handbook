@@ -77,7 +77,7 @@ In BigQuery replace the `julianday` arithmetic with `TIMESTAMP_DIFF(ts, prev_ts,
 
 The most common source of leakage in tabular ML: joining each training label to the *latest* value of a feature table, which includes information from after the prediction moment.
 
-![Diagram](images/30-01.png)
+![Joining on the latest feature value leaks the future into training](images/30-01.png)
 
 *Joining on the latest feature value leaks the future into training. merge_asof (or an AS OF join) picks the last value at or before each label time.*
 
@@ -156,7 +156,7 @@ from sklearn.metrics import cohen_kappa_score
 
 90% agreement sounds great, but kappa 0.69 is only "substantial": much of that agreement would happen by chance with this class balance. Rough reading: below 0.4 poor, 0.4–0.6 moderate, 0.6–0.8 substantial, above 0.8 strong. Use Fleiss' kappa or Krippendorff's alpha for more than two annotators or missing labels.
 
-![Diagram](images/48-fig-1.png)
+![Cohen's kappa for two annotators with the same raw agreement, as the majority class grows (both annotators labelling the majority class at the same rate)](images/48-fig-1.png)
 
 *Cohen's kappa for two annotators with the same raw agreement, as the majority class grows (both annotators labelling the majority class at the same rate). At 90% raw agreement, kappa is 0.80 with balanced classes and 0.44 when 90% of items are the majority class.*
 

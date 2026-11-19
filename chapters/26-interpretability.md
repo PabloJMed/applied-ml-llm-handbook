@@ -107,7 +107,7 @@ The two induction heads are partly redundant (removing one hurts, removing both 
 
 Individual neurons are often **polysemantic**: one neuron responds to unrelated concepts. The leading explanation is **superposition**: a model represents more features than it has dimensions, as nearly-orthogonal directions, which works when features are sparse (rarely active together). Toy Models of Superposition showed this happens in small networks and depends on sparsity and importance.
 
-![Diagram](images/26-fig-1.png)
+![Absolute cosine between random unit directions](images/26-fig-1.png)
 
 *Absolute cosine between random unit directions. The typical pair (√(2/πd)) is close to orthogonal already at a few hundred dimensions. Even the worst-aligned pair among 10,000 directions has cosine below 0.09 at 4,096 dimensions, the width of a mid-sized model's residual stream.*
 

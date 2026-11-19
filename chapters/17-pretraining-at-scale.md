@@ -65,7 +65,7 @@ Still, 140 GB of bf16 gradients for a 70B model across 64 GPUs at 50 GB/s effect
 | ZeRO-2 | + gradients | 155 GB |
 | ZeRO-3 / FSDP | + weights | 17.5 GB |
 
-![Diagram](images/17-fig-1.png)
+![Memory per GPU for the training state of a 70B model data-parallel over 64 GPUs, before activations](images/17-fig-1.png)
 
 *Memory per GPU for the training state of a 70B model data-parallel over 64 GPUs, before activations. Each ZeRO stage shards one more piece of the replicated state; only full sharding fits under the 80 GB line with room for activations.*
 
@@ -89,7 +89,7 @@ The cost is the **bubble**: at the start and end of each batch, some stages are 
 | 8 | 32 | 17.9% |
 | 16 | 64 | 19.0% |
 
-![Diagram](images/17-fig-2.png)
+![Idle fraction (p − 1)/(m + p − 1) for 4, 8 and 16 pipeline stages](images/17-fig-2.png)
 
 *Idle fraction (p − 1)/(m + p − 1) for 4, 8 and 16 pipeline stages. Each stage count needs roughly 4–6 times as many micro-batches as stages to get under the 15% line.*
 

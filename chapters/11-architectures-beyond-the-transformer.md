@@ -14,7 +14,8 @@ Numbers in this chapter come from `code/ch11_check.py` (CPU, seconds).
 - **Load balancing**: auxiliary losses or bias adjustments that stop the router from collapsing onto a few experts. [Auxiliary-loss-free balancing](https://arxiv.org/abs/2408.15664).
 - **Multi-head latent attention (MLA)**: cache a small latent vector per token instead of full keys and values. [DeepSeek-V2](https://arxiv.org/abs/2405.04434), [DeepSeek-V3](https://arxiv.org/abs/2412.19437).
 - **Linear attention and state-space models (SSMs)**: sequence mixers with a fixed-size recurrent state and linear cost in length. [Mamba](https://arxiv.org/abs/2312.00752), [Mamba-2](https://arxiv.org/abs/2405.21060), [Gated DeltaNet](https://arxiv.org/abs/2412.06464).
-- **Hybrid models**: mostly linear-time layers with a few full-attention layers. [Jamba](https://arxiv.org/abs/2403.19887).
+- **Sparse attention**: a cheap selection step picks which earlier tokens each query attends to. [Native Sparse Attention](https://arxiv.org/abs/2502.11089), [DeepSeek-V3.2 (DSA)](https://arxiv.org/abs/2512.02556).
+- **Hybrid models**: mostly linear-time layers with a few full-attention layers. [Jamba](https://arxiv.org/abs/2403.19887), [MiniMax-M1 (lightning attention)](https://arxiv.org/abs/2506.13585).
 - **Multi-token prediction (MTP)**: predict several future tokens per position. [Gloeckle et al.](https://arxiv.org/abs/2404.19737).
 - **Diffusion language models**: generate by iteratively unmasking tokens in parallel. [LLaDA](https://arxiv.org/abs/2502.09992).
 
@@ -51,7 +52,7 @@ class MoE(nn.Module):
 
 **Auxiliary-loss-free balancing** (used in DeepSeek-V3) adds a per-expert bias to the router scores *only for choosing* the top k, not for weighting outputs. After each step, overloaded experts' biases go down and underloaded ones go up. In the check script, a router with a built-in preference starts with expert loads between 0.009 and 0.350 and ends, after 200 updates, between 0.123 and 0.127, with no gradient interference in the main loss.
 
-![Diagram](images/11-fig-1.png)
+![Share of routed tokens per expert (top 2 of 8) for a router with built-in preferences, before and after 200 bias updates](images/11-fig-1.png)
 
 *Share of routed tokens per expert (top 2 of 8) for a router with built-in preferences, before and after 200 bias updates. The dashed line is perfectly uniform load.*
 
@@ -85,6 +86,14 @@ For a 61-layer model at a 128k-token context that is 524 GB per sequence with fu
 
 **Sparse attention.** Each query attends to a selected subset of earlier tokens, chosen by a cheap scoring step: compressed blocks plus top-k selected blocks plus a local window (Native Sparse Attention, 2025), or a lightweight indexer choosing the top-k tokens (DeepSeek Sparse Attention, 2025). The goal is full-attention quality at a fraction of long-context cost, with kernels designed for the hardware from the start.
 
+DeepSeek-V3.2 (2025) put fine-grained sparse attention into a frontier-scale open model, and its recipe shows how to retrofit it rather than pretrain from scratch:
+
+1. **Add a small indexer** to a trained dense model (MLA). The indexer has few heads, runs in fp8 and scores every earlier token for each query.
+2. **Warm up the indexer alone** with the dense model frozen, training it to match the dense attention distribution with a KL loss (about 2B tokens).
+3. **Switch to sparse attention** (each query attends to its top 2,048 tokens) and continue training all weights on about 100B tokens.
+
+The main attention becomes roughly O(L·k) instead of O(L²); the indexer is still quadratic, but cheap. The report shows long-context inference costs falling sharply at 128k tokens with benchmark scores close to the dense model. Distilling a cheap selector from the dense model's own attention is a reusable pattern: the dense model already knows which tokens matter.
+
 ## 11.4 Linear attention and state-space models
 
 **Linear attention.** Softmax attention needs all past keys. Replace exp(q·k) with a product of feature maps φ(q)·φ(k) and the sum over the past can be accumulated in a d × d state:
@@ -106,7 +115,7 @@ That is an RNN with a matrix-valued state: constant memory per token at inferenc
 
 **Where they stand.** Recurrent layers match transformers on perplexity at moderate scale and are far cheaper at long context: the recurrent state below is 0.03 GB regardless of length, against an attention KV cache that reaches 137 GB at a million tokens for an 8B-shaped model. Their weakness is **exact recall from long context**: copying, retrieving a specific fact from far back, multi-hop lookups. Benchmarks for associative recall and needle retrieval separate them clearly from attention. That weakness is why the field converged on hybrids.
 
-![Diagram](images/11-fig-2.png)
+![Memory per sequence for a 32-layer, 8B-shaped model in bf16](images/11-fig-2.png)
 
 *Memory per sequence for a 32-layer, 8B-shaped model in bf16. Full attention grows linearly to 137 GB at a million tokens; a hybrid with one attention layer in four needs a quarter of that; pure recurrent layers stay at 0.03 GB.*
 

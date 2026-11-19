@@ -24,7 +24,7 @@ For a Senior Applied ML role with an LLM focus, you should be able to explain ho
 
 Every retrieval method answers the same question, "which of N documents best match this query?", and they differ in how much work is done ahead of time.
 
-![Diagram](images/18-01.png)
+![retrieval models · from fully precomputed to fully per-query](images/18-01.png)
 
 *retrieval models · from fully precomputed to fully per-query*
 
@@ -64,7 +64,7 @@ idx.search("late delivery")    # doc 2 first: it contains both terms
 
 **TF-IDF** scores a document by term frequency (how often the term appears) times inverse document frequency (how rare the term is across the collection). **BM25** improves it in two ways: term frequency saturates (the tenth "pizza" adds little), and long documents are normalised so they do not win just by containing more words. The BM25 formula and a from-scratch implementation are in Chapter 44.3. Real systems add tokenisation and stemming per language, field weights (title counts more than body), and phrase matching.
 
-![Diagram](images/30-fig-1.png)
+![BM25's term-frequency factor, tf × (k1 + 1) / (tf + k1 × (1 − b + b × length / average length))](images/30-fig-1.png)
 
 *BM25's term-frequency factor, tf × (k1 + 1) / (tf + k1 × (1 − b + b × length / average length)). k1 sets how fast it saturates (ceiling k1 + 1); b = 0.75 lowers the factor for long documents, so the grey curve needs more occurrences to reach the same score.*
 
@@ -136,7 +136,7 @@ class IVFIndex:
         return cand[np.argsort(-(self.X[cand] @ q))[:k]]
 ```
 
-![Diagram](images/30-fig-2.png)
+![Recall@10 against exact search as the number of probed cells grows, on 100,000 clustered 64-dimensional vectors with 300 queries](images/30-fig-2.png)
 
 *Recall@10 against exact search as the number of probed cells grows, on 100,000 clustered 64-dimensional vectors with 300 queries. More lists make each cell smaller, so 1,024 lists reach a given recall while scanning a smaller share of the collection, but each probe finds fewer true neighbours.*
 

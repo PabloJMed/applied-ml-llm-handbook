@@ -44,7 +44,7 @@ Four levels, each with its own role:
 
 **Sample size.** For a paired comparison, the number of questions needed to detect a difference δ with 80% power is about (1.96 + 0.84)² × d / δ², where d is the fraction of questions on which the models disagree. Detecting a 2-point gain needs about 2,000 questions if they disagree on 10%, and about 4,000 at 20%. Many benchmark comparisons in papers are underpowered.
 
-![Diagram](images/23-fig-1.png)
+![Questions needed for a paired comparison to detect a true difference with 80% power at the 5% level, by how often the two models disagree](images/23-fig-1.png)
 
 *Questions needed for a paired comparison to detect a true difference with 80% power at the 5% level, by how often the two models disagree. Halving the difference to detect quadruples the questions.*
 
@@ -107,7 +107,7 @@ If test items, or close paraphrases, were in the training data, scores measure m
 
 Open-ended quality is hard to score absolutely, so many evaluations compare responses in pairs: humans or judges vote, and a **Bradley–Terry** model (the same as for reward models, Chapter 18) turns votes into ratings, usually on an Elo-like scale. On 3,000 simulated battles among five models, fitted ratings recover the true order, but adjacent models' bootstrap intervals overlap (for example [1,181, 1,235] and [1,149, 1,205]): with this many votes, the top three are hard to separate.
 
-![Diagram](images/23-fig-2.png)
+![Win probability implied by a rating gap on the Elo scale, P = 1 / (1 + 10^(−gap/400))](images/23-fig-2.png)
 
 *Win probability implied by a rating gap on the Elo scale, P = 1 / (1 + 10^(−gap/400)). A 50-point lead means winning 57% of battles; 100 points, 64%.*
 

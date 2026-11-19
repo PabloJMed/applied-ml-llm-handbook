@@ -61,7 +61,7 @@ These constants give exponents of 0.45 and 0.55 and tokens-per-parameter ratios 
 
 ## 13.4 Fitting scaling laws in practice
 
-![Diagram](images/13-fig-1.png)
+![IsoFLOP curves from the parametric fit: for each compute budget, loss against model size, with tokens set by D = C/6N](images/13-fig-1.png)
 
 *IsoFLOP curves from the parametric fit: for each compute budget, loss against model size, with tokens set by D = C/6N. Each curve has a minimum (the dots); the dotted line through them is the compute-optimal frontier.*
 
@@ -93,7 +93,7 @@ Target: the loss of the compute-optimal 1e23 model (2.005).
 | 1e13 | 6.1B | 3.77T | 617 |
 | 1e14 | 3.6B | 14.3T | 4,014 |
 
-![Diagram](images/13-fig-2.png)
+![The best model size for a fixed target loss (that of the compute-optimal 1e23-FLOP model) as expected lifetime inference grows](images/13-fig-2.png)
 
 *The best model size for a fixed target loss (that of the compute-optimal 1e23-FLOP model) as expected lifetime inference grows. Each annotation gives the size and the tokens per parameter of the cheapest option at that volume.*
 
@@ -135,7 +135,7 @@ Loss scales smoothly; benchmark accuracy often does not. Wei et al. (2022) docum
 
 A smooth improvement looks like a sudden jump.
 
-![Diagram](images/13-fig-3.png)
+![If per-token accuracy improves linearly with scale, a 10-token exact-match score stays near zero until per-token accuracy passes about 0.8, then shoots up](images/13-fig-3.png)
 
 *If per-token accuracy improves linearly with scale, a 10-token exact-match score stays near zero until per-token accuracy passes about 0.8, then shoots up.* With continuous metrics (per-token log-likelihood of the correct answer, Brier score) the same tasks usually improve smoothly.
 

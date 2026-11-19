@@ -30,7 +30,7 @@ Ask the recruiter which formats to expect and in which language and environment 
 
 ## 35.2 How to approach any coding question
 
-![Diagram](images/31-01.png)
+![solving a coding question · six steps](images/31-01.png)
 
 *solving a coding question · six steps*
 

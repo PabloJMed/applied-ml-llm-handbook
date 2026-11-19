@@ -6,7 +6,7 @@ Part IV · Pretraining.
 
 Few applied teams pre-train an LLM. You will, however, choose between models whose behaviour comes from these stages, fine-tune open models (Chapter 20), build preference data from human reviews, and explain why a model is sycophantic, verbose or refuses too much. Interviewers ask "explain RLHF" and "how does DPO differ from PPO" to see whether you understand the levers. Parameter-efficient methods such as prompt and prefix tuning (Chapter 20) are the lightweight end of the same post-training story.
 
-![Diagram](images/13-01.png)
+![Each stage changes behaviour more than knowledge, except the first](images/13-01.png)
 
 *Each stage changes behaviour more than knowledge, except the first. Labs differ in order and mix, but this is the common shape.*
 
@@ -136,7 +136,7 @@ def distill_loss(student_logits, teacher_logits, y, T=2.0, alpha=0.5):
 
 **Why soft targets carry more than labels.** A hard label says only "shawarma". The teacher's full distribution says more: falafel and kebab are plausible confusions, sushi is not. Hinton called this information **dark knowledge**. At T = 1 it is almost invisible, because the top class takes 87% of the mass and the five others share 13%. Dividing the logits by a temperature flattens the distribution and makes the similarity structure visible to the student's loss, as the figure shows.
 
-![Diagram](images/15-fig-1.png)
+![One teacher's logits for a dish photo, softened at three temperatures](images/15-fig-1.png)
 
 *One teacher's logits for a dish photo, softened at three temperatures. At T = 1 the runner-up gets 7%; at T = 5 the order and rough ratios of all six classes are visible, which is what the student learns from.*
 
@@ -144,7 +144,7 @@ Three practical points follow:
 
 - **The T² factor matters.** Gradients of the softened KL term shrink as 1/T², so without the factor a high temperature quietly turns distillation off.
 - **T is a hyperparameter.** Values of 1–4 are usual for classification. For language models, T = 1 over the full vocabulary is common, because the teacher's next-token distribution is already spread out.
-- **Forward or reverse KL.** The standard loss, KL(teacher ‖ student), makes the student cover every mode the teacher assigns mass to. A small student that cannot cover them all spreads its probability thinly. **On-policy distillation** instead samples from the student and minimises the reverse KL on those samples, which concentrates the student on modes it can actually represent. It also trains the student on its own mistakes, as RL does, but with a dense per-token signal. Recent small-model recipes use it after a round of sequence-level distillation.
+- **Forward or reverse KL.** The standard loss, KL(teacher ‖ student), makes the student cover every mode the teacher assigns mass to. A small student that cannot cover them all spreads its probability thinly. **On-policy distillation** instead samples from the student and minimises the reverse KL on those samples, which concentrates the student on modes it can actually represent. It also trains the student on its own mistakes, as RL does, but with a dense per-token signal. Recent small-model recipes use it after a round of sequence-level distillation (Chapter 19.9 has the numbers).
 
 ## 15.8 What each stage explains
 

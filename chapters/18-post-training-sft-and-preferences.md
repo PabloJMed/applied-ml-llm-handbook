@@ -12,6 +12,7 @@ Numbers in this chapter come from `code/ch18_check.py` (CPU, a few seconds).
 
 - **Supervised fine-tuning (SFT)** on instruction–response data. [LIMA](https://arxiv.org/abs/2305.11206), [Tülu 3](https://arxiv.org/abs/2411.15124).
 - **Reward models** trained on pairwise preferences with the Bradley–Terry model. [InstructGPT](https://arxiv.org/abs/2203.02155), [RewardBench](https://arxiv.org/abs/2403.13787).
+- **Policy-gradient foundations**: the log-derivative trick, REINFORCE, baselines, actor–critic, importance sampling and trust regions. [Sutton and Barto, *Reinforcement Learning* (2nd ed.)](http://incompleteideas.net/book/the-book-2nd.html), [OpenAI Spinning Up](https://spinningup.openai.com/), [TRPO](https://arxiv.org/abs/1502.05477), [RLOO for LLMs](https://arxiv.org/abs/2402.14740).
 - **PPO for language models**: policy gradient with a value function, generalised advantage estimation and clipping. [PPO](https://arxiv.org/abs/1707.06347), [GAE](https://arxiv.org/abs/1506.02438), [The N+ implementation details of RLHF with PPO](https://arxiv.org/abs/2403.17031).
 - **Reward over-optimisation**: optimising a learned reward past the point where true quality improves. [Gao et al.](https://arxiv.org/abs/2210.10760).
 - **Direct preference optimisation and variants**: DPO, IPO, KTO, ORPO, SimPO. [DPO](https://arxiv.org/abs/2305.18290), [IPO](https://arxiv.org/abs/2310.12036), [SimPO](https://arxiv.org/abs/2405.14734).
@@ -92,9 +93,59 @@ On synthetic preferences generated from a hidden linear reward with realistic la
 
 **Generative reward models** ask an LLM to judge (often with a rubric and a written rationale) instead of outputting a scalar. They are more interpretable, can use reasoning, and are now common for open-ended tasks; they inherit LLM-judge biases (Chapter 23).
 
-## 18.4 RLHF with PPO
+## 18.4 Policy gradients and RLHF with PPO
 
-**The objective.** Maximise expected reward while staying close to the reference (SFT) policy:
+Every RL method in Chapters 18, 19 and 33 is a variation on one estimator. Interviewers for post-training roles often start here ("derive the policy gradient", "why does a baseline not add bias?") before asking about PPO or GRPO, so this section builds it from the ground up.
+
+**The setup.** Reinforcement learning is usually written as a Markov decision process: states s, actions a, a transition rule P(s′ | s, a), a reward r(s, a) and a discount γ. A policy π(a | s) chooses actions, and the goal is to maximise the expected return E[Σ_t γ^t r_t]. For a language model:
+
+| RL term | In an LLM |
+|---|---|
+| State s_t | The prompt x plus the tokens generated so far, y_<t |
+| Action a_t | The next token y_t |
+| Policy π(a_t \| s_t) | The model's next-token distribution π_θ(y_t \| x, y_<t) |
+| Transition | Deterministic: append the token |
+| Reward | Usually one number at the end (reward model or verifier), plus a per-token KL penalty |
+| Discount γ | 1: episodes are short and finite |
+
+Two views are useful. The **token-level** view treats each token as an action, which is how PPO assigns credit within a response. The **sequence-level** (bandit) view treats the whole response y as one action with reward R(x, y), which is how DPO, RLOO and GRPO think about it. With deterministic transitions and a single terminal reward the two describe the same problem.
+
+**Value functions.** V^π(s) is the expected return from state s when following π; Q^π(s, a) is the expected return after taking a in s and following π afterwards; the **advantage** A^π(s, a) = Q^π(s, a) − V^π(s) says how much better a is than the policy's average action. They satisfy the Bellman equation V^π(s) = E_(a∼π)[r(s, a) + γ V^π(s′)]. For an LLM, V(s_t) is "how likely is this partial answer to end up rewarded", which is exactly what PPO's value head tries to predict.
+
+**The policy gradient.** We want ∇θ J(θ) with J(θ) = E_(y∼π_θ)[R(y)]. The **log-derivative trick** turns the gradient of an expectation into an expectation we can sample:
+
+∇θ J = Σ_y ∇θ π_θ(y) R(y) = Σ_y π_θ(y) ∇θ log π_θ(y) R(y) = E_(y∼π_θ)[R(y) ∇θ log π_θ(y)]
+
+The middle step uses ∇π = π ∇log π. For a sequence, log π_θ(y | x) = Σ_t log π_θ(y_t | x, y_<t), so the gradient is a sum over tokens of R times each token's log-probability gradient. Sampling responses and averaging gives **REINFORCE** (Williams, 1992): raise the log-probability of every token in high-reward responses, lower it in low-reward ones. Nothing about the reward needs to be differentiable, which is why a unit-test runner or a string match can serve as the reward.
+
+**Baselines.** Subtracting any b that does not depend on the sampled action leaves the gradient unbiased, because E_(y∼π)[b ∇ log π(y)] = b Σ_y ∇π(y) = b ∇ Σ_y π(y) = b ∇1 = 0. A good baseline (close to the expected reward) removes most of the variance. The check script estimates the exact gradient of a four-response bandit from batches of 8 samples, 20,000 times:
+
+| Rewards | Baseline | Total std of the gradient estimate | Mean estimate ÷ exact gradient |
+|---|---|---|---|
+| r | None | 0.174 | 1.00 |
+| r + 10 | None | 3.146 | 0.93 (noise) |
+| r + 10 | Group mean (includes the sample itself) | 0.093 | 0.88 |
+| r + 10 | Leave-one-out mean | 0.106 | 1.00 |
+
+Adding a constant 10 to every reward changes nothing in expectation but multiplies the noise by 18: without a baseline, every sampled response is pushed up, and only the small differences between the pushes carry signal. Both baselines cancel the shift. The leave-one-out baseline (**RLOO**) is exactly unbiased; the plain group mean, which includes the sample itself, shrinks the gradient by (N − 1)/N = 0.875 (a scale, not a direction, so in practice the learning rate absorbs it). GRPO's group mean (Chapter 19) is this baseline; PPO's value model is a learned, per-token version of it.
+
+**Reward-to-go and actor–critic.** A token cannot affect rewards that came before it, so each token's gradient can be weighted by the return *from that token onwards* rather than the whole episode's, which removes more variance. Replacing that sampled return with a learned estimate gives **actor–critic** methods: the actor is the policy, the critic is V. The one-step **temporal-difference error** δ_t = r_t + γV(s_(t+1)) − V(s_t) is a low-variance but biased estimate of the advantage (biased wherever V is wrong); the full sampled return is unbiased but noisy. GAE, below, interpolates between them with λ.
+
+**On-policy, off-policy and importance sampling.** The policy-gradient estimator needs samples from the current policy. Samples from an older or different policy μ can be reused through importance sampling: E_(y∼π)[f(y)] = E_(y∼μ)[(π(y)/μ(y)) f(y)]. For sequences the ratio is a product of per-token ratios, so its variance grows exponentially with length. With per-token log-ratios of standard deviation only 0.03 (a small policy change, or the numerical gap between an inference engine and a trainer):
+
+| Response length | Variance of the sequence ratio | Effective sample size per sample |
+|---|---|---|
+| 100 tokens | 0.09 | 0.91 |
+| 1,000 tokens | 1.46 | 0.41 |
+| 4,000 tokens | 35.6 | 0.03 |
+
+At reasoning-model lengths, full-sequence importance weights are useless. This is why PPO uses **per-token** ratios with clipping (a biased but stable approximation), why asynchronous RL bounds how stale samples may be, and why the training–inference mismatch in Chapter 19 matters.
+
+**Trust regions.** A policy-gradient step that is too large changes the policy so much that the advantages estimated under the old policy no longer apply, and performance can collapse. TRPO constrains each update to a KL ball around the old policy; PPO approximates the same idea with the clipped ratio objective below, which needs only first-order optimisation.
+
+**Why not Q-learning?** Value-based methods such as Q-learning (Q(s, a) ← Q(s, a) + α[r + γ max_a′ Q(s′, a′) − Q(s, a)]) and DQN learn action values and act greedily. They work well with small discrete action spaces and off-policy replay, but an LLM has a vocabulary of 100k+ actions at every step, a policy that already exists from pretraining, and a reward that arrives once at the end. Policy-gradient methods start from that pretrained policy and improve it directly, which is why essentially all LLM RL uses them. (DPO-style methods can be read as the closed-form solution of a KL-regularised version of the same problem, section 18.6.)
+
+**RLHF: the objective.** Maximise expected reward while staying close to the reference (SFT) policy:
 
 maximise E[r(x, y)] over responses y sampled from π, minus β · KL(π(·|x) ‖ π_ref(·|x))
 
@@ -126,7 +177,7 @@ Steps 1 and 2 (generation and three forward passes) usually dominate the time, w
 | 1.5 | −1 | −1.50 | Unclipped: pessimistic, penalised fully |
 | 0.5 | −1 | −0.80 | Capped: no incentive to push further down |
 
-![Diagram](images/18-fig-1.png)
+![The clipped objective as a function of the probability ratio (ε = 0.2, shaded band)](images/18-fig-1.png)
 
 *The clipped objective as a function of the probability ratio (ε = 0.2, shaded band). For a good token the gain stops growing once the ratio exceeds 1.2; for a bad token the penalty stops growing once it falls below 0.8. Moves in the "wrong" direction are never capped.*
 
@@ -149,7 +200,7 @@ The check script reproduces the shape with best-of-n sampling. Each response has
 | 256 | 4.55 | 4.01 | −0.29 |
 | 1,024 | 5.93 | 4.65 | −0.56 |
 
-![Diagram](images/18-fig-2.png)
+![The same simulation over a finer range of n (400,000 samples)](images/18-fig-2.png)
 
 *The same simulation over a finer range of n (400,000 samples). Proxy reward rises steadily with KL; gold reward peaks early and then falls below where it started.*
 
@@ -165,7 +216,7 @@ loss = −log σ(β [log π(y_c|x)/π_ref(y_c|x) − log π(y_r|x)/π_ref(y_r|x)
 
 **Check it.** On a four-response bandit with rewards [1, 0.5, 0, −1], β = 0.5 and reference probabilities [0.1, 0.2, 0.3, 0.4], the closed-form optimum is [0.451, 0.332, 0.183, 0.033]. Training a softmax policy with the DPO loss on Bradley–Terry preferences between all pairs converges to exactly [0.451, 0.332, 0.183, 0.033]. With infinite, perfectly modelled preference data, DPO and KL-regularised RLHF have the same solution.
 
-![Diagram](images/18-fig-3.png)
+![Policy probabilities during DPO training on the four-response bandit](images/18-fig-3.png)
 
 *Policy probabilities during DPO training on the four-response bandit. Each converges to its closed-form optimum (dotted), within about 100 steps here.*
 
@@ -239,6 +290,14 @@ Human preference labels are slow and expensive. Most current pipelines use **AI 
 
 **11. How would you evaluate a new post-trained checkpoint before release?** Instruction-following, length-controlled chat quality, capability regression suite, safety and over-refusal, calibration, plus a human evaluation sample; compare with the previous checkpoint with confidence intervals.
 
+**12. Derive the policy gradient.** J = E_(y∼π)[R(y)]; ∇J = Σ_y ∇π(y) R(y) = Σ_y π(y) ∇log π(y) R(y) = E[R(y) ∇log π(y)]. For a sequence, ∇log π(y) is the sum of per-token log-probability gradients. No gradient of the reward is needed.
+
+**13. Why does a baseline not bias the gradient, and which baseline is best?** E[b ∇log π(y)] = b ∇Σ_y π(y) = 0 for any b that does not depend on the sampled y. Variance is lowest near the expected reward: a learned value (PPO), a group mean (GRPO) or a leave-one-out mean (RLOO, exactly unbiased; the plain group mean shrinks the gradient by (N − 1)/N).
+
+**14. On-policy versus off-policy: why can't PPO reuse old rollouts indefinitely?** Off-policy reuse needs importance weights; for a sequence they are products of per-token ratios whose variance grows exponentially with length. PPO uses per-token ratios, clips them, and runs only a few epochs per batch so the data stays nearly on-policy.
+
+**15. Why do LLMs use policy-gradient methods rather than Q-learning?** Huge action space (the vocabulary) at every step, a strong pretrained policy to start from, and a sparse terminal reward. Policy gradients improve the existing policy directly; Q-learning would need to learn values for 100k+ actions per state from scratch.
+
 ## Practice
 
 1. Fine-tune a 0.5–1B model with SFT on a small instruction set using TRL; implement packing with correct masks and check that loss on user tokens is zero.
@@ -246,6 +305,7 @@ Human preference labels are slow and expensive. Most current pipelines use **AI 
 3. Run DPO and SimPO from the same SFT checkpoint with a small sweep of β and learning rate; plot chosen and rejected log-probabilities during training.
 4. **Research exercise.** Reproduce the over-optimisation curve with a real reward model: best-of-n sampling for n = 1 to 256 from a small policy, scored by a small (proxy) and a larger (gold) reward model. Plot both against log n − (n−1)/n, with bootstrap confidence intervals.
 5. Re-derive the GAE recursion and implement it for a batch of variable-length responses.
+6. Implement REINFORCE on a small bandit with no baseline, a group-mean baseline and a leave-one-out baseline. Shift all rewards by +10 and measure the variance of each gradient estimate against the exact gradient (the check script's experiment), then repeat with N = 2, 8 and 32 samples.
 
 ## Read next
 
@@ -260,7 +320,7 @@ Human preference labels are slow and expensive. Most current pipelines use **AI 
 
 ## Done when
 
-You can design an SFT mixture, implement masking and packing correctly and explain what SFT cannot teach. You can train and evaluate a Bradley–Terry reward model and explain its limits. You can walk through PPO for LLMs, compute GAE advantages and the clipped objective, and compare KL estimators.
+You can derive the policy gradient, show why a baseline leaves it unbiased, and explain why importance weights fail on long sequences. You can design an SFT mixture, implement masking and packing correctly and explain what SFT cannot teach. You can train and evaluate a Bradley–Terry reward model and explain its limits. You can walk through PPO for LLMs, compute GAE advantages and the clipped objective, and compare KL estimators.
 
 You can explain reward over-optimisation with the best-of-n example and list defences. You can derive DPO, explain why it matches RLHF in theory but not in practice, and compare IPO, KTO, ORPO and SimPO. You can plan an evaluation of a post-trained model.
 

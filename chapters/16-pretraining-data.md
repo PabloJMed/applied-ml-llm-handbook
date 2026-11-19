@@ -101,7 +101,7 @@ Duplicates waste compute, encourage memorisation (including of personal data) an
 
 16 × 8 targets near-duplicates above about 0.75; 20 × 5 is looser and catches more pairs (and more false positives). The article pair matched in 5 of 16 bands, so it became a candidate. Candidates are then clustered (connected components) and one document per cluster is kept.
 
-![Diagram](images/16-fig-1.png)
+![Probability that two documents become LSH candidates as a function of their Jaccard similarity, for three band/row settings with 128 or 100 hashes](images/16-fig-1.png)
 
 *Probability that two documents become LSH candidates as a function of their Jaccard similarity, for three band/row settings with 128 or 100 hashes. More rows per band push the threshold right and make the curve steeper; more bands pull it left.*
 
@@ -134,7 +134,7 @@ A mixture assigns a sampling weight to each source. Natural proportions (by size
 
 Upsampling has a price: at T = 2 a 15T-token run would see the maths data 7.5 times, past the point where repetition stops helping (Chapter 13). Mixtures are designed against both targets: enough of each skill, not too many epochs of any source.
 
-![Diagram](images/16-fig-2.png)
+![Effective tokens from repeating 100B unique tokens, using the data-constrained scaling fit of Muennighoff et al](images/16-fig-2.png)
 
 *Effective tokens from repeating 100B unique tokens, using the data-constrained scaling fit of Muennighoff et al. (2023), where repeated tokens decay in value with a characteristic scale of about 15 epochs. Four epochs are worth nearly as much as fresh data; 16 epochs are worth about two-thirds of what they cost.*
 

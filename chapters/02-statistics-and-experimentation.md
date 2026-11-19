@@ -94,7 +94,7 @@ It makes no distributional assumptions and works for any statistic (medians, rat
 
 **What p-values look like across many experiments.** When there is no effect, a p-value is equally likely to fall anywhere between 0 and 1: 5% of experiments land below 0.05 by construction. When there is an effect, p-values pile up near zero, and how strongly depends on power.
 
-![Diagram](images/02-fig-1.png)
+![6,000 simulated experiments with 500 users per arm](images/02-fig-1.png)
 
 *6,000 simulated experiments with 500 users per arm. Left: no effect, 5.0% below 0.05. Right: a true effect of 0.15 standard deviations, 66.7% below 0.05: even a real effect is missed a third of the time at this sample size.*
 
@@ -121,7 +121,7 @@ n_per_arm_mean(25.0, 0.5)          # basket value sd 25 euros, detect +0.50: ~39
 
 **Where the formula comes from.** Picture two bell curves for the estimated difference: one centred at zero (the null) and one centred at the true effect δ, both with the same standard error. The test rejects when the estimate lands beyond 1.96 standard errors from zero. Power is the share of the second curve beyond that line. To get 80% power, the line must sit 0.84 standard errors *below* δ, so δ must equal (1.96 + 0.84) standard errors. Since the standard error shrinks like 1/√n, solving for n gives the formula above, with δ² in the denominator.
 
-![Diagram](images/02-fig-2.png)
+![Power against users per arm for a 5% baseline conversion](images/02-fig-2.png)
 
 *Power against users per arm for a 5% baseline conversion. A 10% relative lift needs about 32k users per arm for 80% power, 5% about 125k, 2% about 760k.*
 
@@ -194,7 +194,7 @@ The practical defence: one pre-registered primary metric, a small set of guardra
 
 Checking results every day and stopping the first time p < 0.05 inflates false positives dramatically. In a simulated A/A test (no real difference) checked daily for 20 days, about 25% of runs reached "significance" at some point, five times the nominal 5%.
 
-![Diagram](images/02-fig-3.png)
+![Simulated A/A tests checked at evenly spaced looks, stopping at the first p < 0.05: 5% with one look, 15% with five, 26% with twenty, 32% with fifty](images/02-fig-3.png)
 
 *Simulated A/A tests checked at evenly spaced looks, stopping at the first p < 0.05: 5% with one look, 15% with five, 26% with twenty, 32% with fifty.*
 
@@ -217,7 +217,7 @@ In a delivery marketplace, users in treatment and control **share couriers and r
 
 **Designs that contain the interference:**
 
-![Diagram](images/02-01.png)
+![switchback design · 3 cities × 8 time slots, illustrative assignment](images/02-01.png)
 
 *switchback design · 3 cities × 8 time slots, illustrative assignment*
 

@@ -87,7 +87,7 @@ The Luhn check keeps the order number; without it, every long id would be redact
 
 There is no complete fix; models cannot reliably separate instructions from data. Defences, in layers:
 
-![Diagram](images/24-01.png)
+![Each layer catches what the others miss](images/24-01.png)
 
 *Each layer catches what the others miss. Tool permissions matter most: they limit damage when everything else fails.*
 
@@ -124,7 +124,7 @@ Moderation is a classification problem with asymmetric costs and a human queue:
 
 No single threshold is right. The standard design uses two: above a high threshold, act automatically (hide, reject); between the two, send to human review; below, publish. Choose thresholds from reviewer capacity and the cost of each error type, per category (hate speech and a mild complaint should not share a threshold). Track appeal and overturn rates, reviewer agreement (Chapter 48), and drift as language and attack patterns change.
 
-![Diagram](images/28-fig-1.png)
+![Precision of a classifier with 90% recall as a function of how common violations are](images/28-fig-1.png)
 
 *Precision of a classifier with 90% recall as a function of how common violations are. At 3% prevalence, a 1% false-positive rate still gives 74% precision. At 1 in 1,000, the same classifier is wrong on 92% of the items it flags; only a ten-times lower false-positive rate brings precision near 50%.*
 

@@ -446,4 +446,4 @@ This extends E.4. The new difficulty is that the system takes actions, so safety
 
 ---
 
-[← D · Paper map](D-paper-map.md) · [Contents](../README.md#contents)
+[← D · Paper map](D-paper-map.md) · [Contents](../README.md#contents) · [F · Diagnostic self-assessment →](F-diagnostic.md)

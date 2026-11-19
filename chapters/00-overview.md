@@ -6,7 +6,7 @@ A self-study handbook for AI and LLM research scientists, and for the applied ML
 
 ## How the handbook works
 
-The handbook has 48 chapters in 11 parts and five appendices. Parts I–X are the core path for a research scientist working on LLMs. Part XI is an optional applied track (classic models, recommender and search systems, ML system design, MLOps and data engineering) for applied roles and for anyone whose research meets a product.
+The handbook has 48 chapters in 11 parts and six appendices. Parts I–X are the core path for a research scientist working on LLMs. Part XI is an optional applied track (classic models, recommender and search systems, ML system design, MLOps and data engineering) for applied roles and for anyone whose research meets a product.
 
 **Every chapter follows the same template:**
 
@@ -66,7 +66,7 @@ The handbook has 48 chapters in 11 parts and five appendices. Parts I–X are th
 
 | Ch | Title | What it covers |
 |---|---|---|
-| 18 | Post-training I: SFT and preferences | SFT data, masking and packing, reward models, PPO with GAE, KL estimators, over-optimisation, DPO derivation and variants, AI feedback |
+| 18 | Post-training I: SFT and preferences | SFT data, masking and packing, reward models, policy-gradient foundations (REINFORCE, baselines, importance sampling), PPO with GAE, KL estimators, over-optimisation, DPO derivation and variants, AI feedback |
 | 19 | Post-training II: RL and reasoning | RL with verifiable rewards, GRPO and its fixes (Dr. GRPO, DAPO), verifiers and reward hacking, curricula, does RL add reasoning, PRMs, test-time strategies, distilling reasoning, RL systems |
 | 20 | Fine-tuning and parameter-efficient methods | When to fine-tune, LoRA and QLoRA in depth, adapters, instruction data, forgetting, continued pretraining, model merging, RL fine-tuning |
 
@@ -110,7 +110,7 @@ The handbook has 48 chapters in 11 parts and five appendices. Parts I–X are th
 | 34 | Research craft | Choosing problems, reading and reproducing papers, experiment design and ablations, seeds and statistics, compute budgeting, writing research memos |
 | 35 | The ML coding interview | pandas and SQL patterns, classic algorithms, and from-scratch components for research rounds (attention, losses, samplers, routers) |
 | 36 | Research interviews | The research-design round with worked answers, paper discussions, research talks, take-home tasks |
-| 37 | ML depth question bank | 240 questions with short answers, including 80 on LLM research |
+| 37 | ML depth question bank | 250 questions with short answers, including 90 on LLM research and RL; follow-up chains and graded answers |
 | 38 | Behavioural interviews | STAR, a story bank, senior signals, research stories |
 | 39 | Thinking like a senior | Trade-offs, scoping, uncertainty, influence, research judgement |
 
@@ -133,10 +133,13 @@ The handbook has 48 chapters in 11 parts and five appendices. Parts I–X are th
 - **A.** Glossary
 - **B.** One-page cheat sheets, including LLM research
 - **C.** Notation and formulas
-- **D.** Paper map: the papers worth knowing, from foundations to 2025
+- **D.** Paper map: the papers worth knowing, from foundations to the end of 2025
 - **E.** Ten worked system designs, the model answers for Chapter 46
+- **F.** A 40-question diagnostic with an answer key: take it first, and again after four weeks
 
 ## Study plans
+
+**Start with the diagnostic.** Appendix F has 40 questions, five per area, with an answer key and a rule for turning the scores into a plan. Use the plans below as the default order, then spend extra time on the areas where you scored 0–4 and skip ahead where you scored 8–10.
 
 **Research track: twelve weeks to LLM research-scientist readiness.** Assumes you know ML and some deep learning. About four chapters a week, with the research exercises as the main practice.
 
@@ -167,6 +170,10 @@ The handbook has 48 chapters in 11 parts and five appendices. Parts I–X are th
 | 6 | 29, 20, 33 | Embeddings, fine-tuning, agents |
 | 7 | 2, 45, 38 | Experimentation, marketplace ML, behavioural stories |
 | 8 | 35, 37, Appendix B | The mock loop |
+
+**Two-week refresh** (you have done the work before and the interview is close). Week 1: take the diagnostic, then each day one red or amber area: its chapters' pitfalls, interview questions and "Done when" box, plus the matching section of the question bank aloud. Week 2: one timed design (Appendix E) and one from-scratch coding component (Chapter 35.9) each day, the follow-up chains in Chapter 37, and your story bank (Chapter 38) rehearsed aloud.
+
+**Seventy-two hours.** Day 1: the cheat sheets (Appendix B) and the question bank's senior questions in your target area, aloud and timed. Day 2: two timed system designs and two coding components; the follow-up chains. Day 3: five stories in STAR form, your one-minute introduction (Chapter 39.7), questions to ask your interviewers (Chapter 36.7), and sleep.
 
 ## Core library
 

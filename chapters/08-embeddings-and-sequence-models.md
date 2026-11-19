@@ -84,7 +84,7 @@ The problem is training. Backpropagation through time multiplies by `W_h` (and t
 - `c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t`;
 - output gate `o_t`, and `h_t = o_t ⊙ tanh(c_t)`.
 
-![Diagram](images/08-fig-1.png)
+![How much the final hidden state depends on the input k steps earlier (norm of the gradient, averaged over 20 random sequences, randomly initialised layers of width 32)](images/08-fig-1.png)
 
 *How much the final hidden state depends on the input k steps earlier (norm of the gradient, averaged over 20 random sequences, randomly initialised layers of width 32). After 20 steps the vanilla RNN's gradient has fallen to 5 × 10⁻⁸ of its value at the last step; the LSTM's to 10⁻², a million times more signal.*
 
@@ -115,7 +115,7 @@ The encoder-decoder (Sutskever et al., 2014) reads the input with one RNN, squee
 
 **Bahdanau attention** (2014) removes the bottleneck. At each output step the decoder state is used as a query, scored against every encoder state, softmaxed into weights, and the weighted sum (the context vector) is fed into the decoder.
 
-![Diagram](images/08-01.png)
+![Bahdanau attention](images/08-01.png)
 
 *Bahdanau attention. The decoder state is the query; the weights α decide how much of each encoder state goes into the context vector.*
 

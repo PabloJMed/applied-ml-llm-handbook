@@ -17,7 +17,7 @@ RAG systems and agents have several stages, and an end-to-end score ("72% of ans
 
 ## 25.1 Component vs end-to-end evaluation
 
-![Diagram](images/23-01.png)
+![RAG evaluation · one metric per link](images/23-01.png)
 
 *RAG evaluation · one metric per link*
 
@@ -141,7 +141,7 @@ Exact trajectory matching is too strict when several paths are valid, so combine
 
 **3. Efficiency and robustness.** Steps, tokens, cost and latency per task; behaviour on failure (a tool times out, returns an error, or returns surprising data); loops; consistency across repeated runs. Agents are stochastic: run each task several times and report the share of runs that succeed (a pass^k style metric, "succeeds in all k runs", is stricter and closer to what reliability means for users).
 
-![Diagram](images/25-fig-1.png)
+![For a task an agent solves with probability p on each independent run: pass@k = 1 − (1 − p)^k, the chance at least one of k runs succeeds; pass^k = p^k, the chance all k succeed](images/25-fig-1.png)
 
 *For a task an agent solves with probability p on each independent run: pass@k = 1 − (1 − p)^k, the chance at least one of k runs succeeds; pass^k = p^k, the chance all k succeed. A 90% agent succeeds in all 8 runs only 43% of the time.*
 

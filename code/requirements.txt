@@ -1,12 +1,14 @@
-numpy
-scipy
-pandas
-scikit-learn
-statsmodels
-torch
-lightgbm
-faiss-cpu
-tokenizers
-fastapi
-pydantic
-httpx
+# Versions every script in code/ was run with (November 2026). Newer versions usually work;
+# if a script fails after an upgrade, reinstall these to check whether the library changed.
+numpy==2.5.3
+scipy==1.18.1
+pandas==3.0.5
+scikit-learn==1.9.1
+statsmodels==0.15.0
+torch==2.15.0
+lightgbm==4.7.0
+faiss-cpu==1.16.0
+tokenizers==0.23.3
+fastapi==0.165.0
+pydantic==2.13.5
+httpx==0.28.1

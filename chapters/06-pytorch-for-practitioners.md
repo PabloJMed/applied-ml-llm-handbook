@@ -88,7 +88,7 @@ In practice: `num_workers>0` and `pin_memory=True` speed up GPU training when lo
 
 ## 6.4 The training loop
 
-![Diagram](images/07-01.png)
+![The training loop](images/07-01.png)
 
 *The training loop. The inner row runs once per batch; the bottom row once per epoch.*
 
@@ -154,7 +154,7 @@ with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
 
 **Finding a learning rate in one run.** Before tuning anything else, run a learning-rate range test: start at a tiny rate, multiply it a little every step, and record the (smoothed) training loss until it blows up. The loss stays flat while the rate is too small to matter, falls fastest in the useful range, and diverges when the rate is too large. A good starting rate is about ten times below the point where the loss is lowest.
 
-![Diagram](images/06-fig-1.png)
+![Range test on a small MLP with SGD and momentum (computed in tools/figures.py): the loss is lowest near 0.62, so start training around 0.06](images/06-fig-1.png)
 
 *Range test on a small MLP with SGD and momentum (computed in `tools/figures.py`): the loss is lowest near 0.62, so start training around 0.06.*
 
@@ -203,16 +203,15 @@ Other tricks you should be able to name: learning-rate warm-up then cosine or li
 
 ## 6.9 Debugging a model that will not learn
 
-1. Overfit one small batch first. If loss does not go near zero on 32 examples, the bug is in
+Section 5.7 gives the general checklist: look at the data, check the loss at step 0 (about ln C for C balanced classes), overfit one small batch, then tune. In PyTorch, the bugs behind a model that will not learn are usually one of these:
 
-the code, not the data.
-
-2. Check the loss at step 0: for balanced binary classification it should be about ln 2 = 0.69; for C classes about ln C.
-3. Print shapes at each stage; watch for silent broadcasting.
-4. Check the labels reaching the loss (dtype, range, one-hot vs index).
-5. Log the gradient norm; zero means a detached graph or frozen params, huge means a learning rate too high.
-6. Try a learning-rate sweep (1e-5 to 1e-2) before anything clever.
-7. Compare with a simple baseline (logistic regression, LightGBM). On tabular data a well-tuned GBM usually wins (Chapter 40).
+1. **Silent broadcasting.** A `(B,)` target minus a `(B, 1)` prediction broadcasts to `(B, B)`: a hand-written loss gives no error, and `F.mse_loss` only a warning. Assert shapes at each stage.
+2. **Wrong labels at the loss.** `F.cross_entropy` wants class indices (`long`) and raw logits, not probabilities or one-hot floats.
+3. **A broken graph.** A stray `.detach()`, `.item()`, `torch.no_grad()` or a parameter left out of the optimiser. Log the gradient norm per layer: zero means a detached graph or frozen parameters; huge means the learning rate is too high.
+4. **Mode errors.** Forgetting `model.train()` after evaluation keeps dropout off and batch-norm statistics frozen.
+5. **Accumulated gradients.** `optimizer.zero_grad()` missing, or called inside the accumulation loop.
+6. **A learning rate out of range.** Sweep 1e-5 to 1e-2 before anything clever.
+7. **No baseline.** Compare with a simple model (logistic regression, LightGBM). On tabular data a well-tuned GBM usually wins (Chapter 40).
 
 **Scaling beyond one GPU.** The training loop here becomes distributed with DistributedDataParallel, then fully sharded data parallelism (FSDP2) when the model no longer fits, then tensor, pipeline and context parallelism for the largest models. Chapter 17 covers the memory and communication arithmetic; Chapter 7 covers the optimisers, schedules and numerical formats used at scale.
 

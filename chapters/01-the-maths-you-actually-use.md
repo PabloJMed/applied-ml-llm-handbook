@@ -38,7 +38,7 @@ cosine(np.array([1., 0]), np.array([0., 1]))         # 0.0: orthogonal
 
 **Geometry in high dimensions.** Intuitions from 2-D and 3-D mislead in the 768- or 4,096-dimensional spaces of embeddings. Take two random vectors with independent standard-normal entries. Their dot product is a sum of d independent products, so its spread grows like √d, while their lengths grow like √d each; the cosine therefore shrinks like 1/√d. Measured on 20,000 random pairs, the standard deviation of the cosine is 0.578 in 3 dimensions, 0.125 in 64 and 0.036 in 768, matching 1/√d. In high dimensions, almost every pair of random directions is nearly orthogonal.
 
-![Diagram](images/01-fig-1.png)
+![Distribution of the cosine between two random vectors (computed in tools/figures.py)](images/01-fig-1.png)
 
 *Distribution of the cosine between two random vectors (computed in `tools/figures.py`). In 768 dimensions nearly all pairs fall within ±0.1.*
 
@@ -56,7 +56,7 @@ Two consequences follow. A cosine of 0.3 between two embeddings is a strong sign
 
 **Why real matrices are approximately low rank.** A user–item matrix is low rank when a few hidden factors (price sensitivity, cuisine preference, time of day) explain most behaviour; each user's row is then roughly a mix of a few typical rows. The same holds for the weight *change* when fine-tuning a large model on a narrow task: LoRA bets that the update has low effective rank. For a 4,096 × 4,096 weight matrix, a rank-16 update has 16 × (4,096 + 4,096) = 131,072 parameters instead of 16,777,216: 0.78% of them (Chapter 20).
 
-![Diagram](images/01-01.png)
+![truncated SVD · a 100 × 80 matrix at rank 5](images/01-01.png)
 
 *truncated SVD · a 100 × 80 matrix at rank 5*
 
@@ -76,7 +76,7 @@ This single idea explains **matrix factorisation** for recommendations (Chapter 
 
 **The same calculation in natural frequencies**, which is how to explain it to anyone: of 10,000 orders, 100 are fraudulent and 9,900 are not. The model catches 95 of the 100 frauds, and wrongly flags 5% of the 9,900 good orders, which is 495. Of the 590 flagged orders, only 95 are fraud: 16%. Halving the false positive rate helps more than raising recall, because the false alarms come from the huge majority class.
 
-![Diagram](images/01-fig-2.png)
+![Precision of the same detector (95% recall) as prevalence changes](images/01-fig-2.png)
 
 *Precision of the same detector (95% recall) as prevalence changes. At 0.1% prevalence it is 1.9% with a 5% false-positive rate and 8.7% with 1%; at 10% prevalence, 68% and 91%.*
 

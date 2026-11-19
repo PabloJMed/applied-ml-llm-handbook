@@ -17,6 +17,8 @@ Numbers in this chapter come from `code/ch07_check.py` (CPU, about two seconds).
 - **µP (maximal update parametrisation)**: scale initialisation and per-layer learning rates with width so the best hyperparameters transfer from small to large models. [Tensor Programs V](https://arxiv.org/abs/2203.03466).
 - **Numerical formats**: fp32, bf16, fp16, fp8 (e4m3, e5m2) and microscaling (MX) formats. [FP8 formats for deep learning](https://arxiv.org/abs/2209.05433).
 - **Stability tools**: gradient clipping, z-loss, QK-norm, logit soft-capping. [PaLM (z-loss)](https://arxiv.org/abs/2204.02311), [Scaling ViT to 22B (QK-norm)](https://arxiv.org/abs/2302.05442).
+- **Muon at trillion-parameter scale**: [Kimi K2 (MuonClip, QK-Clip)](https://arxiv.org/abs/2507.20534).
+- **Residual-stream design**: [Hyper-connections](https://arxiv.org/abs/2409.19606), [mHC](https://arxiv.org/abs/2512.24880).
 - **Edge of stability**: full-batch training drives the loss sharpness up to about 2/η and holds it there. [Cohen et al.](https://arxiv.org/abs/2103.00065).
 
 ## 7.1 From SGD to AdamW
@@ -65,7 +67,7 @@ Three phases appear in nearly every LLM run:
 | 900 | 3.81e-05 | 1.50e-04 |
 | 999 | 3.00e-05 | 1.50e-06 |
 
-![Diagram](images/07-fig-1.png)
+![The two schedules from the table, and a WSD branch decayed early from step 500 (dotted)](images/07-fig-1.png)
 
 *The two schedules from the table, and a WSD branch decayed early from step 500 (dotted). A WSD run can produce a finished model from any checkpoint of its stable phase; a cosine run is only finished at its planned end.*
 
@@ -120,13 +122,15 @@ def newton_schulz(G, steps=5):
 # a 64x32 "gradient" with singular values spread 1,889:1 comes out with all of them in 0.17-1.13
 ```
 
-The intuition: gradient matrices of transformers are dominated by a few directions. Adam follows them; Muon boosts the rare directions to the same size, which explores more of the space per step. Muon applies only to 2-D hidden matrices; embeddings, the output head and norm parameters still use AdamW. Reported gains are of order 1.3–2× fewer tokens for the same loss at small and medium scale; at large scale it needs care with update size (matching Adam's RMS) and with attention logits growing (one open model added a "QK-clip" for that). Treat claimed speed-ups as hypotheses to reproduce on your own setup with tuned baselines: many optimiser papers compare against an under-tuned Adam.
+The intuition: gradient matrices of transformers are dominated by a few directions. Adam follows them; Muon boosts the rare directions to the same size, which explores more of the space per step. Muon applies only to 2-D hidden matrices; embeddings, the output head and norm parameters still use AdamW. Reported gains are of order 1.3–2× fewer tokens for the same loss at small and medium scale; at large scale it needs care with update size (matching Adam's RMS) and with attention logits growing. Kimi K2 (2025, about 1T parameters, 32B active) added **QK-Clip**: after each update, if a head's largest attention logit exceeds a threshold, rescale that head's query and key weights so it cannot grow further. QK-norm, the usual fix, does not apply to MLA, whose keys are never fully materialised at inference. With this "MuonClip" the model pretrained on 15.5T tokens without a loss spike. Treat claimed speed-ups as hypotheses to reproduce on your own setup with tuned baselines: many optimiser papers compare against an under-tuned Adam.
 
 ## 7.5 Initialisation, residual scaling and µP
 
 **The variance argument** (Chapter 5): a linear layer with fan-in n and weights of variance σ² multiplies the variance of its input by nσ². σ² = 1/n (Xavier/LeCun, or 2/n for ReLU, He) keeps activations from exploding or vanishing through depth.
 
 **Residual streams** add each block's output to a running sum. With L blocks of unit-variance outputs, the stream's variance grows like L. GPT-2 scaled the output projection of each block by 1/√(2L); many recipes initialise those projections smaller or to zero. Pre-norm (normalise the input of each block, not its output) keeps gradients well behaved at depth and is the standard.
+
+**Widening the residual stream.** Hyper-connections (2024) keep several parallel residual streams and learn how each layer reads from and writes to them, which adds capacity at almost no compute. Unconstrained, the learned mixing matrices compound across layers and break the identity path that makes deep residual networks trainable, so signals and gradients can blow up. DeepSeek's **mHC** (manifold-constrained hyper-connections, 2025) projects the mixing matrices onto doubly stochastic matrices (rows and columns sum to one, computed with a few Sinkhorn iterations), Each layer's mixing is then a weighted average of the streams, and a product of doubly stochastic matrices is again doubly stochastic, so however deep the network the composite mixing can neither amplify nor shrink the signal. DeepSeek report stable training at 27B parameters for about 7% extra training time. The same lesson as for initialisation: a change that adds expressiveness must keep the residual path close to the identity.
 
 **µP.** In the standard parametrisation (SP), the best learning rate drifts as the model widens: a rate tuned at width 256 makes width 8,192 diverge, so every size needs its own sweep. The **maximal update parametrisation** (Yang et al., 2022) changes the initialisation and the per-layer learning rates so that each layer's update has the same effect on its output at every width. For Adam the main rules are: hidden-matrix learning rates scale as 1/width, the output layer is initialised with variance 1/width² (not 1/width) and attention logits are scaled by 1/d instead of 1/√d.
 
@@ -138,7 +142,7 @@ The check script shows the core problem. One Adam step on a three-layer MLP, sam
 | 256 | 0.802 | 0.031 |
 | 1,024 | 5.639 | 0.030 |
 
-![Diagram](images/07-fig-2.png)
+![The same experiment extended to width 2,048 (log scales)](images/07-fig-2.png)
 
 *The same experiment extended to width 2,048 (log scales). Under the standard parametrisation the effect of one step grows roughly in proportion to width, from 0.11 at width 64 to 16 at width 2,048; under µP it stays near 0.03.*
 

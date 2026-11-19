@@ -34,7 +34,7 @@ For almost any text task there is a ladder of options. Climb only as far as qual
 
 The last pattern deserves a picture, because it is the default answer for high-volume tasks today:
 
-![Diagram](images/12-01.png)
+![LLM labelling and distillation · with audit and fallback](images/12-01.png)
 
 *LLM labelling and distillation · with audit and fallback*
 
@@ -42,7 +42,7 @@ An LLM labels a large unlabelled set once (cheaply with a batch API), people aud
 
 **Questions that decide the approach:** How many predictions per day? What latency? How often does the label set change? How much does an error cost? Is there labelled data, and how good is it? What languages?
 
-![Diagram](images/41-fig-2.png)
+![Monthly cost against daily volume for a classification call of about 400 input and 10 output tokens at illustrative prices ($0.15 and $0.60 per million tokens), compared with a distilled encoder served from one GPU at $1 an hour](images/41-fig-2.png)
 
 *Monthly cost against daily volume for a classification call of about 400 input and 10 output tokens at illustrative prices ($0.15 and $0.60 per million tokens), compared with a distilled encoder served from one GPU at $1 an hour. The real-time API crosses the GPU's cost near 380,000 calls a day, and the batch API near 760,000.*
 
@@ -99,7 +99,7 @@ Trainer(model=model, args=args, train_dataset=ds["train"], eval_dataset=ds["vali
 - **Label noise.** Find likely mislabels by training with cross-validation and reviewing confidently wrong predictions (the idea behind confident learning and the cleanlab library).
 - **Abstaining.** Use calibrated probabilities (Chapter 4.3) and send low-confidence cases to review rather than forcing a guess.
 
-![Diagram](images/41-fig-1.png)
+![Accuracy on the items a calibrated classifier handles itself, when it keeps only its most confident predictions and sends the rest to review](images/41-fig-1.png)
 
 *Accuracy on the items a calibrated classifier handles itself, when it keeps only its most confident predictions and sends the rest to review. Overall accuracy is 84%; keeping the most confident 43% gives 95%, and the most confident 17% gives 98%.*
 

@@ -47,7 +47,7 @@ More flexible models lower bias and raise variance; more data lowers variance; r
 
 The figure makes it concrete. Polynomials of increasing degree are fitted to 25 noisy points from a sine curve, 300 times with fresh data each time:
 
-![Diagram](images/03-fig-1.png)
+![Bias² falls to almost zero by degree 3, while variance keeps climbing (0.03 at degree 3, 0.56 at degree 8); total expected error is lowest at degree 3](images/03-fig-1.png)
 
 *Bias² falls to almost zero by degree 3, while variance keeps climbing (0.03 at degree 3, 0.56 at degree 8); total expected error is lowest at degree 3. Computed in `tools/figures.py`.*
 
@@ -166,7 +166,7 @@ On synthetic data with true weights [2, −1, 0.5, 0, 0], all three recover abou
 
 **Why momentum helps.** Real loss surfaces are often shaped like long narrow valleys: steep across, shallow along. Plain gradient descent must use a learning rate small enough not to diverge across the steep direction, which makes it crawl along the shallow one, and it bounces between the valley walls. Momentum accumulates the consistent part of the gradient (along the valley) and lets the alternating part (across it) cancel out.
 
-![Diagram](images/03-fig-2.png)
+![Thirty steps on the loss ½(w₁² + 25 w₂²), whose curvature differs 25-fold between directions](images/03-fig-2.png)
 
 *Thirty steps on the loss ½(w₁² + 25 w₂²), whose curvature differs 25-fold between directions. After 30 steps, gradient descent reaches loss 0.100 and momentum 0.033.*
 
@@ -186,7 +186,7 @@ The ratio between the steepest and shallowest curvature (the condition number, 2
 | Several rows per user, store or restaurant | Group k-fold | The same entity must not appear in train and validation, or the model memorises it |
 | Anything with time | Time-based (walk-forward) | The model will predict the future, so validate on the future |
 
-![Diagram](images/03-01.png)
+![walk-forward validation · three folds and a final test](images/03-01.png)
 
 *walk-forward validation · three folds and a final test*
 

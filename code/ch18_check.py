@@ -31,6 +31,46 @@ ceiling = torch.maximum(p_pref, 1 - p_pref)[1500:].mean()
 print(f"reward model held-out pairwise accuracy {acc:.3f} (label-noise ceiling {ceiling:.3f}); "
       f"cosine to true reward {F.cosine_similarity(w, w_true, 0):.3f}")
 
+# 18.4 policy-gradient foundations: REINFORCE with and without baselines on a one-prompt bandit
+# Four possible responses; the policy is a softmax over logits theta. Exact gradient of E[r]:
+# d/dtheta E[r] = pi * (r - E[r]). REINFORCE estimates it from N samples as mean (R_i - b) * grad log pi(a_i),
+# with grad log pi(a) = onehot(a) - pi.
+pg_rng = np.random.default_rng(18)      # own generator: leaves the later sections' numbers unchanged
+theta = np.array([0.5, 0.2, -0.1, -0.6]); pi = np.exp(theta) / np.exp(theta).sum()
+r_true = np.array([1.0, 0.6, 0.2, 0.0])
+exact = pi * (r_true - pi @ r_true)
+def reinforce(r, N, baseline, trials=20000):
+    a = pg_rng.choice(4, size=(trials, N), p=pi)
+    R = r[a]                                                     # (trials, N)
+    if baseline == "none":
+        b = 0.0
+    elif baseline == "group mean":                               # GRPO-style, includes the sample itself
+        b = R.mean(1, keepdims=True)
+    else:                                                        # leave-one-out (RLOO)
+        b = (R.sum(1, keepdims=True) - R) / (N - 1)
+    glp = np.eye(4)[a] - pi                                      # (trials, N, 4)
+    g = ((R - b)[..., None] * glp).mean(1)                      # (trials, 4)
+    return g
+print("exact policy gradient:", np.round(exact, 4).tolist())
+for shift in (0.0, 10.0):
+    for base in ("none", "group mean", "leave-one-out"):
+        g = reinforce(r_true + shift, 8, base)
+        bias = np.abs(g.mean(0) - exact).max()
+        sd = np.sqrt(g.var(0).sum())
+        print(f"rewards +{shift:4.1f}, baseline {base:13s}: max |bias| {bias:.4f}  total std {sd:.3f}  "
+              f"(mean/exact ratio {np.dot(g.mean(0), exact) / np.dot(exact, exact):.3f})")
+
+# 18.4 importance sampling over a sequence: per-token ratios multiply, so the variance explodes with length.
+# Per-token log-ratio ~ N(-s^2/2, s^2) (mean ratio 1). Sequence ratio variance = exp(T s^2) - 1;
+# effective sample size per sample = 1 / (1 + variance).
+s = 0.03
+for T in (100, 1000, 4000):
+    var = math.exp(T * s * s) - 1
+    w = np.exp(pg_rng.normal(-T * s * s / 2, math.sqrt(T) * s, 200_000))
+    ess = w.sum() ** 2 / (w ** 2).sum() / len(w)
+    print(f"T={T:5d} tokens, per-token log-ratio std {s}: sequence-ratio variance {var:.2f}, "
+          f"effective sample size {1 / (1 + var):.3f} (simulated {ess:.3f})")
+
 # 18.4 GAE and the PPO clipped objective on one trajectory
 rewards = torch.tensor([0., 0., 0., 1.0])              # reward only at the end (the reward model's score)
 values = torch.tensor([0.4, 0.5, 0.6, 0.8, 0.0])       # V(s_t) from the value head; terminal value 0

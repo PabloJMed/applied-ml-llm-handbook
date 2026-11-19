@@ -45,7 +45,7 @@ def mean_pool(token_embeddings, attention_mask):
 
 **InfoNCE** (also called the multiple negatives ranking loss) treats each query as a classification over the batch: which of the B documents is its partner?
 
-![Diagram](images/17-01.png)
+![in-batch contrastive training · a batch of 4 pairs](images/17-01.png)
 
 *in-batch contrastive training · a batch of 4 pairs*
 
@@ -72,7 +72,7 @@ def info_nce(q, d, temperature=0.05, symmetric=True):
 
 **What the temperature does to the gradient.** In InfoNCE each negative pushes the query away from it with a weight equal to its softmax probability. So the temperature decides which negatives the model learns from:
 
-![Diagram](images/29-fig-1.png)
+![One query with a positive at cosine 0.8, 5 hard negatives at 0.60–0.75 and 250 easy ones around 0.3](images/29-fig-1.png)
 
 *One query with a positive at cosine 0.8, 5 hard negatives at 0.60–0.75 and 250 easy ones around 0.3. At τ = 0.05 the 5 hard negatives receive 82% of the push-away; at τ = 0.3 the easy majority dominates.*
 
