@@ -1,0 +1,131 @@
+chapters/16-pretraining-data.md
+  632a73aa8f8d994e 104,137
+chapters/23-evaluating-models.md
+  632a73aa8f8d994e 47,110
+chapters/30-information-retrieval.md
+  632a73aa8f8d994e 27,67,139
+flashcards/README.md
+  632a73aa8f8d994e 1-13
+chapters/12-model-families-and-scaling.md
+  632a73aa8f8d994e 22,125
+chapters/17-pretraining-at-scale.md
+  632a73aa8f8d994e 68,92
+chapters/29-embeddings.md
+  632a73aa8f8d994e 48,75
+chapters/10-the-transformer-in-depth.md
+  632a73aa8f8d994e 24,45,76,110,192,268
+chapters/05-neural-network-fundamentals.md
+  632a73aa8f8d994e 38,46,107
+chapters/18-post-training-sft-and-preferences.md
+  632a73aa8f8d994e 15,96,98-148,180,203,219,293-300,308,323
+chapters/25-rag-and-agent-evaluation.md
+  632a73aa8f8d994e 20,144
+chapters/19-post-training-rl-and-reasoning.md
+  632a73aa8f8d994e 19-23,55-56,79,89-95,118,148,160-161,168-173,200,220-232,242-243,269-278,296-299,306
+chapters/03-ml-fundamentals.md
+  632a73aa8f8d994e 50,169,189
+flashcards/handbook-flashcards.txt
+  632a73aa8f8d994e 1-700
+chapters/11-architectures-beyond-the-transformer.md
+  632a73aa8f8d994e 17-18,55,89-96,118
+code/requirements.txt
+  632a73aa8f8d994e 1-14
+chapters/42-infrastructure-primer.md
+  632a73aa8f8d994e 36,234
+chapters/00-overview.md
+  632a73aa8f8d994e 9,69,113,136,138,142-143,174-177
+README.md
+  632a73aa8f8d994e 11,13,15,17,32,39,41-42,47-48,52-53,63,69-70,83,85,109,122,128-140
+chapters/43-recommender-systems.md
+  632a73aa8f8d994e 151,175,375
+chapters/D-paper-map.md
+  632a73aa8f8d994e 3,269-290,298
+tools/check_book.py
+  632a73aa8f8d994e 1-104
+chapters/40-classic-models.md
+  632a73aa8f8d994e 113,182
+chapters/E-worked-designs.md
+  632a73aa8f8d994e 449
+code/ch18_check.py
+  632a73aa8f8d994e 34-73
+chapters/37-ml-depth-question-bank.md
+  632a73aa8f8d994e 3,9,13,15,29,31,33,35,37,39,41,43-91,95-1183,1185,1187,1189,1191,1193,1195,1197,1199,1201,1203,1205,1207,1209,1211,1213,1215,1217,1219,1221,1223,1225,1227,1229,1231,1233,1235,1237,1239,1241,1243,1245,1247,1249,1251,1253,1255,1257,1259,1261,1263,1265,1267,1269,1271,1273,1275,1277,1279,1281,1283,1285,1287,1289,1291,1293,1295,1297,1299,1301,1303,1305,1307,1309,1311,1313,1315,1317,1319,1321,1323,1325,1327,1329,1331,1333,1335,1337,1339,1341,1343,1345,1347,1349,1351,1353,1355,1357,1359,1361,1363,1365,1367,1369,1371,1373,1375,1377,1379,1381,1383,1385,1387,1389,1391,1393,1395,1397,1399,1401,1403,1405,1407,1409,1411,1413,1415,1417,1419,1421,1423,1425,1427,1429,1431,1433,1435,1437,1439,1441,1443,1445,1447,1449,1451,1453,1455,1457,1459,1461,1463,1465,1467,1469,1471,1473,1475,1477,1479,1481,1483,1485,1487,1489,1491,1493,1495,1497,1499,1501,1503,1505,1507,1509,1511,1513,1515,1517,1519,1521,1523,1525,1527,1529,1531,1533,1535,1537,1539,1541,1543,1545,1547,1549,1551,1553,1555,1557,1559,1561,1563-1565,1567,1569,1571,1573,1575,1577,1579,1581,1583,1585,1587,1589,1591,1593,1595,1597,1599-1623,1625,1627,1629,1631,1633,1635,1637,1639,1641,1643-1669,1673-1679,1681,1683,1685,1687,1689,1691,1693,1695,1697,1699,1701,1703,1705-1783,1787-1837,1839,1841,1843,1845,1847,1849,1851,1853,1855-1865,1869-1891,1893,1895,1897,1899,1901,1903,1905-1931,1935-2005,2007,2009,2011,2013,2015,2017,2019,2021,2023-2095,2195-2267
+tools/export_flashcards.py
+  632a73aa8f8d994e 1-101
+chapters/08-embeddings-and-sequence-models.md
+  632a73aa8f8d994e 87,118
+chapters/33-agents-and-tool-use.md
+  632a73aa8f8d994e 26,175
+CHANGELOG.md
+  632a73aa8f8d994e 1-18
+chapters/46-ml-system-design.md
+  632a73aa8f8d994e 29,174,287,310
+code/ch19_check.py
+  632a73aa8f8d994e 79
+chapters/24-llm-evaluation.md
+  632a73aa8f8d994e 41,192
+chapters/47-mlops-and-llmops.md
+  632a73aa8f8d994e 24,131
+chapters/41-nlp-tasks-with-modern-tools.md
+  632a73aa8f8d994e 37,45,102
+chapters/22-prompting-and-context-engineering.md
+  632a73aa8f8d994e 26,196
+chapters/06-pytorch-for-practitioners.md
+  632a73aa8f8d994e 91,157,206,208-214
+chapters/45-marketplace-and-logistics-ml.md
+  632a73aa8f8d994e 70,124
+chapters/34-research-craft.md
+  632a73aa8f8d994e 112
+tools/run_code.py
+  632a73aa8f8d994e 1-43
+tools/figures.py
+  632a73aa8f8d994e 1215
+chapters/27-alignment-and-safety-research.md
+  632a73aa8f8d994e 51
+chapters/09-text-and-tokenisation.md
+  632a73aa8f8d994e 22,128
+chapters/38-behavioural-interviews.md
+  632a73aa8f8d994e 32
+chapters/14-multimodal-models.md
+  632a73aa8f8d994e 68,108
+chapters/02-statistics-and-experimentation.md
+  632a73aa8f8d994e 97,124,197,220
+chapters/28-safety-and-responsible-ai.md
+  632a73aa8f8d994e 90,127
+chapters/35-the-ml-coding-interview.md
+  632a73aa8f8d994e 33
+.github/workflows/check.yml
+  632a73aa8f8d994e 1-35
+chapters/31-retrieval-augmented-generation.md
+  632a73aa8f8d994e 24
+tools/build_pdf.py
+  632a73aa8f8d994e 48,277-281,293,316,396
+chapters/44-search-and-learning-to-rank.md
+  632a73aa8f8d994e 30,219
+chapters/26-interpretability.md
+  632a73aa8f8d994e 110
+chapters/F-diagnostic.md
+  632a73aa8f8d994e 1-207
+chapters/21-inference-decoding-and-serving.md
+  632a73aa8f8d994e 108,124,135
+chapters/04-evaluation-and-metrics.md
+  632a73aa8f8d994e 26,120,172
+chapters/15-how-llms-are-trained.md
+  632a73aa8f8d994e 9,139,147
+chapters/20-fine-tuning-and-lora.md
+  632a73aa8f8d994e 57,63
+chapters/07-optimisation-and-training-dynamics.md
+  632a73aa8f8d994e 20-21,70,125,133-134,145
+chapters/01-the-maths-you-actually-use.md
+  632a73aa8f8d994e 41,59,79
+chapters/13-scaling-laws.md
+  632a73aa8f8d994e 64,96,138
+chapters/48-data-for-ml.md
+  632a73aa8f8d994e 80,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4910c8d543aac9ddf2faa257d69858ca7fcf1a34",
+  "prompts": {}
+}
