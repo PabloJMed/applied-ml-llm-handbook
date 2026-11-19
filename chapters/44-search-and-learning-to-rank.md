@@ -27,7 +27,7 @@ Search is a recommender with a query. The funnel from Chapter 43 still applies, 
 - **Query understanding is a stage of its own.** Before retrieving anything, you need to know what the user meant.
 - **Lexical matching matters.** Exact words (a restaurant's name, a dish name) are strong signals, so search keeps a keyword index next to the embedding index.
 
-![Diagram](images/26-01.png)
+![search pipeline · query understanding, hybrid retrieval, ranking, blending](images/26-01.png)
 
 *search pipeline · query understanding, hybrid retrieval, ranking, blending*
 
@@ -216,7 +216,7 @@ This is the most-asked LTR story in interviews. Tell it in three steps.
 2. **LambdaRank (2006).** NDCG is what we care about, but it is not differentiable (it depends on sorted positions). The trick: skip writing the loss and define the gradients directly as RankNet's pair gradient multiplied by **|ΔNDCG|**, the change in NDCG if i and j swapped positions. Swapping positions 1 and 2 changes NDCG a lot; swapping 50 and 51 barely at all, so the model concentrates on the top of the list.
 3. **LambdaMART (2008–2010).** Use those lambdas as the pseudo-gradients in gradient-boosted trees (MART: multiple additive regression trees). Each new tree fits the lambdas. It won the 2010 Yahoo! Learning to Rank Challenge and is still the default production ranker for tabular features.
 
-![Diagram](images/44-fig-1.png)
+![|ΔNDCG@10| for swapping the results at two positions of an ideally ordered list with grades 3, 2, 2, 1, 1, 1, 0, 0, 0, 0](images/44-fig-1.png)
 
 *|ΔNDCG@10| for swapping the results at two positions of an ideally ordered list with grades 3, 2, 2, 1, 1, 1, 0, 0, 0, 0. Swapping the top result with a bottom one costs 0.40–0.43; swapping positions 4 and 7 costs 0.01.*
 

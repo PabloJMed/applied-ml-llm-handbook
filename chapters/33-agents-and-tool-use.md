@@ -23,7 +23,7 @@ Anthropic's "Building Effective Agents" (2024) draws a useful line:
 - **Workflows:** LLM calls orchestrated through **predefined code paths**. Predictable, testable, cheaper.
 - **Agents:** the LLM **dynamically decides** its own steps and tool use, in a loop, until the task is done.
 
-![Diagram](images/21-01.png)
+![the agent loop · with code between the model and the world](images/21-01.png)
 
 *the agent loop · with code between the model and the world*
 
@@ -172,7 +172,7 @@ This is the strongest argument for short, structured flows, verification steps t
 
 **Cost and latency** grow with steps: each step resends a growing context. A 10-step agent with 8,000 tokens of context per step processes 80,000+ input tokens per task. Control it with prompt caching of the stable prefix (Chapter 22.7), trimming tool outputs, small models for simple steps, parallel tool calls where independent, and hard budgets. Set the budget from the business value of the task: an agent resolving a 15-euro support ticket cannot spend 2 euros of tokens on it.
 
-![Diagram](images/33-fig-1.png)
+![Billed input tokens for a 20-step agent with a 4,000-token fixed prefix, where each step adds 600 tokens of output and tool results to the history](images/33-fig-1.png)
 
 *Billed input tokens for a 20-step agent with a 4,000-token fixed prefix, where each step adds 600 tokens of output and tool results to the history. Without caching, the total is 194,000 tokens, quadratic in the number of steps. With prefix caching (cached reads billed at 10%) it is 33,000; trimming tool outputs to 400 new tokens per step brings it to 26,000.*
 

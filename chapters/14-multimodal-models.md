@@ -65,7 +65,7 @@ labels[answer_positions] = answer_ids
 | 896 | 4,096 | 1,024 |
 | 1,344 | 9,216 | 2,304 |
 
-![Diagram](images/14-fig-1.png)
+![Vision tokens against image side for 14-pixel patches, with and without 2 × 2 token merging](images/14-fig-1.png)
 
 *Vision tokens against image side for 14-pixel patches, with and without 2 × 2 token merging. A 1,344-pixel page costs 9,216 tokens unmerged, more than many text prompts.*
 
@@ -105,7 +105,7 @@ commit = F.mse_loss(z, zq.detach())
 
 **Diffusion.** Train a network to undo noise. The forward process mixes an image x₀ with Gaussian noise: x_t = √ᾱ_t x₀ + √(1 − ᾱ_t) ε. With the standard linear schedule over 1,000 steps, the signal weight is 1.000 at t = 0, 0.722 at t = 250, 0.279 at t = 500 and 0.006 at t = 999. The network predicts ε from (x_t, t); sampling starts from pure noise and removes predicted noise step by step. **Latent diffusion** runs the process in the compressed latent space of an autoencoder, which is far cheaper. **Flow matching** learns a velocity field along straight paths from noise to data and samples in fewer steps; most recent image and video generators use it with transformer backbones (diffusion transformers).
 
-![Diagram](images/14-fig-2.png)
+![The weights of the original image and of the noise in xt over the 1,000-step linear schedule](images/14-fig-2.png)
 
 *The weights of the original image and of the noise in x_t over the 1,000-step linear schedule. By step 600 the image contributes less than 10% of x_t; generation runs this curve backwards.*
 

@@ -67,7 +67,7 @@ On four months of synthetic hourly demand for five zones (with lunch and dinner 
 
 The ETA shown at checkout is a promise: too optimistic and orders arrive late (complaints, refunds, churn), too pessimistic and customers order elsewhere. ETAs also feed dispatch (when to send the courier) and ranking (Chapter 44.7).
 
-![Diagram](images/27-01.png)
+![anatomy of a delivery · kitchen and courier timelines, illustrative](images/27-01.png)
 
 *anatomy of a delivery · kitchen and courier timelines, illustrative*
 
@@ -121,7 +121,7 @@ With supply (12, 3, 8, 2) and need (6, 7, 5, 7) across four zones, the solver mo
 
 **Staffing.** Turn demand forecasts into courier hours per zone and slot with a target service level (for example, 90% of orders picked up within 10 minutes), often via queueing approximations or simulation; then schedule shifts to cover the requirement at minimum cost.
 
-![Diagram](images/45-fig-1.png)
+![Share of orders assigned a courier within 5 minutes, by couriers on shift, from the Erlang C queueing model](images/45-fig-1.png)
 
 *Share of orders assigned a courier within 5 minutes, by couriers on shift, from the Erlang C queueing model. Each order keeps a courier busy for 25 minutes on average. Below the offered load (orders per hour × hours per order) the queue grows without bound, so those points are omitted.*
 

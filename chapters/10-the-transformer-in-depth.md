@@ -21,7 +21,7 @@ Every LLM, embedding model and modern re-ranker you will use is a transformer. F
 
 A decoder-only language model (GPT, Llama, Claude-style models) turns a sequence of tokens into a probability distribution over the next token. It is built from one block repeated N times:
 
-![Diagram](images/10-01.png)
+![decoder-only transformer · pre-norm block, repeated](images/10-01.png)
 
 *decoder-only transformer · pre-norm block, repeated*
 
@@ -42,7 +42,7 @@ Training is next-token prediction with cross-entropy over trillions of tokens; g
 
 The vector that flows through this process, and that every sub-layer reads from and adds to, is called the **residual stream**. It is the single most useful mental model of a transformer: layers do not replace the representation, they write increments into it, and later layers can read anything earlier layers wrote (Chapter 26 builds interpretability on this view).
 
-![Diagram](images/10-fig-5.png)
+![Parameter count by component, computed in code/ch10check.py](images/10-fig-5.png)
 
 *Parameter count by component, computed in `code/ch10_check.py`. The feed-forward blocks hold 70% of the parameters; attention holds 17%.*
 
@@ -73,7 +73,7 @@ The output is 0.082 × (1, 0) + 0.682 × (0, 1) + 0.236 × (0.5, 0.5) = (0.2, 0.
 - **M is the mask:** −∞ above the diagonal in a decoder (causal mask), so position t cannot see future positions; padding positions are masked too.
 - Softmax turns each row into weights summing to 1; multiplying by V mixes the values.
 
-![Diagram](images/10-fig-1.png)
+![Average weight on the single best-matching key among 64, for random queries and keys](images/10-fig-1.png)
 
 *Average weight on the single best-matching key among 64, for random queries and keys. Unscaled, a 128-dimensional head puts 86% of its attention on one key; scaled, about 11% at every width.*
 
@@ -107,7 +107,7 @@ One attention pattern cannot capture everything (syntax, coreference, position, 
 
 **What heads learn.** Trained heads specialise, and some patterns recur across models. The figure shows two heads from a tiny two-layer model trained in `code/ch26_check.py` to continue repeated random sequences. A **previous-token head** in layer 0 attends to the position just before each query: it copies "what came before me" into each token's residual stream. An **induction head** in layer 1 uses that information: when the current token appeared earlier, it attends to the token that *followed* the earlier occurrence and predicts it again. Together they implement in-context copying, [A][B] … [A] → [B], and circuits like this appear in large models too, where their formation coincides with a jump in in-context learning (Chapter 26).
 
-![Diagram](images/10-fig-2.png)
+![Attention weights on a sequence whose positions 2–11 are repeated at 12–21 (darker = more weight)](images/10-fig-2.png)
 
 *Attention weights on a sequence whose positions 2–11 are repeated at 12–21 (darker = more weight). Left: each query attends to the position before it. Right: in the second copy, each query attends to the position after its earlier occurrence; before the repeat, the head parks its attention on the first token, an "attention sink" (10.11).*
 
@@ -189,7 +189,7 @@ def rope(x, base=10000.0):
 
 The score depends on the positions only through n − m. Each pair uses a different frequency θᵢ = base^(−2i/d), like the hands of a clock: the first pairs spin fast and distinguish neighbouring tokens; the last pairs turn so slowly that they separate only very distant positions. The figure shows the resulting wavelengths, which is also the key to extending context (10.11).
 
-![Diagram](images/10-fig-3.png)
+![Wavelength (tokens per full turn) of each of the 64 rotation pairs of a 128-dimensional head](images/10-fig-3.png)
 
 *Wavelength (tokens per full turn) of each of the 64 rotation pairs of a 128-dimensional head. With base 10,000 the slowest pairs complete less than a turn within 4k tokens; position interpolation stretches every pair by 8×, NTK-aware scaling stretches mostly the slow ones.*
 
@@ -265,7 +265,7 @@ kv_cache_gb(32, 8, 128, 8192)    # ~1.1 GB with 8 KV heads (GQA): 4x more sequen
 
 That is why serving engines manage the cache in pages (vLLM's PagedAttention), quantise it, and why architectures cut KV heads (Chapter 21).
 
-![Diagram](images/10-fig-4.png)
+![KV-cache memory for one sequence of an 8B-shaped model (32 layers, head dimension 128, bf16)](images/10-fig-4.png)
 
 *KV-cache memory for one sequence of an 8B-shaped model (32 layers, head dimension 128, bf16). With full multi-head attention a 128k-token context needs 69 GB, four times the model's own weights; grouped-query attention with 8 KV heads cuts it to 17 GB.*
 

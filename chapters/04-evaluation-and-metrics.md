@@ -23,7 +23,7 @@ This chapter is the reference for all later chapters: every metric used in the b
 
 A binary classifier outputs a score; a **threshold** turns it into a decision. Every decision falls into one of four cells.
 
-![Diagram](images/05-01.png)
+![confusion matrix · fraud example](images/05-01.png)
 
 *confusion matrix · fraud example*
 
@@ -117,7 +117,7 @@ Both match scikit-learn's `roc_auc_score` and `average_precision_score` on a tes
 
 The figure shows the difference on a dataset with 0.55% positives. A logistic regression and a random forest have ROC-AUCs of 0.885 and 0.942: both "good". Their average precisions are 0.520 and 0.732, which tells you the forest is far better exactly where a fraud team works: at the top of the list.
 
-![Diagram](images/04-fig-1.png)
+![ROC and precision–recall curves for the same two models on the same test set (computed in tools/figures.py)](images/04-fig-1.png)
 
 *ROC and precision–recall curves for the same two models on the same test set (computed in `tools/figures.py`). The dotted lines are random baselines: the diagonal for ROC, the positive rate (0.0055) for PR.*
 
@@ -169,7 +169,7 @@ p_iso = iso.predict(score_test)
 
 On a synthetic test with a badly calibrated score, both methods cut ECE from about 0.24 to about 0.02 without changing AUC, because both mappings are monotone.
 
-![Diagram](images/04-fig-2.png)
+![An over-confident score (dashed): cases scored 0.6 turn out positive only about 35% of the time](images/04-fig-2.png)
 
 *An over-confident score (dashed): cases scored 0.6 turn out positive only about 35% of the time. After Platt scaling fitted on a separate half of the data (solid), the points sit on the diagonal; ECE falls from 0.251 to 0.009.*
 

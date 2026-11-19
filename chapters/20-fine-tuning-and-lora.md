@@ -54,13 +54,13 @@ Full fine-tuning is still right for smaller encoders (BERT-sized classifiers, Ch
 
 **The idea (Hu et al., 2021).** The weight change needed to adapt a model to a task has low intrinsic rank. So instead of learning a full update ΔW (d × k), learn it as the product of two thin matrices: ΔW = B·A, with B of size d × r and A of size r × k, r much smaller than d and k. The pretrained W stays frozen.
 
-![Diagram](images/20-fig-1.png)
+![Cumulative share of a full fine-tuning update's squared singular values kept by its best rank-r approximation](images/20-fig-1.png)
 
 *Cumulative share of a full fine-tuning update's squared singular values kept by its best rank-r approximation. Here a small network is pretrained on one task and fully fine-tuned on a related one, and the update of a 256 × 256 hidden layer is measured. Rank 4 keeps 85% of the update and rank 16 keeps 96%; a random matrix of the same size needs most of its 256 dimensions.*
 
 This is the observation behind LoRA. Measurements on real language-model fine-tunes (Aghajanyan et al., 2020, on intrinsic dimension, and the LoRA paper's own analysis of ΔW) show the same shape: a few directions carry most of the change. LoRA restricts training to such updates from the start. The restriction is mild for narrow tasks such as formats, styles, classification or extraction. It bites for tasks that need much new knowledge (a new language, a large new domain), where LoRA at small rank trails full fine-tuning. There, higher rank, full fine-tuning or continued pretraining (20.11) works better.
 
-![Diagram](images/16-01.png)
+![LoRA · frozen W plus a trainable low-rank path](images/16-01.png)
 
 *LoRA · frozen W plus a trainable low-rank path*
 

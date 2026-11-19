@@ -45,7 +45,7 @@ PARTS = [
     ("IX", "Retrieval and agents", ["29", "30", "31", "32", "33"]),
     ("X", "Research craft and interviews", ["34", "35", "36", "37", "38", "39"]),
     ("XI", "Applied ML systems (optional track)", ["40", "41", "42", "43", "44", "45", "46", "47", "48"]),
-    ("", "Appendices", ["A", "B", "C", "D", "E"]),
+    ("", "Appendices", ["A", "B", "C", "D", "E", "F"]),
 ]
 
 # Page presets: page size, margins (left/right, top, bottom) and base font size.
@@ -274,6 +274,11 @@ def wrap_box(body: str, heading: str) -> str:
 def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = path.read_text(encoding="utf-8")
     text = re.sub(r"\n---\n\n\[[^\n]*\]\([^\n]*\)[^\n]*\s*$", "\n", text)   # drop the web navigation footer
+    # Collapsible answers (<details>) are for GitHub; in print the answer follows its question.
+    text = re.sub(r"^<details><summary>[^<]*</summary>\s*\n", "", text, flags=re.M)
+    text = re.sub(r"^</details>\s*\n", "", text, flags=re.M)
+    # Links to folders outside chapters/ (code/, flashcards/) point at the repository in print.
+    text = re.sub(r"\]\(\.\./((?:code|flashcards|tools)/[^)]*)\)", rf"](https://{REPO}/tree/main/\1)", text)
     first, _, rest = text.partition("\n")
     title = first.lstrip("# ").strip()
     body = md.render(wrap_code(rest, CODE_COLS))
@@ -285,7 +290,7 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     body = re.sub(r"<p><img ([^>]*)></p>\s*<p><em>(.*?)</em></p>", r'<p class="fig"><img \1></p><p class="caption">\2</p>', body, flags=re.S)
     body = re.sub(r"<p><img ([^>]*)></p>", r'<p class="fig"><img \1></p>', body)
     # Section numbers in the accent colour.
-    body = re.sub(r"<h([23])>([0-9]+[a-z]?\.[0-9]+(?:\.[0-9]+)?|[A-E]\.[0-9]+) ", r'<h\1><span class="sec">\2</span>&#160;&#160;', body)
+    body = re.sub(r"<h([23])>([0-9]+[a-z]?\.[0-9]+(?:\.[0-9]+)?|[A-F]\.[0-9]+) ", r'<h\1><span class="sec">\2</span>&#160;&#160;', body)
     for h in ("Key concepts", "Done when"):
         body = wrap_box(body, h)
     return title, add_ids(key, body)
@@ -308,7 +313,7 @@ def build_html(positions: list | None) -> str:
 <p class="cover-title">The AI &amp; LLM<br>Scientist Handbook</p>
 <p class="cover-sub">{html.escape(SUBTITLE)}</p>
 <p class="cover-author">{html.escape(AUTHORS)}</p>
-<p class="cover-meta">{n_chapters} CHAPTERS · {len(PARTS) - 1} PARTS · 5 APPENDICES</p>
+<p class="cover-meta">{n_chapters} CHAPTERS · {len(PARTS) - 1} PARTS · {len(PARTS[-1][2])} APPENDICES</p>
 <p class="cover-parts">{parts_list}</p>
 <p class="cover-edition">{EDITION}</p>
 </div>""")
@@ -388,7 +393,7 @@ def main() -> int:
         for p in starts:
             # tables and code blocks need room for a few lines before the page ends
             if p.id not in KEEP and p.rect[1] > floor - 3.5 * line and p.rect[1] > TOP + line:
-                if re.match(r"e[0-9A-E]+-", p.id) and p.id in TALL:
+                if re.match(r"e[0-9A-F]+-", p.id) and p.id in TALL:
                     BREAKS.add(p.id)
         return build_html(positions)
 

@@ -35,7 +35,7 @@ The hidden layer bends the input space: h₂ only switches on in the corner wher
 
 On a three-class spiral dataset that no straight line can separate, logistic regression reaches 53% training accuracy; a 64-unit one-hidden-layer MLP written from scratch below reaches 99%.
 
-![Diagram](images/05-fig-1.png)
+![Decision regions on the spiral data (a fresh sample, trained with PyTorch in tools/figures.py)](images/05-fig-1.png)
 
 *Decision regions on the spiral data (a fresh sample, trained with PyTorch in `tools/figures.py`). The linear model can only cut the plane with straight lines; the MLP's 64 hinges follow the spirals.*
 
@@ -43,7 +43,7 @@ On a three-class spiral dataset that no straight line can separate, logistic reg
 
 ## 5.2 Backpropagation by hand
 
-![Diagram](images/06-01.png)
+![forward and backward pass of a two-layer network](images/06-01.png)
 
 *forward and backward pass of a two-layer network*
 
@@ -104,7 +104,7 @@ Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. 
 
 Weights must start small enough not to explode activations and large enough not to vanish them, layer after layer. A test pushing random data through 20 ReLU layers of width 256: with weights of standard deviation 0.01 the output's spread collapsed to about 1e-19; with standard deviation 1 it exploded to about 1e20; with **He initialisation** (std = √(2/fan_in)) it stayed around 0.7.
 
-![Diagram](images/05-fig-2.png)
+![Standard deviation of activations through 20 ReLU layers of width 256](images/05-fig-2.png)
 
 *Standard deviation of activations through 20 ReLU layers of width 256. Too small (0.01): the signal shrinks by roughly 10× per layer to 7 × 10⁻²⁰. Too large (1.0): it explodes to 10²¹. He initialisation holds it near 0.6.*
 

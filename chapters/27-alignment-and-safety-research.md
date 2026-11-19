@@ -48,7 +48,7 @@ Reports in 2025 described frontier reasoning models doing the agentic equivalent
 
 Mitigations: hidden and randomised tests, read-only test files and sandboxes, verifiers that check properties rather than examples, held-out environments, monitoring of trajectories (by models and humans), and treating any sudden reward jump as a bug until shown otherwise.
 
-![Diagram](images/27-fig-1.png)
+![Best-of-n selection by a proxy reward equal to true quality plus error](images/27-fig-1.png)
 
 *Best-of-n selection by a proxy reward equal to true quality plus error. With normally distributed errors, picking the best of more samples keeps improving true quality. With heavy-tailed errors, the top proxy score is increasingly an error outlier: true quality peaks around n = 8 and then falls back to the average.*
 

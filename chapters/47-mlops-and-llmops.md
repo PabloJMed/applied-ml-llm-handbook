@@ -21,7 +21,7 @@ The code below was run; outputs are quoted.
 - **Behavioural tests**: checks of model behaviour such as invariance ("changing a name must not change the label"). [CheckList paper](https://arxiv.org/abs/2005.04118).
 - **LLM tracing**: logging each LLM call, retrieval and tool call as a linked trace, with tokens, cost and prompt version.
 
-![Diagram](images/29-01.png)
+![Every arrow is a place things break silently; MLOps is the practice of making each one visible and repeatable](images/29-01.png)
 
 *Every arrow is a place things break silently; MLOps is the practice of making each one visible and repeatable.*
 
@@ -128,7 +128,7 @@ def psi(expected, actual, bins=10):
 
 Rule of thumb: below 0.1 stable, 0.1–0.25 watch, above 0.25 investigate. Avoid alerting on p-values of statistical tests: with large samples, a Kolmogorov–Smirnov test calls even the harmless +2 shift "significant" (p = 1e-27 on 5,000 rows each). Alert on effect size, and compare with the same season last year before raising alarms about Ramadan or summer.
 
-![Diagram](images/47-fig-1.png)
+![PSI of a live window against the training distribution as the mean basket value shifts, averaged over 40 windows](images/47-fig-1.png)
 
 *PSI of a live window against the training distribution as the mean basket value shifts, averaged over 40 windows. With 5,000 rows, PSI without any shift is 0.002. With 300 rows the noise floor is 0.03 and small windows read slightly high throughout, but both reach the 0.25 "investigate" line at a shift of about half a standard deviation.*
 

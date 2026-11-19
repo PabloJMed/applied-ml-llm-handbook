@@ -148,7 +148,7 @@ Two-tower models (43.4) keep the dot-product idea and fix all three by computing
 
 **Why stages?** A city's catalogue has tens of thousands of restaurants and hundreds of thousands of dishes. A heavy ranking model with hundreds of features cannot score all of them within a 100–200 ms page budget. So production systems use a funnel: cheap models over many items first, expensive models over few items last.
 
-![Diagram](images/25-01.png)
+![multi-stage recommender · 4 stages, illustrative sizes](images/25-01.png)
 
 *multi-stage recommender · 4 stages, illustrative sizes*
 
@@ -172,7 +172,7 @@ The sizes are illustrative; what matters is that each stage cuts the set by an o
 
 **Intuition.** Keep MF's idea (score = dot product of a user vector and an item vector) but compute each vector with a neural network from features. The user tower sees the user, their history and the context; the item tower sees only the item. Because the item vector does not depend on the user, you compute all item vectors in advance and put them in an approximate nearest neighbour (ANN) index. At request time you run the user tower once and fetch the top few hundred items by dot product in milliseconds.
 
-![Diagram](images/25-02.png)
+![two-tower retrieval · online user side, offline item side](images/25-02.png)
 
 *two-tower retrieval · online user side, offline item side*
 
@@ -372,7 +372,7 @@ for t in range(20_000):
 print((alpha + beta - 2).astype(int))   # pulls per arm, e.g. [232 1432 18336]: most go to the best arm
 ```
 
-![Diagram](images/43-fig-1.png)
+![Cumulative regret, the clicks lost against always showing the best banner, averaged over 60 simulated runs with the three CTRs above](images/43-fig-1.png)
 
 *Cumulative regret, the clicks lost against always showing the best banner, averaged over 60 simulated runs with the three CTRs above. ε-greedy keeps spending 10% of traffic at random forever, so its regret grows linearly; Thompson sampling's exploration fades as the posteriors separate.*
 

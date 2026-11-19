@@ -26,7 +26,7 @@ At mid-level the bar is a complete, sensible design with sound reasoning. At sen
 
 ## The framework at a glance
 
-![Diagram](images/28-01.png)
+![the eight-step framework · 45-minute budget](images/28-01.png)
 
 *the eight-step framework · 45-minute budget*
 
@@ -171,7 +171,7 @@ At a mid-sized marketplace, rung 2 for ranking plus rung 3 (a two-tower model) f
 
 When the catalogue is large (thousands to millions of items) you cannot score every item with a heavy model within the latency budget. So systems run a funnel: cheap stages that cut many items, then expensive stages over few. The diagram below shows it; the numbers are typical orders of magnitude, not a rule.
 
-![Diagram](images/28-02.png)
+![multi-stage recommendation funnel · 4 stages](images/28-02.png)
 
 *multi-stage recommendation funnel · 4 stages*
 
@@ -284,7 +284,7 @@ print(f"${llm_cost_usd(10e6, 300, 50, 0.15, 0.60, batch_discount=0.5):,.0f}")
 
 **A latency budget.** Split the p99 target across the stages before choosing models, because the budget decides what each stage can afford.
 
-![Diagram](images/46-fig-1.png)
+![An example p99 budget for the restaurant feed](images/46-fig-1.png)
 
 *An example p99 budget for the restaurant feed. The stages run in sequence except the candidate sources, which run in parallel within their 25 ms. The ranking model gets 40 ms for 500 candidates, which is what decides between a gradient-boosted model and a larger neural ranker. A third of the budget is kept as headroom for tail effects.*
 
@@ -307,7 +307,7 @@ The eight steps still apply to an LLM design (a classifier, a RAG assistant, a j
 | Serving | Batch where possible (cheaper, often half price), caching of repeated prompts, timeouts, retries with backoff, rate limits, and a non-LLM fallback |
 | Monitoring | Trace each call: input, output, tokens, latency, cost. Sample outputs for review, track judge scores over time, and watch for provider model updates that silently change behaviour |
 
-![Diagram](images/28-03.png)
+![LLM system · online path and offline evaluation loop](images/28-03.png)
 
 *LLM system · online path and offline evaluation loop*
 

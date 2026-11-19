@@ -19,7 +19,7 @@ Every LLM bill, context-window limit and many strange model failures trace back 
 
 ## 9.1 The pipeline
 
-![Diagram](images/09-01.png)
+![A tokenizer is a pipeline](images/09-01.png)
 
 *A tokenizer is a pipeline. Each stage is a choice baked into the model at pre-training time.*
 
@@ -125,7 +125,7 @@ The toy vocabulary was trained on a few repeated English and Arabic menu lines, 
 | Rare tokens get few training updates | Each token is well trained |
 | Better coverage of many languages | Non-dominant languages fragment more |
 
-![Diagram](images/09-fig-1.png)
+![Byte-level BPE tokenizers trained on 90% of this book's own text and evaluated on the rest (tools/figures.py)](images/09-fig-1.png)
 
 *Byte-level BPE tokenizers trained on 90% of this book's own text and evaluated on the rest (`tools/figures.py`). Characters per token rise from 1.32 at 300 entries to 3.21 at 4,000 and only 4.02 at 32,000, while the embedding and output matrices grow linearly with the vocabulary.*
 

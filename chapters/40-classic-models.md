@@ -110,7 +110,7 @@ On a synthetic classification set this scores the same test accuracy (0.906) as 
 
 **Intuition.** Many deep, different trees each overfit in different ways; averaging them cancels much of the noise. Two sources of difference: each tree is trained on a **bootstrap sample** (rows drawn with replacement: bagging), and each split considers only a **random subset of features** (typically √d for classification), which decorrelates the trees.
 
-![Diagram](images/04-01.png)
+![bagging vs boosting · parallel averaging vs sequential correction](images/04-01.png)
 
 *bagging vs boosting · parallel averaging vs sequential correction*
 
@@ -179,7 +179,7 @@ On a regression test set this reaches RMSE 25.1, the same as scikit-learn's `Gra
 | LightGBM | Histogram-based splits, leaf-wise growth, gradient-based sampling (GOSS), exclusive feature bundling | Usually fastest on large data; leaf-wise trees overfit small data unless you limit leaves |
 | CatBoost | Ordered boosting and ordered target statistics for categoricals, symmetric trees | Best out of the box with many categorical features; less tuning |
 
-![Diagram](images/40-fig-1.png)
+![Test RMSE against the number of trees for three learning rates (depth-3 trees, 1,500 training rows of a nonlinear regression problem with noise)](images/40-fig-1.png)
 
 *Test RMSE against the number of trees for three learning rates (depth-3 trees, 1,500 training rows of a nonlinear regression problem with noise). At 0.5 the error bottoms out at 1.57 after 73 trees and then creeps up; at 0.1 it reaches 1.30 after about 470 trees; at 0.02 it is still improving at 1,000 trees.*
 

@@ -109,7 +109,7 @@ Training runs differ by seed: initialisation, data order, dropout, non-determini
 
 When the effect is comparable to the noise, a handful of seeds cannot establish it. Options: reduce the noise (larger evaluation sets, continuous metrics such as loss, paired evaluation on the same items, Chapter 23), increase the effect (test at a scale where it is larger), or run many seeds of cheap configurations. At minimum, run 2–3 seeds of the baseline once to know the noise floor of your setup.
 
-![Diagram](images/34-fig-1.png)
+![Power of a one-sided t-test at 5% to detect a true gain, by seeds per arm, for gains of 1.5, 0.75 and 0.375 times the seed-to-seed standard deviation](images/34-fig-1.png)
 
 *Power of a one-sided t-test at 5% to detect a true gain, by seeds per arm, for gains of 1.5, 0.75 and 0.375 times the seed-to-seed standard deviation. The middle curve is the table's case (a 0.3-point gain with 0.4-point noise): about 23 seeds per arm reach 80% power.*
 

@@ -1212,7 +1212,7 @@ def ch37():
     for yy, t in zip(y, left): ax.text(t + 1, yy, str(int(t)), va="center", color=INK2, fontsize=8)
     ax.set_yticks(y); ax.set_yticklabels(names); ax.grid(axis="y", visible=False); ax.set_xlim(0, left.max() * 1.1)
     ax.legend(fontsize=7.5, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.35)); ax.set_xlabel("questions")
-    ax.set_title("Where the 240 questions sit, by area and level")
+    ax.set_title(f"Where the {int(counts.sum())} questions sit, by area and level")
     save(fig, "37-fig-1.png")
 
 

@@ -76,7 +76,7 @@ def majority_accuracy(p_correct, n, n_wrong_answers=5, trials=20000):
     return wins / trials
 for p in (0.3, 0.5):
     print(f"p={p}: majority of 1 {majority_accuracy(p,1):.3f}, of 5 {majority_accuracy(p,5):.3f}, of 25 {majority_accuracy(p,25):.3f}")
-print("p=0.3 with a single wrong answer taking the other 70%: majority of 25 = %.3f" % majority_accuracy(0.3, 25, 1))
+print("p=0.3 with a single wrong answer taking the other 70%%: majority of 25 = %.3f" % majority_accuracy(0.3, 25, 1))
 
 # 19.11 share of groups with no signal, by pass rate and group size
 for G in (8, 16):

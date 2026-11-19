@@ -23,7 +23,7 @@ Interviewers for LLM roles probe whether you treat prompts as engineering artefa
 
 Every production prompt has the same parts, whether written as one string or as chat messages:
 
-![Diagram](images/15-01.png)
+![the context window · stable prefix first, per-request content last](images/15-01.png)
 
 *the context window · stable prefix first, per-request content last*
 
@@ -193,7 +193,7 @@ monthly_cost(3_000_000, 3000, 500, 150, 3.0, 15.0, cache_read_factor=0.1, cache_
 
 The prices here are illustrative, and the sketch ignores any cache-write premium. The lesson holds: when a long fixed prefix dominates the input, caching can cut input cost by more than half. Combined with batch APIs for offline work (Chapter 21), and with a smaller model for easy cases, this is how LLM features become affordable.
 
-![Diagram](images/22-fig-1.png)
+![The monthly bill from the example above, split by where the tokens go](images/22-fig-1.png)
 
 *The monthly bill from the example above, split by where the tokens go. Caching 90% of the static prefix removes $21,870. What remains is mostly output, so the next lever is shorter outputs (a label instead of prose, a tighter schema) rather than a shorter prompt.*
 

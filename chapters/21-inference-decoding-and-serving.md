@@ -105,7 +105,7 @@ kv_cache_gb(32, 32, 128, 8192, 1)   # 4.29 GB per conversation without GQA
 
 The model weights for 8 billion parameters in 16-bit precision are 8e9 × 2 bytes = 16 GB. So at 32 users with long contexts, **the cache is bigger than the model**. That single fact explains why long context is expensive, why grouped-query attention was invented (it cut the cache 4× above), and why serving engines are mostly memory managers.
 
-![Diagram](images/21-fig-1.png)
+![KV cache for a single request of an 8B model with 32 layers and 128-dimensional heads, in fp16, by number of key–value heads](images/21-fig-1.png)
 
 *KV cache for a single request of an 8B model with 32 layers and 128-dimensional heads, in fp16, by number of key–value heads. With full multi-head attention a 32k-token request needs as much memory as the whole model; GQA cuts it 4× and MQA 32×.*
 
@@ -121,7 +121,7 @@ The cost of each is a possible quality loss, so they are evaluated on long-conte
 
 ## 21.5 Prefill and decode: two very different phases
 
-![Diagram](images/14-01.png)
+![Prefill fills the KV cache; decode reads it every step](images/14-01.png)
 
 *Prefill fills the KV cache; decode reads it every step. Continuous batching refills a slot as soon as a request finishes.*
 
@@ -132,7 +132,7 @@ A rough single-user speed limit for decode: memory bandwidth / bytes read per to
 
 The key insight for serving: during decode, reading the weights once can serve **many users at the same time**. Batch 32 users together and each weight read produces 32 tokens instead of one. Throughput rises almost linearly with batch size, until the cache fills GPU memory or the maths units saturate. **Prefix caching** reuses the cache of a shared beginning (the system prompt, few-shot examples, a long document) across requests; API providers sell this as "prompt caching" at a discount. Put the stable part of the prompt first so it can be reused.
 
-![Diagram](images/21-fig-2.png)
+![Decode throughput of an 8B model on one 80 GB GPU (3.35 TB/s, 50% of 989 TFLOP/s usable) with 2k-token contexts](images/21-fig-2.png)
 
 *Decode throughput of an 8B model on one 80 GB GPU (3.35 TB/s, 50% of 989 TFLOP/s usable) with 2k-token contexts. Each step reads the weights once plus every request's cache. Total throughput rises about 50× while each user's speed falls about 5×. The batch stops at 238 requests, when the caches fill memory.*
 

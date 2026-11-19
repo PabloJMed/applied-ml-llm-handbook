@@ -19,7 +19,7 @@ Part III · Transformers and architectures.
 
 ## 12.1 Three families
 
-![Diagram](images/11-01.png)
+![The architecture family is mostly a choice of attention mask plus a training objective](images/11-01.png)
 
 *The architecture family is mostly a choice of attention mask plus a training objective.*
 
@@ -122,7 +122,7 @@ Same compute, four times fewer parameters, lower loss: Gopher was undertrained. 
 
 **The arithmetic first.** A forward pass costs about 2 FLOPs per parameter per token. Classifying a 64-token text costs about 14 GFLOPs with BERT-base (110M parameters), 1,024 GFLOPs with an 8B LLM and 8,960 GFLOPs with a 70B model:
 
-![Diagram](images/12-fig-1.png)
+![Forward-pass compute per 64-token request, 2 × parameters × tokens (the LLMs would also generate at least one output token)](images/12-fig-1.png)
 
 *Forward-pass compute per 64-token request, 2 × parameters × tokens (the LLMs would also generate at least one output token).*
 

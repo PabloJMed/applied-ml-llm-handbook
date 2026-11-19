@@ -29,7 +29,7 @@ Read the target company's values or competencies page before the interview and m
 
 ## 38.2 The STAR structure
 
-![Diagram](images/33-01.png)
+![STAR · a 2–3 minute answer](images/33-01.png)
 
 *STAR · a 2–3 minute answer*
 

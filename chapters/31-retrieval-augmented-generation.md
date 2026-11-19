@@ -21,7 +21,7 @@ A RAG design question (worked design E.4) is very likely in any applied-LLM syst
 
 ## 31.1 The pipeline end to end
 
-![Diagram](images/19-01.png)
+![the RAG pipeline · offline indexing and online answering](images/19-01.png)
 
 *the RAG pipeline · offline indexing and online answering*
 

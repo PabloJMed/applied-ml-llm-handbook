@@ -33,7 +33,7 @@ Each line is a one-sentence definition with a link to a good explanation. The se
 
 ## 42.1 The big picture
 
-![Diagram](images/13a-01.png)
+![Most ML systems combine a fast online path (answer one request now) with a slow offline path (process yesterday's data)](images/13a-01.png)
 
 *Most ML systems combine a fast online path (answer one request now) with a slow offline path (process yesterday's data). Read it left to right, top then bottom.*
 
@@ -231,7 +231,7 @@ replicas_needed(3000, 0.40, 8)    # 250 replicas if the model takes 400 ms
 
 The 0.6 headroom keeps each replica at about 60% utilisation, because latency rises steeply as a server approaches 100% busy (queues build up). Notice the lesson: an 8× slower model needs about 8× the machines. Latency is a cost driver, not only a user-experience number.
 
-![Diagram](images/42-fig-1.png)
+![p99 latency of a service whose requests take 50 ms on average (exponentially distributed), as utilisation rises: one server against eight servers fed from a shared queue (the M/M/1 and M/M/8 queueing models)](images/42-fig-1.png)
 
 *p99 latency of a service whose requests take 50 ms on average (exponentially distributed), as utilisation rises: one server against eight servers fed from a shared queue (the M/M/1 and M/M/8 queueing models). At 80% utilisation one server's p99 is 1.15 s; eight pooled servers stay at 258 ms.*
 

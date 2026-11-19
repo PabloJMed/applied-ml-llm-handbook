@@ -1,6 +1,6 @@
 # D · Paper map
 
-More than a hundred papers that come up again and again in LLM research, applied ML and interviews, grouped by theme, one paragraph each: the problem it solved, the key idea, and why it still matters. Entries 1–40 cover foundations and applied work; 41–110 cover the research areas of the LLM-scientist chapters. Every title links to the paper. Read the abstract, the figures and the conclusion first; go deeper where your role needs it. A star (★) marks ten to know cold for any applied LLM role; the research core is listed below.
+More than a hundred papers that come up again and again in LLM research, applied ML and interviews, grouped by theme, one paragraph each: the problem it solved, the key idea, and why it still matters. Entries 1–40 cover foundations and applied work; 41–119 cover the research areas of the LLM-scientist chapters. Every title links to the paper. Read the abstract, the figures and the conclusion first; go deeper where your role needs it. A star (★) marks ten to know cold for any applied LLM role; the research core is listed below.
 
 **The research-scientist core (know these cold):** 10 (transformer), 17 and 56 (Chinchilla and its replication), 22 and 24 (InstructGPT, DPO), 26 and 76 (R1, GRPO), 41 (µP), 47–48 (DeepSeekMoE, MLA), 61 (FineWeb), 66–67 (ZeRO, Megatron), 71 (reward over-optimisation), 89 (error bars for evals), 95 and 98 (circuits, sparse autoencoders), 101 (weak-to-strong), 107–108 (Llama 3, DeepSeek-V3).
 
@@ -266,6 +266,28 @@ More than a hundred papers that come up again and again in LLM research, applied
 
 **110. Qwen Team,** [**"Qwen3 Technical Report"**](https://arxiv.org/abs/2505.09388) **(2025).** Dense and MoE families with thinking and non-thinking modes in one model and a documented post-training pipeline; read at least one new open technical report a month to stay current (Ch 11, 15, 19).
 
+## Late 2025 and 2026: RL at scale and efficient architectures
+
+**111. Ahmadian et al.,** [**"Back to Basics: Revisiting REINFORCE Style Optimization for Learning from Human Feedback"**](https://arxiv.org/abs/2402.14740) **(RLOO, 2024).** REINFORCE with a leave-one-out baseline matches PPO for RLHF without a value model; the clearest bridge from textbook policy gradients to GRPO-style methods (Ch 18, 19).
+
+**112. Zheng et al.,** [**"Group Sequence Policy Optimization"**](https://arxiv.org/abs/2507.18071) **(GSPO, 2025); MiniMax,** [**"MiniMax-M1"**](https://arxiv.org/abs/2506.13585) **(CISPO, 2025).** Two answers to unstable token-level importance ratios: a length-normalised sequence ratio, and clipping the weight while keeping every token's gradient (Ch 19).
+
+**113. Yao et al.,** [**"Your Efficient RL Framework Secretly Brings You Off-Policy RL Training"**](https://fengyao.notion.site/off-policy-rl) **(2025); He et al.,** [**"Defeating Nondeterminism in LLM Inference"**](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) **(2025).** The rollout engine and trainer disagree on token probabilities; truncated importance sampling corrects for it, and batch-invariant kernels remove it (Ch 19).
+
+**114. Khatri et al.,** [**"The Art of Scaling Reinforcement Learning Compute for LLMs"**](https://arxiv.org/abs/2510.13786) **(ScaleRL, 2025).** Sigmoid compute–reward curves for RL; most recipe details change efficiency rather than the ceiling (Ch 19).
+
+**115. Gunjal et al.,** [**"Rubrics as Rewards"**](https://arxiv.org/abs/2507.17746) **(2025).** Per-prompt weighted rubrics scored by a judge extend RLVR to tasks without a single correct answer (Ch 19).
+
+**116. Lu et al.,** [**"On-Policy Distillation"**](https://thinkingmachines.ai/blog/on-policy-distillation/) **(2025); Agarwal et al.,** [**"On-Policy Distillation of Language Models"**](https://arxiv.org/abs/2306.13649) **(GKD, 2023).** The student samples, the teacher grades every token: RL's on-policy data with SFT's dense signal (Ch 15, 19).
+
+**117. Kimi Team,** [**"Kimi K2: Open Agentic Intelligence"**](https://arxiv.org/abs/2507.20534) **(2025).** A 1T-parameter MoE trained with Muon plus QK-Clip on 15.5T tokens without loss spikes, and a large agentic data pipeline (Ch 7, 33).
+
+**118. Yuan et al.,** [**"Native Sparse Attention"**](https://arxiv.org/abs/2502.11089) **(2025); DeepSeek-AI,** [**"DeepSeek-V3.2"**](https://arxiv.org/abs/2512.02556) **(2025).** Trainable sparse attention designed with its kernels, and a recipe for retrofitting it onto a dense model with a distilled indexer (Ch 11).
+
+**119. Xie et al.,** [**"mHC: Manifold-Constrained Hyper-Connections"**](https://arxiv.org/abs/2512.24880) **(2025).** Wider residual streams with mixing matrices constrained to be doubly stochastic, restoring the identity path that deep networks need (Ch 7).
+
+Entries 113, 114 and the reports in 107–110 together are the best current picture of how open labs run RL. For anything newer than this edition, check the latest open technical reports from DeepSeek, Qwen, Kimi, MiniMax and AI2 (OLMo, Tülu) first.
+
 ## Also worth a look
 
 Sculley et al., ["Hidden Technical Debt in Machine Learning Systems"](https://research.google/pubs/hidden-technical-debt-in-machine-learning-systems/) (2015), for MLOps (Ch 47) · Holtzman et al., ["The Curious Case of Neural Text Degeneration"](https://arxiv.org/abs/1904.09751) (2020), for nucleus sampling (Ch 21) · Kwon et al., ["PagedAttention / vLLM"](https://arxiv.org/abs/2309.06180) (2023), for serving (Ch 21) · Greshake et al., [indirect prompt injection](https://arxiv.org/abs/2302.12173) (2023), for safety (Ch 28) · Zheng et al., ["Judging LLM-as-a-Judge"](https://arxiv.org/abs/2306.05685) (2023), for evaluation (Ch 24).
@@ -273,7 +295,7 @@ Sculley et al., ["Hidden Technical Debt in Machine Learning Systems"](https://re
 ## A reading plan
 
 - **Week 1:** the ten starred papers (abstract, figures, method, conclusion).
-- **Research track:** the research core above over two weeks, then one area per week from 41–110.
+- **Research track:** the research core above over two weeks, then one area per week from 41–119.
 - **Week 2:** the papers closest to your own work or target role, for example 27–29 (fine-tuning), 22 and 24 (alignment and preference data), 35–36 (RAG) or 38–39 (recommendations).
 - **Ongoing:** one paper every few days from the rest, with a three-sentence summary in your own words: problem, idea, why it matters for the products you work on.
 

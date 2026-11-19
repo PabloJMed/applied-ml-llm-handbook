@@ -38,7 +38,7 @@ Three levels of application evaluation, from cheapest to most expensive:
 
 The most common mistake is starting from a list of generic metrics ("helpfulness, coherence, relevance") and building judges for them. Generic metrics measure things that may not be your problem and miss the things that are. Start from failures instead:
 
-![Diagram](images/22-01.png)
+![the error-analysis loop · six steps, repeated](images/22-01.png)
 
 *the error-analysis loop · six steps, repeated*
 
@@ -189,7 +189,7 @@ def corrected_pass_rate(observed_rate, tpr, tnr):
 # Judge with TPR 0.93, TNR 0.67 reports 80% pass; the corrected estimate is about 78%
 ```
 
-![Diagram](images/24-fig-1.png)
+![The pass rate a judge reports is a straight line in the true pass rate: TPR × true + (1 − TNR) × (1 − true)](images/24-fig-1.png)
 
 *The pass rate a judge reports is a straight line in the true pass rate: TPR × true + (1 − TNR) × (1 − true). The lenient judge (orange) reports 75% for a system that is truly at 70% and 84% for one at 85%: a 15-point difference shows as 9.*
 
