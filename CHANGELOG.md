@@ -1,5 +1,11 @@
 # Changelog
 
+## PDF layout: denser book format (November 2026)
+
+- Body text 8.6 pt (was 9 pt), line height 1.36 (was 1.42), 15% less space between blocks, slightly narrower margins and figures at 72% of the text width (was 78%). The book PDF goes from 530 to 457 pages with the same fonts, colours and structure. The A4 preset is unchanged.
+- `tools/build_pdf.py` takes `--base`, `--lh`, `--gap`, `--mx`, `--top`, `--bottom` and `--img` to try other densities without editing the code.
+- Fixed a sentence break in section 7.5.
+
 ## Second edition, update 1 (November 2026)
 
 **New**
