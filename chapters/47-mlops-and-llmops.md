@@ -8,6 +8,10 @@ Most of a model's life happens after the notebook. Data changes, the model has t
 
 The code below was run; outputs are quoted.
 
+The chapter follows a model from notebook to production and through its life there. It starts with turning a notebook into a reproducible pipeline (47.1), then covers the components of a mature setup: feature stores against training–serving skew (47.2), a model registry with automated quality gates (47.3), a staged release ladder (47.4) and monitoring in four layers (47.5). Section 47.6 explains what changes for LLM features, 47.7 covers ownership and on-call, and 47.8 gives a realistic order for building all this. The chapter ends with operations for research-scale training (47.9) and a worked incident (47.10).
+
+Most production ML failures are silent: the service answers, the dashboards are green, and the predictions are wrong because an upstream feature changed or the world moved. MLOps is the practice of making those failures visible and cheap to reverse, and each component in the chapter closes one route by which a silent failure reaches users.
+
 ## Key concepts
 
 - **ML lifecycle**: data → features → training → evaluation → registration → deployment → monitoring → back to data. Google's [MLOps levels guide](https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning) describes how teams automate it step by step.

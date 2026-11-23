@@ -1,10 +1,14 @@
 # 12 · Model families and scaling
 
-Part III · Transformers and architectures.
+Part III · Transformers and architectures. Assumes Chapter 10 (the transformer block). Chapter 11 goes deeper on architecture research, Chapter 13 on scaling laws, Chapter 14 on multimodal models.
 
 ## Why it matters
 
 "Which model would you use and why?" comes up in every LLM interview and every design review. A senior answer does not name the newest frontier model; it names the right *family* for the task (an encoder for classification at 20k requests per second, a decoder for generation, a bi-encoder for retrieval, a VLM for menu photos), sizes it with scaling arithmetic, and justifies the cost. This chapter gives you the map. Chapter 10 covers the transformer block itself; Chapter 15 covers how these models are trained.
+
+The chapter is a map of the model landscape, organised by the questions you face when choosing a model. Which family fits the task (12.1)? How do you get good sentence embeddings for search and clustering (12.2)? What does mixture of experts change about cost (12.3)? How do models connect images and text (12.4)? How do size, data and compute trade off (12.5), and how do you pick between a small and a large model for a concrete workload (12.6)? Each topic has its own in-depth chapter later; 12.7 points to them, and 12.8 explains how to read the model cards and technical reports that come with every release.
+
+The aim is fluency in the vocabulary and the arithmetic, so that you can place any new model in the landscape quickly: what family it is, roughly what it costs to run, and what it is likely to be good at.
 
 ## Key concepts
 
@@ -18,6 +22,8 @@ Part III · Transformers and architectures.
 - **Emergent abilities, debated**: [Are Emergent Abilities a Mirage?](https://arxiv.org/abs/2304.15004)
 
 ## 12.1 Three families
+
+Every transformer model belongs to one of three families, and the difference between them is surprisingly small: which tokens each position is allowed to attend to, and what the model is trained to predict. That single choice decides whether a model is best at understanding text, generating it, or transforming one text into another.
 
 ![The architecture family is mostly a choice of attention mask plus a training objective](images/11-01.png)
 
@@ -33,6 +39,8 @@ Part III · Transformers and architectures.
 
 ## 12.2 Sentence transformers
 
+Search, clustering, deduplication and retrieval-augmented generation all need one vector per text, with similar texts close together. A pretrained encoder gives one vector per token, and the obvious ways of combining them work poorly. Sentence transformers fine-tune the encoder so that a single pooled vector captures the meaning of the whole text, which is what made dense retrieval practical.
+
 A vanilla BERT `[CLS]` vector is a poor sentence embedding. Sentence-BERT (Reimers and Gurevych, 2019) fixed this by fine-tuning a siamese encoder so that cosine similarity of pooled outputs matches semantic similarity, later with contrastive losses on large pair datasets (E5, GTE, BGE and the multilingual variants). Pooling is usually the masked mean:
 
 ```python
@@ -46,6 +54,8 @@ def mean_pool(h, mask):              # h: (B, T, d) last hidden states, mask: (B
 Bi-encoder (embed separately, compare with a dot product, indexable) vs cross-encoder (feed both texts together, much more accurate, not indexable) is the key retrieval trade-off; Chapters 29–30 go deep.
 
 ## 12.3 Mixture of experts
+
+Mixture of experts is the main way frontier models grow their parameter count without growing their cost per token. This section is the overview needed to read model cards: what the "total" and "active" parameter counts mean, and what they imply for serving. Chapter 11.2 covers the design space in depth.
 
 An MoE layer replaces the single feed-forward block with E experts and a router that sends each token to the top k of them (k = 1 or 2 usually). Parameters grow with E, but compute per token only with k: you get a bigger model's capacity at a smaller model's FLOPs. Mixtral 8×7B, for instance, has about 47B total parameters and about 13B active per token, and several frontier models are reported to be MoE.
 
@@ -78,6 +88,8 @@ Things to say in an interview: without the auxiliary load-balancing loss the rou
 
 ## 12.4 Multimodal: CLIP and vision-language models
 
+Text-only models cannot read a menu photo, a screenshot or a chart. The step that made multimodal models possible was learning a shared space in which an image and its description land close together. CLIP did that at scale, and its image encoders became the eyes of most vision-language models. Chapter 14 covers the full design space.
+
 **CLIP** (Radford et al., 2021) trains an image encoder and a text encoder together on hundreds of millions of image-caption pairs with a symmetric contrastive loss: in a batch of N pairs, the N true pairs should score higher than the N²−N mismatched ones.
 
 ```python
@@ -94,6 +106,8 @@ The result is a shared embedding space: zero-shot classification by comparing an
 **VLMs** (LLaVA, Qwen-VL, GPT-4o, Claude, Gemini) bolt a vision encoder (often CLIP-like or SigLIP) onto an LLM through a projection layer, so image patches become "visual tokens" in the LLM's input. Uses relevant to a delivery business: reading menu photos and price lists, checking that a dish photo matches its description, detecting low-quality or unsafe images, and extracting dish attributes (cuisine, dietary tags) from images and text together.
 
 ## 12.5 Scaling laws
+
+Training a frontier model costs too much to proceed by trial and error, so labs need to predict the result of a run before paying for it. Scaling laws make that possible: across many orders of magnitude, loss falls as a smooth, predictable function of model size, data and compute. This section gives the two landmark results; Chapter 13 derives and applies them.
 
 **Kaplan et al. (2020)** found that loss falls as a smooth power law in parameters N, data D and compute C, over many orders of magnitude, and concluded that for a fixed compute budget you should mostly grow the model.
 
@@ -120,6 +134,8 @@ Same compute, four times fewer parameters, lower loss: Gopher was undertrained. 
 
 ## 12.6 Small vs large: choosing a model
 
+The best model on a leaderboard is rarely the right model for a product. A classifier that handles 20,000 requests per second, an assistant that must answer in under a second, and an offline batch job that labels a million documents each have different constraints. The decision starts with arithmetic: what each candidate costs per request, and whether the quality gap justifies the cost.
+
 **The arithmetic first.** A forward pass costs about 2 FLOPs per parameter per token. Classifying a 64-token text costs about 14 GFLOPs with BERT-base (110M parameters), 1,024 GFLOPs with an 8B LLM and 8,960 GFLOPs with a 70B model:
 
 ![Forward-pass compute per 64-token request, 2 × parameters × tokens (the LLMs would also generate at least one output token)](images/12-fig-1.png)
@@ -144,6 +160,8 @@ The path most teams follow: prototype with a large API model, measure on a label
 This chapter is the overview. For the modern mixture-of-experts design space (many fine-grained experts with top-8 routing, shared experts, auxiliary-loss-free balancing) and other architecture changes, see Chapter 11; most leading open-weight models released since 2024 are MoEs, and the "top-1 or top-2 of 8 experts" design described in 12.3 is the earlier, Mixtral-era version. For scaling laws in depth (derivations, fitting, inference-aware over-training, data constraints, test-time compute), see Chapter 13. For multimodal models beyond CLIP, see Chapter 14.
 
 ## 12.8 Reading a model card
+
+New models arrive weekly, each with a model card or technical report full of benchmark tables. The benchmark tables are the least informative part. Reading the cards systematically, in a fixed order, tells you within minutes what a model is, what it was trained on, and how much its numbers can be trusted.
 
 Every model release comes with a card or report. Read it for these facts, in this order, before you read any benchmark table:
 

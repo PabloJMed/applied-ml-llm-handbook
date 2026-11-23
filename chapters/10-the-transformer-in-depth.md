@@ -6,6 +6,10 @@ Part III · Transformers and architectures. Assumes Chapter 5 (neural network ba
 
 Every LLM, embedding model and modern re-ranker you will use is a transformer. For an LLM-focused senior role, interviewers expect you to explain attention precisely, write it from scratch, and reason about its costs: why context length is expensive, what the KV cache is, why GQA and FlashAttention exist. These details also explain practical behaviour you meet daily: latency, memory limits, cost per token, and why long prompts degrade.
 
+The transformer is a short list of parts, and the chapter takes them one at a time after an overview of how they fit together (10.1). Attention is the part that lets tokens exchange information (10.2), and multiple heads let it track several relationships at once (10.3). Because attention by itself ignores word order, positions have to be injected separately (10.4). Residual connections and normalisation keep a deep stack trainable (10.5), and the feed-forward block does most of the per-token computation and holds most of the parameters (10.6). Sections 10.7 to 10.9 step back: which arrangement of blocks suits which task, what the architecture costs in compute and memory, and the attention variants that exist to reduce those costs. Section 10.10 assembles a working mini-GPT, and 10.11 shows how models are stretched to longer contexts than they were trained on.
+
+Each part is there to solve a specific problem, and the chapter names that problem before describing the part. If you can say, for each component, what would go wrong without it, you understand the architecture well enough for any interview and for reading new model papers, which are mostly variations on exactly these components.
+
 ## Key concepts
 
 - **The transformer**: an architecture built from attention and feed-forward blocks with residual connections, which replaced recurrence and made training parallel. [Attention Is All You Need](https://arxiv.org/abs/1706.03762); the best visual walkthrough is [The Illustrated Transformer](https://jalammar.github.io/illustrated-transformer/).
@@ -18,6 +22,8 @@ Every LLM, embedding model and modern re-ranker you will use is a transformer. F
 - **Build one**: [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/) (code with the paper) and Karpathy's "Let's build GPT" in [Zero to Hero](https://karpathy.ai/zero-to-hero.html).
 
 ## 10.1 The big picture
+
+Before the details, it helps to see the whole machine. A decoder-only language model does one thing: given the tokens so far, it outputs a probability for every possible next token. Everything inside serves that function, and the same block is stacked dozens of times, so understanding one block and how blocks connect is most of the work.
 
 A decoder-only language model (GPT, Llama, Claude-style models) turns a sequence of tokens into a probability distribution over the next token. It is built from one block repeated N times:
 
@@ -66,7 +72,9 @@ The output is 0.082 × (1, 0) + 0.682 × (0, 1) + 0.236 × (0.5, 0.5) = (0.2, 0.
 
 **Maths.** With Q, K, V matrices (one row per position, created by learned linear projections of the input):
 
-`Attention(Q, K, V) = softmax(Q Kᵀ / √dₖ + M) V`
+$$
+\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\left(\dfrac{QK^{\top}}{\sqrt{d_k}} + M\right)V
+$$
 
 - Q Kᵀ gives every pair's similarity: a T × T matrix.
 - **Dividing by √dₖ:** if the entries of q and k have unit variance, their dot product is a sum of dₖ terms of unit variance, so it has variance dₖ and standard deviation √dₖ. Without scaling, wider heads produce larger scores, softmax saturates (nearly all weight on one key), and its gradients vanish. Dividing by √dₖ keeps the scores at unit scale whatever the head size. The figure below measures it with random vectors and 64 keys.
@@ -100,6 +108,8 @@ out, weights = attention(Q, K, V, causal)              # row 1 has weights only 
 **Self-attention vs cross-attention:** in self-attention Q, K and V come from the same sequence; in cross-attention (encoder-decoder models) queries come from the decoder and keys and values from the encoder output.
 
 ## 10.3 Multi-head attention
+
+A single attention operation produces one set of weights per position: each token can attend mostly to one place, or blend a few. But a token often needs several kinds of information at once, the subject of its verb, the noun a pronoun refers to, the previous token. Multi-head attention runs several smaller attention operations side by side, each free to learn a different relationship, for the same total cost.
 
 One attention pattern cannot capture everything (syntax, coreference, position, topic). Multi-head attention runs h attention operations in parallel on smaller projections (d_model / h dimensions each), concatenates the results, and mixes them with an output projection. Same cost as one big head; much more expressive.
 
@@ -155,6 +165,8 @@ In practice you call `F.scaled_dot_product_attention`, which dispatches to fused
 
 ## 10.4 Positional encodings
 
+Attention compares every token with every other by content alone, which is what makes it powerful and parallel, and also what makes it blind to order. Word order carries meaning, so position has to be added to the model explicitly. The choice of how affects more than accuracy: it decides whether a model can be used on texts longer than those it was trained on, which is why the field moved from absolute positions to rotary encodings.
+
 Attention is permutation-invariant: without position information, "courier waited for customer" and "customer waited for courier" look the same. Options:
 
 | Method | How | Notes |
@@ -195,6 +207,8 @@ The score depends on the positions only through n − m. Each pair uses a differ
 
 ## 10.5 Residual connections and normalisation
 
+Modern LLMs stack 30 to over 100 blocks. Chapter 5 showed that signals and gradients passing through many layers tend to vanish or explode; two components keep a transformer this deep trainable. Residual connections give every block a shortcut, so each one only adds a correction to a running representation (the **residual stream**) instead of replacing it. Normalisation keeps the scale of the inputs each block sees under control.
+
 **Residuals** (x + sublayer(x)) give gradients a direct path through deep stacks and let each layer learn a small correction instead of a whole transformation. Without them, deep transformers do not train.
 
 **Layer normalisation** normalises each position's vector to zero mean and unit variance across features (unlike batch norm, which normalises across the batch, a bad fit for variable-length sequences). Two placements:
@@ -202,7 +216,11 @@ The score depends on the positions only through n − m. Each pair uses a differ
 - **Post-norm** (original transformer): Norm(x + sublayer(x)). Can reach good quality but needs careful learning-rate warm-up; unstable when deep.
 - **Pre-norm** (GPT-2 onwards, nearly all modern LLMs): x + sublayer(Norm(x)). The residual path stays clean, training is far more stable, at some cost in final quality that other tricks recover.
 
-**RMSNorm** (Llama and most current models) drops the mean-centring and bias, dividing only by the root mean square: cheaper, and works as well.
+**RMSNorm** (Llama and most current models) drops the mean-centring and bias, dividing only by the root mean square: cheaper, and works as well. For a vector x of width d with a learned gain g,
+
+$$
+\mathrm{RMSNorm}(x) = \dfrac{x}{\sqrt{\frac{1}{d}\sum_{i=1}^{d} x_i^2 + \epsilon}}\odot g
+$$
 
 ```python
 def rms_norm(x, weight, eps=1e-6):
@@ -213,11 +231,19 @@ def rms_norm(x, weight, eps=1e-6):
 
 ## 10.6 The feed-forward block and SwiGLU
 
+Attention moves information between positions but does little computation on it: it is essentially a weighted average. The feed-forward block is where each token's representation is transformed, one position at a time, by a wide two-layer network. It holds most of the model's parameters, and most of its compute for ordinary context lengths.
+
 Each block's MLP is applied to every position independently, usually expanding to about 4× the model width and back. It holds roughly two-thirds of a model's parameters (70% in the 8B example above) and is thought to store much of its factual knowledge.
 
 **A key–value memory view.** Write the FFN as W₂ · σ(W₁ x). Each row of W₁ is a pattern ("key") that the input is compared with; σ turns the match into an activation; each column of W₂ is a vector ("value") added to the residual stream in proportion to that activation. Attention moves information *between* positions; the FFN looks up and writes information *at* each position. Experiments that edit individual FFN weights to change a stored fact (Chapter 26) rely on this picture.
 
-Modern LLMs use **gated** variants. SwiGLU multiplies a SiLU-activated projection by a second linear projection, element-wise, before projecting back. The gate lets each hidden unit's output depend on the product of two learned features of the input, a richer function than a single activation, and it consistently gives lower loss at equal compute. It has three matrices instead of two, so the hidden size is reduced to about 8/3 × d to keep the parameter count equal: 3 × d × (8/3)d = 8d², the same as 2 × d × 4d. (Llama 3 8B rounds 8/3 × 4,096 ≈ 10,923 up to 14,336, a slightly larger FFN than the matched size.)
+Modern LLMs use **gated** variants:
+
+$$
+\mathrm{SwiGLU}(x) = W_2\left(\mathrm{SiLU}(W_1 x)\odot W_3 x\right),\qquad \mathrm{SiLU}(z) = z\,\sigma(z)
+$$
+
+SwiGLU multiplies a SiLU-activated projection by a second linear projection, element-wise, before projecting back. The gate lets each hidden unit's output depend on the product of two learned features of the input, a richer function than a single activation, and it consistently gives lower loss at equal compute. It has three matrices instead of two, so the hidden size is reduced to about 8/3 × d to keep the parameter count equal: 3 × d × (8/3)d = 8d², the same as 2 × d × 4d. (Llama 3 8B rounds 8/3 × 4,096 ≈ 10,923 up to 14,336, a slightly larger FFN than the matched size.)
 
 ```python
 class SwiGLU(nn.Module):
@@ -235,6 +261,8 @@ class SwiGLU(nn.Module):
 
 ## 10.7 Encoder, decoder and encoder-decoder
 
+The same blocks can be wired in three ways, which differ in one setting, which positions each token may attend to, and in the training objective that goes with it. Letting every token see the whole input gives the best representations for understanding a fixed text; letting each token see only the past is what makes generation possible. The choice follows from the task.
+
 | Architecture | Attention | Training objective | Examples | Best for |
 |---|---|---|---|---|
 | Encoder-only | Bidirectional (sees left and right) | Masked language modelling | BERT, RoBERTa, modern embedding models | Classification, extraction, embeddings, re-rankers |
@@ -244,6 +272,8 @@ class SwiGLU(nn.Module):
 Decoder-only models won for general LLMs because one simple objective scales smoothly with data and compute, and every task can be phrased as text continuation. Encoders remain the efficient choice for classification and embeddings at high volume (Chapter 41).
 
 ## 10.8 Complexity and the KV cache
+
+The practical constraints of LLMs (context-length limits, memory per user, latency per token, price per request) all follow from how the transformer's compute and memory grow with sequence length. Two facts explain most of them: attention compares every pair of positions, and generation produces one token at a time, reusing the keys and values of every earlier token.
 
 **Cost per layer** for a sequence of T tokens with width d: attention is O(T²·d) (every pair of positions) and the feed-forward block O(T·d²). For short sequences the FFN dominates; for long ones attention does, and attention memory grows with T² unless computed in tiles (FlashAttention).
 
@@ -270,6 +300,8 @@ That is why serving engines manage the cache in pages (vLLM's PagedAttention), q
 *KV-cache memory for one sequence of an 8B-shaped model (32 layers, head dimension 128, bf16). With full multi-head attention a 128k-token context needs 69 GB, four times the model's own weights; grouped-query attention with 8 KV heads cuts it to 17 GB.*
 
 ## 10.9 Attention variants
+
+Section 10.8 identified two bottlenecks: attention's compute and memory grow with the square of the sequence length, and during generation the KV cache grows with every token and every user. Most attention variants attack one of these, either by sharing keys and values across heads, by limiting which positions each token attends to, or by computing exactly the same attention with far less memory traffic.
 
 | Variant | Idea | Why |
 |---|---|---|
@@ -299,6 +331,8 @@ def tiled_attention(Q, K, V, tile=4):
 ```
 
 ## 10.10 A mini-GPT from scratch
+
+The best test of understanding is to assemble the parts into a model that trains and generates. The code below is deliberately small, but every component of a production decoder is present in recognisable form, and writing it from memory is a realistic interview exercise.
 
 Putting it together: a pre-norm decoder with learned positions, weight tying between the embedding and output layers, and cached generation with top-k sampling. Trained for 300 steps on a tiny repeated sentence at character level, it reaches a training loss below 0.1, enough to see the machinery work end to end.
 
@@ -350,6 +384,8 @@ class MiniGPT(nn.Module):
 The two phases in `generate`, **prefill** (process the whole prompt in parallel) and **decode** (one token at a time, memory-bound on reading weights and the cache), are the two phases you optimise when serving (Chapter 21).
 
 ## 10.11 Long context: extending RoPE
+
+Training on long sequences is expensive, so models are usually pretrained on a few thousand tokens and extended to long contexts afterwards. A model asked to read positions it never saw in training usually fails abruptly, because its position signal takes values it has never seen. The methods below rescale rotary positions so that long contexts look familiar to the model, and they make extension cheap enough to be a standard final stage of training.
 
 RoPE rotates pairs of dimensions by angles θ_i · position, with frequencies θ_i = base^(−2i/d), so dimension pairs have wavelengths from about 6 tokens to about 2π · base (around 63,000 tokens for base 10,000). A model trained on 4k tokens has never seen the rotation angles of positions beyond 4k in its low-frequency dimensions. Ways to extend context:
 

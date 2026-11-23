@@ -6,6 +6,10 @@ Part X · Research craft and interviews. No prerequisites. Chapter 39 covers the
 
 Technical rounds show whether you can do the work; the behavioural round decides whether you will do it well with other people, and at what level. Many hiring decisions at the senior level turn on this round, and it is the easiest one to improve with preparation: candidates who write five strong stories and practise them aloud do markedly better than those who improvise.
 
+The chapter starts with what interviewers actually listen for (38.1) and the STAR structure for telling a story clearly (38.2). It then builds a bank of five story archetypes that cover nearly every question (38.3), maps common questions to them (38.4), and lists the signals of seniority in an answer (38.5). Sections 38.6 to 38.8 cover tricky questions, the questions to ask your interviewers, and the extra stories research roles need. The chapter ends with one answer rewritten from weak to strong (38.9).
+
+A behavioural answer is evidence, not a description of your character. Interviewers want a specific situation, what you did yourself, and a measurable result, told in two or three minutes. Preparing a small set of well-rehearsed stories in advance is the single most effective step, because almost every question can be answered with one of them.
+
 ## Key concepts
 
 - **Behavioural question**: "Tell me about a time when…". It assumes past behaviour predicts future behaviour, so it asks for a specific real event, not a hypothetical. [More on the format](https://www.techinterviewhandbook.org/behavioral-interview/).

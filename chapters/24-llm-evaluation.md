@@ -10,6 +10,10 @@ For your interviews, this is a differentiator: many candidates can build a RAG d
 
 **Where this chapter fits.** This chapter is about evaluating LLM *applications*: building an evaluation set for a product, task metrics, judges, and regression testing for prompts and models. Evaluating *models* as a research scientist (benchmark statistics, clustering, contamination, arenas, IRT) is covered in Chapter 23, and the two share the same statistical core.
 
+The chapter follows the order in which an application evaluation is built. It starts with the difference between public benchmarks and evaluations of your own system (24.1), and with error analysis, reading real outputs to find out what actually fails (24.2). From those failures comes an evaluation set (24.3) and a set of checks, from the cheapest to the most expensive: reference-based metrics (24.4), code-based checks (24.5), and LLM judges (24.6), whose biases have to be measured against human labels (24.7). Sections 24.8 and 24.9 cover how many examples you need and how to measure in production. The chapter ends with tooling (24.10) and a worked calibration of an LLM judge (24.11).
+
+The guiding principle is that metrics should come from observed failures, not from a generic list. A team that reads a hundred outputs before choosing metrics measures what matters for its users; a team that starts from a dashboard of generic scores often optimises numbers that have nothing to do with its users' problems.
+
 ## Key concepts
 
 - **Benchmarks vs application evaluations**: public benchmarks compare models in general; your own evaluation set tells you whether your feature works. [Hamel Husain: Your AI Product Needs Evals](https://hamel.dev/blog/posts/evals/).
@@ -63,6 +67,8 @@ Repeat whenever the system or its inputs change. The categories you discover bec
 **Keep it alive.** Version the set; add every production failure worth fixing; retire cases that no longer reflect the product; keep a held-out slice you never tune prompts on.
 
 ## 24.4 Reference-based metrics
+
+When a task has a known correct answer, such as an extraction, a classification or a short factual reply, the cheapest evaluation compares the output with it. The difficulty is that the same correct answer can be written in many ways, so the comparison has to be forgiving of form and strict about content.
 
 When there is a known correct answer:
 
@@ -226,6 +232,8 @@ def mcnemar_exact(a_correct, b_correct):
 **Rules of thumb.** To detect an improvement from 80% to 85% with two independent samples, you need roughly 900 cases per arm; from 80% to 82%, about 6,000. Paired evaluation on the same cases (McNemar) needs far fewer, because only the cases where the systems disagree carry information. So: always compare prompts and models on the **same** cases, and do not celebrate a 2-point gain on 200 examples.
 
 ## 24.9 Online evaluation
+
+An offline set is a snapshot, chosen in advance; production traffic keeps changing, and users find failure modes no test set anticipated. Online signals measure the system as it is actually used, and they are the only way to know whether offline gains translate into real ones.
 
 Offline sets never fully match production. Online signals:
 

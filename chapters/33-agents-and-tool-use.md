@@ -6,6 +6,10 @@ Part IX · Retrieval and agents. Assumes Chapter 22 (prompting, structured outpu
 
 Agents, LLMs that call tools in a loop to complete tasks, are where much of the industry's investment is going: customer-service automation, coding assistants, operations copilots, research tools. They are also where LLM systems most often fail in production, through compounding errors, runaway costs and security holes. A senior answer shows you can build one, and also that you know when not to: most business problems are better served by a fixed workflow with an LLM in specific steps. Any role with a GenAI component will probe it; worked design E.10 shows the shape of a typical question.
 
+The chapter starts with the most important design decision: whether a task needs an agent at all, or a fixed workflow would do (33.1). It then builds an agent from its parts: function calling (33.2), the reason-act loop (33.3), planning and reflection (33.4), and memory (33.5). Sections 33.6 and 33.7 cover systems of several agents and the Model Context Protocol for connecting tools. Guardrails and permissions (33.8) and reliability, cost and latency (33.9) are what make an agent safe and affordable to run. The chapter ends with evaluation (33.10), how agents are trained (33.11), and a worked design for a refund agent (33.12).
+
+The fact that shapes every agent design is that errors compound. An agent that takes ten steps, each right 95% of the time, completes the whole task correctly only about 60% of the time. Good agent design therefore keeps the number of steps small, checks the results of risky ones, and makes mistakes cheap to undo.
+
 ## Key concepts
 
 - **Workflow vs agent**: a workflow runs LLM calls in a fixed sequence you designed; an agent lets the model decide the next step. Most production systems should be workflows. [Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents).
@@ -115,11 +119,15 @@ With a scripted model that looks up order A1, issues a 2.50 euro voucher and rep
 
 ## 33.4 Planning and reflection
 
+A pure reason-act loop decides one step at a time and can wander: it repeats searches, loses track of the goal, or stops too early. Planning gives the agent a structure before it starts acting, and reflection lets it check its own work before reporting. Both cost extra model calls, and both help most on long tasks.
+
 - **Plan-then-execute:** the model writes a plan (a list of steps), code executes steps (possibly with smaller models), and the planner re-plans when a step fails. More predictable than step-by-step improvisation; cheaper when executors are small.
 - **Reflection:** after a failure, the model writes a critique of what went wrong and retries with it in context (Reflexion, Shinn et al., 2023). Works best when there is a real signal (a failing test, a tool error, a judge verdict), not just "think again".
 - **Verification steps:** check results before acting on them (does the voucher amount match policy? does the generated SQL return plausible numbers?).
 
 ## 33.5 Memory
+
+A model remembers nothing between calls; everything it knows about the task has to be in its context. Agents that work over many steps, or many sessions, need memory managed outside the model, and the design question is what to store, how to retrieve it, and what to leave out so the context stays useful.
 
 | Kind | What | How |
 |---|---|---|

@@ -6,6 +6,10 @@ Part VII · Evaluation science. Applies Chapter 24's methods to Chapter 31 (RAG)
 
 RAG systems and agents have several stages, and an end-to-end score ("72% of answers are correct") tells you that something is wrong, not what. Senior engineers evaluate each stage separately so they know where to spend effort: retrieval, context assembly, generation, tool use. Interviewers often ask "how would you evaluate this?" right after a RAG or agent design, and a staged answer with concrete metrics is what they look for.
 
+The chapter starts with the choice between evaluating each component and evaluating the whole system (25.1); a good suite does both. Retrieval is measured with recall and precision of the right context (25.2), generation with faithfulness and answer quality (25.3), and 25.4 explains what the popular frameworks compute and where their numbers mislead. Agents need different measures, because they take several steps and change the world (25.5). Section 25.6 puts the pieces into one evaluation suite, and 25.7 works through an agent evaluation with real numbers.
+
+The reason for component metrics is diagnosis. An end-to-end score says whether the system works; only per-component scores say which part to fix when it does not. A wrong answer from a RAG system can come from retrieval that missed the right passage, or from generation that ignored it, and the fixes are completely different.
+
 ## Key concepts
 
 - **Component vs end-to-end evaluation**: measure retrieval and generation separately to find where a RAG system fails, then measure the whole answer.
@@ -16,6 +20,8 @@ RAG systems and agents have several stages, and an end-to-end score ("72% of ans
 - **Error analysis**: reading failures and grouping them into categories before building metrics. [Your AI Product Needs Evals](https://hamel.dev/blog/posts/evals/).
 
 ## 25.1 Component vs end-to-end evaluation
+
+A RAG system or an agent is a chain of steps, and a failure at any step produces the same symptom: a bad final answer. End-to-end metrics tell you how often that happens. Component metrics tell you where, which is what you need in order to fix it.
 
 ![RAG evaluation · one metric per link](images/23-01.png)
 
@@ -31,6 +37,8 @@ RAG systems and agents have several stages, and an end-to-end score ("72% of ans
 **End-to-end** metrics (correctness, task success, user satisfaction) tell you whether the system works. **Component** metrics tell you why it does not. You need both: end-to-end to decide whether to ship, components to decide what to fix. A useful habit is to tag every failed case with the first stage that went wrong (Chapter 31.9).
 
 ## 25.2 Retrieval metrics: context recall and precision
+
+The generator can only use what retrieval gives it. If the passage containing the answer is not retrieved, no prompt or model will produce a grounded answer; if it is buried among irrelevant passages, the model may miss it. Retrieval metrics measure both risks separately.
 
 With relevance labels per question (which passages or documents answer it), use the standard retrieval metrics from Chapter 30.9. Two names you will meet in RAG tooling:
 
@@ -54,6 +62,8 @@ def context_precision(retrieved_ids, relevant_ids):
 Measure these **at the context the LLM actually receives** (after re-ranking and assembly), as well as at the retriever's output, so you can tell a retriever miss from an assembly drop. Without labels, an LLM judge can rate each retrieved passage as relevant or not to the question, which gives precision but not recall (it cannot know what was missed).
 
 ## 25.3 Generation metrics
+
+Given the retrieved context, the generator can still fail in two independent ways: it can say things the context does not support, or it can fail to answer the question that was asked. The metrics below measure each failure separately, because they have different causes and different fixes.
 
 **Faithfulness (groundedness).** Is every claim in the answer supported by the retrieved context? The standard method decomposes the answer into atomic claims, then checks each against the context with an LLM judge or an entailment (NLI) model. The score is supported claims ÷ total claims, and the unsupported claims themselves are the useful output for debugging.
 

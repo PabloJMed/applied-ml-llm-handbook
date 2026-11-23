@@ -1,6 +1,6 @@
 # 15 · How LLMs are trained
 
-Part IV · Pretraining.
+Part IV · Pretraining. Assumes Chapter 10 (the transformer) and Chapter 1.6 (cross-entropy and KL). This chapter is the overview of the whole training pipeline; Chapters 16 and 17 go deep on pretraining data and infrastructure, Chapters 18 to 20 on post-training.
 
 ## Why it matters
 
@@ -9,6 +9,10 @@ Few applied teams pre-train an LLM. You will, however, choose between models who
 ![Each stage changes behaviour more than knowledge, except the first](images/13-01.png)
 
 *Each stage changes behaviour more than knowledge, except the first. Labs differ in order and mix, but this is the common shape.*
+
+The chapter follows the pipeline in the order a model goes through it. Pretraining (15.1) produces a base model that knows a great deal but only continues text. Supervised fine-tuning (15.2) teaches it the format of an assistant. Preference optimisation, with a reward model and PPO (15.3) or directly with DPO and its relatives (15.4), teaches it which of several acceptable answers people prefer, and AI feedback (15.5) scales that up. Reinforcement learning with verifiable rewards (15.6) is the newest stage and the source of reasoning models. Distillation (15.7) transfers what a large model learned into a small one. Section 15.8 turns the pipeline into a diagnostic tool, and 15.9 counts where the compute actually goes.
+
+Each stage changes a different thing, and that is the most useful idea to take away. Knowledge comes overwhelmingly from pretraining; format and behaviour from SFT; preferences, tone and refusals from preference optimisation; long, self-correcting reasoning from RL. When a model behaves badly, asking which stage is responsible is usually the fastest way to the fix.
 
 ## Key concepts
 
@@ -22,6 +26,8 @@ Few applied teams pre-train an LLM. You will, however, choose between models who
 - **Practical tools and reference**: [TRL library](https://huggingface.co/docs/trl/index), [RLHF Book](https://rlhfbook.com/) (Nathan Lambert).
 
 ## 15.1 Pre-training
+
+Pretraining is where almost all of a model's knowledge and most of its compute come from. Its objective could not be simpler: predict the next token, over trillions of tokens of text. The interesting questions are why such a simple objective produces such general abilities, and what the resulting base model can and cannot do.
 
 **Objective.** Next-token prediction with cross-entropy over trillions of tokens: minimise −Σ log p(x_t | x_<t). Nothing else. Knowledge, grammar, some reasoning and in-context learning all come from compressing this data well.
 
@@ -38,6 +44,8 @@ Few applied teams pre-train an LLM. You will, however, choose between models who
 **Where to go deeper.** This chapter is the map of the pipeline. Pretraining data is covered in Chapter 16 and the mechanics of large runs (parallelism beyond the classic "3D" data, tensor and pipeline split: sharded data parallelism, context and expert parallelism; fp8; checkpointing) in Chapter 17. Modern recipes also use warmup-stable-decay schedules and, increasingly, optimisers such as Muon (Chapter 7). Post-training is covered in depth in Chapters 18 (SFT, reward models, PPO, DPO) and 19 (RL with verifiable rewards and reasoning).
 
 ## 15.2 Supervised fine-tuning (SFT)
+
+A base model continues text; asked a question, it may answer, or it may produce more questions in the style of a forum thread. Supervised fine-tuning turns it into an assistant by training on examples of the desired behaviour: a prompt, and the response a good assistant would give. It is cheap compared with pretraining, and it mostly teaches format and style rather than new knowledge.
 
 Train on (prompt, ideal response) pairs, usually in a chat template, with the loss computed only on the response tokens:
 
@@ -56,6 +64,8 @@ loss = F.cross_entropy(logits[:, :-1].reshape(-1, V), labels[1:].reshape(-1), ig
 SFT teaches format and style: answer the question, follow the template, stop. A few thousand very high-quality examples can matter more than a million noisy ones (the LIMA paper's point). SFT's weakness: it only shows good answers, never contrasts them with bad ones, and it can teach the model to imitate confident answers it does not actually know, which feeds hallucination.
 
 ## 15.3 RLHF with a reward model and PPO
+
+SFT can only imitate the examples it is given, and writing an ideal answer is much harder than recognising a better one. Reinforcement learning from human feedback exploits that asymmetry: people compare pairs of model answers, a reward model learns their preferences, and the assistant is optimised to produce answers the reward model scores highly, while staying close to its starting point.
 
 The InstructGPT recipe (Ouyang et al., 2022):
 
@@ -80,6 +90,8 @@ Without the KL term the policy finds **reward hacking**: outputs that score well
 
 ## 15.4 DPO and friends
 
+RLHF with PPO works but is complex: four models in memory, generation inside the training loop, and many hyperparameters. Direct preference optimisation showed that the same objective can be optimised with a simple classification-style loss on preference pairs, with no reward model and no sampling. Its simplicity made it the default for many open models.
+
 **Direct Preference Optimization** (Rafailov et al., 2023) shows that the KL-constrained RLHF objective has a closed-form optimal policy, and rewrites the reward in terms of the policy itself. The result is a classification-style loss on preference pairs, no reward model and, in its offline form, no sampling during training:
 
 ```python
@@ -101,9 +113,13 @@ Variants you may be asked about: **IPO** (fixes DPO's tendency to overfit when p
 
 ## 15.5 RLAIF and Constitutional AI
 
+Human preference labels are slow, expensive and inconsistent. If a strong model can judge answers against written principles, the labelling can be automated and scaled. That is the idea behind AI feedback: people write the rules, and a model applies them to millions of comparisons.
+
 Human labels are slow and expensive. **RLAIF** uses an LLM to produce the preference labels. **Constitutional AI** (Anthropic, Bai et al., 2022) has the model critique and revise its own outputs against a written list of principles, then trains on AI-labelled preferences for harmlessness. The benefits are scale and consistency; the risk is copying the labelling model's biases, so teams still audit samples with humans. LLM-as-judge in evaluation (Chapter 24) is the same idea, with the same caveats.
 
 ## 15.6 Reasoning models and RL with verifiable rewards
+
+For maths, code and other tasks where an answer can be checked automatically, there is no need for a learned reward model: the checker is the reward. Training with reinforcement learning against such checks, on hard problems, produced the reasoning models of 2024 and 2025, which think at length before answering and correct their own mistakes. It is now the stage where the largest capability gains come from.
 
 Since late 2024 the biggest gains have come from RL on tasks whose answers can be checked automatically: maths with a known answer, code with unit tests, tool-use tasks with a checkable end state. The reward is a programmatic check, "correct or not" (plus format), so there is no learned reward model to over-optimise. Verifiers can still be gamed, though: models learn to special-case unit tests, exploit lenient answer-matchers or satisfy the format without the substance, so the checker needs as much care as the policy. The model learns to produce long chains of thought, check its work and backtrack. Examples: OpenAI o1/o3, DeepSeek-R1, and the extended-thinking modes of Claude and Gemini.
 
@@ -119,6 +135,8 @@ adv = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
 Key ideas to mention: **test-time compute** scales accuracy (more thinking tokens, better answers on hard problems); a group where all answers are right or all wrong gives zero signal, so prompt difficulty is curated; and reasoning RL helps most where verification is cheap. For ambiguous tasks like ranking or writing, reward models and preferences still dominate.
 
 ## 15.7 Distillation
+
+The largest models are too expensive to serve for most products. Distillation transfers much of their ability into a smaller student that is cheap to run, either by training on the teacher's outputs or by matching its full probability distributions. Most small models released today are distilled from larger ones.
 
 Train a small student to imitate a large teacher.
 
@@ -147,6 +165,8 @@ Three practical points follow:
 - **Forward or reverse KL.** The standard loss, KL(teacher ‖ student), makes the student cover every mode the teacher assigns mass to. A small student that cannot cover them all spreads its probability thinly. **On-policy distillation** instead samples from the student and minimises the reverse KL on those samples, which concentrates the student on modes it can actually represent. It also trains the student on its own mistakes, as RL does, but with a dense per-token signal. Recent small-model recipes use it after a round of sequence-level distillation (Chapter 19.9 has the numbers).
 
 ## 15.8 What each stage explains
+
+Because each stage of the pipeline changes something different, many model behaviours can be traced back to the stage that produced them. That is a practical debugging tool: the fix for a behaviour depends on where it came from.
 
 | Symptom | Likely origin |
 |---|---|

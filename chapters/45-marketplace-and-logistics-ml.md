@@ -6,6 +6,10 @@ Part XI · Applied ML systems (optional track). Assumes Chapters 3, 4 and 40 (fu
 
 Delivery companies are logistics businesses with an app on top. Demand forecasts decide how many couriers to schedule and how much stock a dark store holds; ETA predictions set customer expectations and drive dispatch; balancing supply and demand decides delivery times and courier earnings; prices and incentives steer both sides. These are the problems delivery platforms spend most of their applied ML effort on, and interviewers at these companies expect you to speak about them fluently, even for a role focused on LLMs and recommendations.
 
+The chapter covers the core models of a delivery marketplace in the order a day's operations depend on them. Demand forecasting (45.1) decides how many couriers are needed where; ETA prediction (45.2) sets the promise each customer sees; supply-demand balancing (45.3) turns predictions into decisions with optimisation; and pricing and incentives (45.4) steer both sides of the market. Section 45.5 links to marketplace experiments, and 45.6 works through a staffing plan.
+
+The recurring theme is that a prediction is only useful through the decision it feeds, and the decision usually has asymmetric costs. A late delivery costs more than an early one, and an idle courier costs less than an unserved order, so the right model often predicts a quantile or a distribution rather than the average.
+
 ## Key concepts
 
 - **Demand forecasting**: predicting orders by area and time slot to plan couriers and stock; classic time-series methods and gradient boosting both matter. [Forecasting: Principles and Practice](https://otexts.com/fpp3/) (free book).

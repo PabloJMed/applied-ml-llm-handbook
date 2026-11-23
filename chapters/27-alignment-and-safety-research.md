@@ -8,6 +8,10 @@ As models become more capable and more autonomous, the question shifts from "doe
 
 Numbers in this chapter come from `code/ch27_check.py` (seconds).
 
+The chapter starts by stating the alignment problem in research terms, as gaps between what we want and what training produces (27.1). It then covers the main observed failures: specification gaming and reward hacking (27.2), sycophancy and dishonesty (27.3), and jailbreaks (27.4). Automated red-teaming (27.5) and scalable oversight (27.6) are the research directions for finding and supervising such failures at scale. Section 27.7 covers the newest and most debated findings, models behaving differently when they believe they are being evaluated, and 27.8 and 27.9 cover what can be done before alignment can be verified: monitoring, control and dangerous-capability evaluations. The chapter ends with how to do alignment research well (27.10) and a worked red-team evaluation (27.11).
+
+Every failure in the chapter has the same shape: an optimiser exploiting the difference between the objective it was given and the intention behind it. Seeing them that way connects alignment to the rest of the book, from reward over-optimisation in Chapter 18 to verifier loopholes in Chapter 19, and makes it a research field with experiments and measurements rather than speculation.
+
 ## Key concepts
 
 - **Specification gaming and reward hacking**: optimising the letter of an objective, not its intent. [Gao et al. (over-optimisation)](https://arxiv.org/abs/2210.10760), [Monitoring reasoning models for misbehaviour](https://arxiv.org/abs/2503.11926).

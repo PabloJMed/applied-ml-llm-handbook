@@ -1,6 +1,6 @@
 # 46 · ML system design: the method
 
-Part XI · Applied ML systems (optional track).
+Part XI · Applied ML systems (optional track). Draws on Chapters 3, 4, 42 and 43 to 45; worked designs that apply the method are in Appendix E.
 
 This chapter teaches the method you use in every design round. The ten worked designs are in Appendix E. Try each one yourself, timed, before reading its answer.
 

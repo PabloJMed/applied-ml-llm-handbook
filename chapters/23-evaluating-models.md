@@ -8,6 +8,10 @@ Every decision in model development rests on an evaluation: which data mixture t
 
 Numbers in this chapter come from `code/ch23_check.py` (seconds).
 
+The chapter treats evaluation as measurement, with the same discipline as an experiment. It starts from the decision an evaluation supports (23.1), then quantifies the noise in a benchmark score: question sampling (23.2) and the other sources, such as seeds and prompts (23.3). Section 23.4 covers the most sensitive signal during training, held-out loss. Sections 23.5 to 23.7 are about benchmarks themselves: how they are designed and saturated, how contamination corrupts them, and how pairwise comparisons and arenas rank models when there is no single right answer. LLM judges (23.8), agents (23.9) and the infrastructure for reporting (23.10) complete the toolkit, and 23.11 works through a real comparison.
+
+The question behind every section is the one from Chapter 2: is this difference real? A benchmark is a sample, and most reported improvements between nearby models are smaller than the noise. Being able to compute the error bar, and to say what else could explain the difference, is what separates an evaluation from a number.
+
 ## Key concepts
 
 - **Error bars for evals**: standard errors, clustering and paired comparisons. [Miller, "Adding Error Bars to Evals"](https://arxiv.org/abs/2411.00640).
@@ -36,7 +40,13 @@ Four levels, each with its own role:
 
 ## 23.2 Error bars
 
-**The standard error of a mean.** A benchmark score is an average over questions, which are a sample from some population of possible questions. With n independent questions and accuracy p, the standard error is √(p(1−p)/n): about 2.2 points for 500 questions at 67%, so a 95% interval of ±4.3 points.
+**The standard error of a mean.** A benchmark score is an average over questions, which are a sample from some population of possible questions. With n independent questions and accuracy p, the standard error is
+
+$$
+\mathrm{SE} = \sqrt{\dfrac{p\,(1-p)}{n}}
+$$
+
+which is about 2.2 points for 500 questions at 67%, so a 95% interval of ±4.3 points.
 
 **Clustered questions.** Many benchmarks group questions (several questions per reading passage, per code repository, per document). Questions in a cluster are correlated, so the effective sample size is smaller. In the check script, 500 questions in 100 passages of 5 give a naive standard error of 0.0211 and a clustered one of 0.0261: 24% larger. The clustered formula sums residuals within each cluster before squaring.
 

@@ -1,12 +1,16 @@
 # 48 · Data for ML
 
-Part XI · Applied ML systems (optional track).
+Part XI · Applied ML systems (optional track). Assumes basic SQL and pandas. Chapter 3.7 explains the leakage that point-in-time joins prevent; Chapter 35 has interview-style SQL and pandas questions.
 
 ## Why it matters
 
 Most model failures are data failures: leakage, wrong joins, bad labels, silent upstream changes. Senior data scientists at product and marketplace companies spend more time in SQL than in PyTorch, and many interview loops include a live SQL round (windows, sessions, retention) and questions on labelling. This chapter is the practical toolkit. Chapter 35 has the Python coding patterns; this one is about getting the data right.
 
 All SQL below ran in SQLite (it supports window functions); outputs are quoted. Syntax is close to BigQuery, Snowflake and Spark SQL, apart from date functions.
+
+The chapter starts with the SQL tools that most feature and label queries need: window functions (48.1) and sessionisation (48.2), and the point-in-time join that keeps future information out of training data (48.3). It then covers working with data that outgrows a laptop, in pandas (48.4) and Spark (48.5), and keeping it trustworthy with data contracts (48.6). The last sections are about labels: running a labelling effort and measuring agreement (48.7), synthetic data (48.8), and a worked labelling project from guidelines to a training set (48.9).
+
+The common thread is correctness under time. Almost every data bug in ML comes from using information that was not available when the prediction would have been made, or from labels that mean different things to different annotators. The techniques here are the routine defences against both.
 
 ## Key concepts
 

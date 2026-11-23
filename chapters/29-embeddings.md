@@ -6,6 +6,10 @@ Part IX · Retrieval and agents. Assumes Chapter 10 (transformers). Embeddings p
 
 An embedding turns text (or an item, a user, an image) into a vector so that similar things are close. Almost every modern retrieval, recommendation and semantic-matching system depends on embeddings, and their quality often decides the whole system's quality. Interviewers for LLM roles ask how embedding models are trained (contrastive learning), how to adapt them to a domain, how to evaluate them, and how to make them cheap to store and search.
 
+The chapter starts with the step from word vectors to vectors for whole texts (29.1), then explains how modern embedding models are trained: contrastive learning with in-batch negatives (29.2), and the hard negatives that make the difference between a good model and a great one (29.3). Section 29.4 covers when and how to fine-tune one on your own data. Sections 29.5 and 29.6 deal with cost at scale, shrinking vectors by truncating them or quantising them, and 29.7 with multilingual text. The chapter ends with how to choose a model from benchmarks and your own evaluation (29.8), the new generation of LLM-based embedders (29.9), and a worked model choice for a real catalogue (29.10).
+
+The idea under all of it is that an embedding model is trained to make one geometric relationship true: texts that should match are close, and texts that should not are far apart. Everything else, from the choice of negatives to the evaluation set, decides which texts count as "should match", and that is where most of the quality comes from.
+
 ## Key concepts
 
 - **Embedding**: a vector that represents a piece of text, an image or an item so that similar things are close together. [The Illustrated Word2vec](https://jalammar.github.io/illustrated-word2vec/) builds the intuition.
@@ -17,6 +21,8 @@ An embedding turns text (or an item, a user, an image) into a vector so that sim
 - **Fine-tuning embeddings**: adapting a model to your domain with pairs from search logs or LLM-generated queries.
 
 ## 29.1 From word to sentence embeddings
+
+Retrieval needs one vector per query and per document, compared with a single dot product. Word embeddings give one vector per word, with no context, and averaging them loses order and nuance. The progress from word vectors to today's sentence embedders is the story of learning a single vector that captures the meaning of a whole text.
 
 **Word embeddings** (word2vec, GloVe, fastText, Chapter 8) give one vector per word, regardless of context: "bank" has one vector for rivers and money.
 
@@ -49,7 +55,9 @@ def mean_pool(token_embeddings, attention_mask):
 
 *in-batch contrastive training · a batch of 4 pairs*
 
-`L = − (1/B) Σᵢ log [ exp(sim(qᵢ, dᵢ)/τ) / Σⱼ exp(sim(qᵢ, dⱼ)/τ) ]`
+$$
+\mathcal{L} = -\dfrac{1}{B}\sum_{i=1}^{B}\log\dfrac{\exp(\mathrm{sim}(q_i,d_i)/\tau)}{\sum_{j=1}^{B}\exp(\mathrm{sim}(q_i,d_j)/\tau)}
+$$
 
 ```python
 import torch.nn.functional as F
@@ -83,6 +91,8 @@ Two consequences:
 
 ## 29.3 Hard negatives
 
+In-batch negatives are free, but most of them are easy: a question about refunds is trivially different from a passage about delivery zones. A model trained only on easy negatives learns coarse topic matching and fails exactly where search is hard, between passages on the same topic that answer different questions. Hard negatives supply those near-misses during training.
+
 Random in-batch negatives are mostly easy ("refund policy" vs "pizza menu"). The model learns more from **hard negatives:** passages that look relevant but are not ("refund policy for partners" for a customer question).
 
 **Mining them:** retrieve the top results for each query with BM25 or the current model, and take high-ranked results that are not labelled positive. Add one to a few per query as extra columns in the similarity matrix.
@@ -97,6 +107,8 @@ Random in-batch negatives are mostly easy ("refund policy" vs "pizza menu"). The
 Hard-negative mining is often the single biggest lever when fine-tuning an embedding model for a domain.
 
 ## 29.4 Fine-tuning an embedding model
+
+General-purpose embedding models are trained on web data and public datasets. If your users search with vocabulary, abbreviations or notions of relevance that those sources do not contain, a general model will rank poorly no matter how large it is. Fine-tuning on your own pairs is often the largest single improvement available, and it is cheap.
 
 **When it is worth it:** your domain has its own vocabulary (dish names, internal product terms, transliterated Arabic), off-the-shelf models lose to BM25 on your evaluation set, or similarity means something specific in your product (two restaurants are "similar" if the same customers order from both, not if their descriptions sound alike).
 

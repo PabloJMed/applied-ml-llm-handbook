@@ -6,6 +6,10 @@ Part I · Foundations. The concepts every later chapter assumes. Chapter 40 cove
 
 The ML depth round starts here. "What is the bias-variance trade-off?", "how would you handle class imbalance?", "what is leakage and how did you prevent it?" are among the most common interview questions, and the answers separate people who have shipped models from people who have trained them in notebooks. These fundamentals also decide whether real projects work: most production model failures are leakage, wrong splits or a mis-framed target, not the wrong algorithm.
 
+The chapter is organised around one question: will this model do as well on tomorrow's data as it did on the data I have? Every topic is a part of the answer. Framing (3.1) decides what "doing well" means. The bias-variance trade-off (3.2) explains why fitting the training data and predicting new data are different goals, and losses, regularisation and optimisation (3.3 to 3.5) are the controls you use to balance them. Splits and leakage (3.6, 3.7) are how you *measure* generalisation honestly, which is harder than it sounds: most over-optimistic results come from a validation set that quietly knew something about the answers. Features, imbalance and calibration (3.8 to 3.10) are the practical decisions that come up on almost every tabular project.
+
+Read it as a sequence of decisions you will make on a real project, in roughly the order you will make them. The worked numbers come from small simulations you can rerun (`code/ch03_check.py` and `tools/figures.py`), so each claim can be checked rather than memorised.
+
 ## Key concepts
 
 - **Problem framing**: turning a business question into a prediction target, a unit of prediction, features available at prediction time, and a metric. [Google ML crash course](https://developers.google.com/machine-learning/crash-course).
@@ -17,6 +21,8 @@ The ML depth round starts here. "What is the bias-variance trade-off?", "how wou
 - **Class imbalance**: when positives are rare; handled with the right metric, class weights or resampling, and threshold choice (Chapter 4).
 
 ## 3.1 Framing a problem as ML
+
+Most of the value of an ML project is decided before any model is trained. A business problem ("too many late deliveries", "users churn") does not come with a target, a prediction moment or a metric; someone has to choose them, and a well-trained model of the wrong target is worthless however good its validation score. Framing is the step that turns a vague goal into a learning problem whose solution someone will actually use.
 
 Before choosing a model, answer these questions, in this order:
 
@@ -33,9 +39,13 @@ Before choosing a model, answer these questions, in this order:
 
 ## 3.2 The bias-variance trade-off
 
+A model is trained on one sample of data but used on new data. It can fail in two opposite ways. It can be too rigid to represent the pattern, and then it is wrong in the same way whatever data it sees. Or it can be so flexible that it reproduces the accidents of its particular training sample, and then it is wrong in a different way for every sample. The bias-variance decomposition makes those two failure modes precise and shows that, for a fixed amount of data, reducing one tends to increase the other.
+
 A model's expected error on new data splits into three parts:
 
-`expected error = bias² + variance + irreducible noise`
+$$
+\mathrm{expected\ error} = \mathrm{bias}^2 + \mathrm{variance} + \mathrm{irreducible\ noise}
+$$
 
 - **Bias:** error from wrong assumptions; the model is too simple to capture the pattern (a straight line through a curve). Shows as high training error and similar validation error: **underfitting**.
 - **Variance:** error from sensitivity to the particular training sample; the model fits noise. Shows as low training error and much higher validation error: **overfitting**.
@@ -65,6 +75,8 @@ A degree-1 or 2 model cannot bend enough to follow the sine (bias), a degree-8 m
 Modern deep networks complicate the classical picture: very large models can generalise well even when they fit training data perfectly (the "double descent" observations). For tabular and classic ML work, the classical trade-off is still the right mental model, and it is what interviewers expect first.
 
 ## 3.3 Loss functions
+
+A model does not know what you want; it knows only the loss it is trained to minimise. The loss therefore defines what a "good" prediction is: the average outcome, the typical outcome, a cautious upper bound, or an honest probability. Choosing it is a business decision expressed in maths, and the most useful fact about losses is which summary of the outcome each one makes the model predict.
 
 The loss is what training optimises; choose it so its optimum is what the business needs.
 
@@ -103,7 +115,9 @@ mse(y, p), mae(y, p), huber(y, p)    # 121.1, 5.75, 5.44: the one outlier domina
 
 ## 3.4 Regularisation
 
-Regularisation limits model complexity to reduce variance.
+Section 3.2 showed that flexible models fail by fitting noise. Regularisation is the set of techniques that let you keep a flexible model while discouraging it from using its flexibility unless the data really demand it. The common forms add a penalty on the size of the weights to the loss, so that the model must "pay" for every large weight with a matching improvement in fit.
+
+There is a second way to see the same idea, which explains why it works rather than only what it does. Chapter 1.4 showed that an L2 penalty is MAP estimation with a Gaussian prior centred at zero: before seeing data, you believe small weights are more likely than large ones. With little data, that belief dominates and the weights stay small; with plenty of data, the evidence outweighs the prior. Regularisation is a prior, and its strength says how much you trust it relative to the data. The common forms:
 
 - **L2 (ridge, weight decay):** adds λ∑w². Shrinks all weights smoothly; handles correlated features by spreading weight between them.
 - **L1 (lasso):** adds λ∑|w|. Pushes some weights exactly to zero, so it also selects features. On a test with 20 features of which 3 matter, Lasso kept exactly 3 non-zero weights while Ridge kept all 20 small but non-zero.
@@ -119,7 +133,13 @@ Regularisation strength is a hyperparameter: tune it on validation data, and sca
 
 ## 3.5 Optimisation
 
-Training minimises the loss by following gradients.
+Once the loss and the penalty are fixed, training is a minimisation problem, usually over far too many parameters for a closed-form solution. Every method below follows the same principle from Chapter 1.5, take a small step against the gradient, and they differ in how they estimate the gradient and how they decide the size and direction of each step. The basic update, with learning rate η, is
+
+$$
+w_{t+1} = w_t - \eta\,\nabla L(w_t)
+$$
+
+The learning rate is the critical choice: too small and training crawls, too large and each step overshoots the minimum and the loss diverges. The methods below are, in effect, increasingly clever ways of choosing a good step for each parameter.
 
 - **Gradient descent:** w ← w − η∇L over the whole dataset. Exact but slow per step.
 - **Stochastic / mini-batch gradient descent (SGD):** use a batch of examples per step. Noisy but fast; the noise even helps escape poor regions.
@@ -174,6 +194,8 @@ The ratio between the steepest and shallowest curvature (the condition number, 2
 
 ## 3.6 Train, validation and test splits
 
+The training error says how well a model fits data it has already seen, which is the wrong question: what matters is how it does on data it has not. The only way to estimate that is to hold some data back and never let the model, or you, learn from it. The subtlety is that "learning from it" includes every decision you take after looking at a score: each choice of feature, hyperparameter or threshold that improves a validation number fits that validation set a little. A good splitting scheme keeps one set of data untouched by any decision.
+
 - **Training set:** fits the parameters.
 - **Validation set:** chooses hyperparameters, features, thresholds and models. Every decision you make on it leaks a little information, so it becomes optimistic.
 - **Test set:** used once, at the end, for an honest estimate. If you tune on the test set, you no longer have one.
@@ -204,6 +226,8 @@ In food delivery almost everything has time, and many rows belong to the same us
 
 ## 3.7 Leakage
 
+A validation score is only honest if the model sees, at training time, exactly the information it will have at prediction time, and no more. Leakage is any violation of that rule. It is dangerous because it never shows up as an error: the pipeline runs, the score improves, and the problem appears only after launch, when the information the model relied on is not there.
+
 Leakage is information in training that will not be available at prediction time. It makes offline results look great and production results disappoint, and it is the most common cause of that gap.
 
 | Type | Example | Prevention |
@@ -220,6 +244,8 @@ Leakage is information in training that will not be available at prediction time
 **A worked leak.** Suppose customer behaviour flips every few weeks (promotion periods on and off), and the row's timestamp is available as a feature. With a random split, test rows come from the same periods as training rows, so a gradient-boosted model learns "in this time range, the relationship goes this way" and scores an AUC of 0.633. With an honest time split, the test period is new and the timestamp feature is useless: AUC 0.521, barely better than chance. Nothing in the model changed; only the split. The random-split number described a situation that will never occur in production: predicting a period you have already seen (the simulation is in `code/ch03_check.py`).
 
 ## 3.8 Feature engineering
+
+A model can only learn from what its inputs make visible. A gradient-boosted tree cannot compute "this user's average order value over the last 30 days" from raw order rows, and a linear model cannot discover that hour 23 is next to hour 0. Feature engineering is the work of turning raw data into inputs that expose the patterns you expect to matter, without letting information from the future slip in.
 
 For tabular problems, features usually matter more than the model.
 
@@ -250,7 +276,7 @@ Each row's encoding comes from other folds, so its own label never contributes. 
 
 ## 3.9 Class imbalance
 
-When positives are rare (fraud, churn, clicks):
+When positives are rare, two things go wrong at once. The usual metrics stop meaning anything: a fraud model that never flags anything is 99% accurate when 1% of orders are fraud. And the training signal is dominated by the majority class, so a model can reduce its average loss mostly by getting better at the easy negatives. The fixes are best applied in order, starting with the cheapest and most important, because the first two steps alone solve most cases.
 
 1. **Use the right metrics first:** PR-AUC, precision and recall at the operating point, not accuracy (Chapter 4).
 2. **Class weights:** weight the loss so rare-class errors cost more (`class_weight="balanced"`). Simple and usually enough.

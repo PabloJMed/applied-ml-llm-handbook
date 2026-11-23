@@ -8,6 +8,10 @@ A model in a notebook helps nobody. To be used, it has to run on a computer that
 
 The Python code was run; outputs are quoted. Dockerfiles, Kubernetes files and shell commands are standard examples that were not run here; check the linked docs for current syntax.
 
+The chapter starts with the big picture, the online and offline paths that most ML systems combine (42.1), then explains the building blocks one at a time, in the order a request meets them: machines and the cloud (42.2), network APIs (42.3), containers (42.4) and Kubernetes (42.5), storage (42.6), and queues and streams (42.7). Sections 42.8 and 42.9 apply them to ML: the three modes of inference, and how to reason about latency, throughput and capacity. The chapter ends with how changes are shipped safely (42.10), how running systems are observed (42.11), and one request followed end to end (42.12).
+
+Each piece of infrastructure exists to solve a specific failure: a model that runs on one laptop and not another, a service that dies with its machine, a slow consumer that blocks a fast producer. Learning each tool through the failure it prevents makes system-design conversations much easier to follow.
+
 ## Key concepts
 
 Each line is a one-sentence definition with a link to a good explanation. The sections below go deeper.

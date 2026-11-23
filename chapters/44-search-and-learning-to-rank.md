@@ -8,6 +8,10 @@ Search users have the strongest intent in the app: they typed what they want. Se
 
 Learning to rank (LTR) is the core technique behind search ranking, and the same losses rank recommendations, ads and RAG passages. Interviewers expect you to know pointwise, pairwise and listwise approaches, explain LambdaMART, and design features for a marketplace search.
 
+The chapter starts with how search differs from recommendation and the shape of a search pipeline (44.1). It then follows a query through it: understanding the query (44.2), retrieving candidates lexically, semantically or both (44.3), and the features a ranker uses (44.4). Sections 44.5 and 44.6 explain learning to rank, from the three families of losses to the RankNet-to-LambdaMART story interviewers ask for. The chapter ends with what is special about marketplace search (44.7), neural re-rankers (44.8), evaluation (44.9) and a worked ranking iteration (44.10).
+
+The central idea of learning to rank is that the loss should match the metric. Users only look at the top of the list, so a good ranking loss concentrates on getting the top positions right, and the progression from pointwise to listwise methods is the history of making that happen.
+
 ## Key concepts
 
 - **Search pipeline**: query understanding (spelling, synonyms, intent) → retrieval (lexical and semantic) → ranking → business rules. [Eugene Yan: System Design for Recommendations and Search](https://eugeneyan.com/writing/system-design-for-discovery/).

@@ -8,6 +8,10 @@ Scaling laws are how a lab decides what to train before spending the money. They
 
 Numbers in this chapter come from `code/ch13_check.py` (NumPy and SciPy, seconds).
 
+The chapter starts with what a scaling law is and why such clean regularities exist at all (13.1). It then follows the most consequential disagreement in the field's recent history, Kaplan versus Chinchilla, and why the two groups reached different conclusions from similar experiments (13.2). Section 13.3 derives the compute-optimal allocation from the Chinchilla formula, and 13.4 covers fitting laws to your own runs without fooling yourself. Sections 13.5 to 13.7 relax the assumptions: models are deliberately trained past the Chinchilla point because inference is expensive, high-quality data is running out, and the same thinking applies to other design choices. The chapter ends with how smooth loss curves relate to the sudden "emergence" of abilities (13.8), scaling at test time (13.9), and a worked study of the kind a research team runs before a large training run (13.10).
+
+The thread through all of it is prediction. A scaling law is useful because it lets a team spend a small fraction of a budget on small runs and predict, with an error bar, what the large run will achieve.
+
 ## Key concepts
 
 - **Power law**: loss falls as a power of model size, data or compute, a straight line on log-log axes. [Kaplan et al.](https://arxiv.org/abs/2001.08361).
@@ -19,6 +23,8 @@ Numbers in this chapter come from `code/ch13_check.py` (NumPy and SciPy, seconds
 - **Test-time compute scaling**: accuracy as a function of inference compute. [Snell et al.](https://arxiv.org/abs/2408.03314).
 
 ## 13.1 What a scaling law is
+
+Deep-learning results usually look erratic: change one setting and the outcome moves unpredictably. Loss as a function of scale is a striking exception. Plotted on logarithmic axes, it follows a straight line over many orders of magnitude, and that regularity is what turns model training from expensive trial and error into engineering.
 
 Train a family of models that differ only in size, data or compute, and plot the final loss against that quantity on log-log axes. Over many orders of magnitude the points fall on a line: loss ≈ a · x^(−b), plus an **irreducible** term E that no amount of scale removes (the entropy of the text itself, at least for that tokenizer and data).
 
@@ -37,9 +43,13 @@ The lesson for method is as important as the result: **the learning-rate schedul
 
 ## 13.3 Deriving the compute-optimal allocation
 
+For a fixed compute budget you can train a larger model on fewer tokens or a smaller model on more. The Chinchilla analysis answers how to split the budget, and the answer follows from a short calculation that is worth being able to reproduce: write the loss as a function of model size and data, fix the compute, and minimise.
+
 The Chinchilla parametric form is
 
-L(N, D) = E + A / N^α + B / D^β
+$$
+L(N, D) = E + \dfrac{A}{N^{\alpha}} + \dfrac{B}{D^{\beta}}
+$$
 
 where N is parameters and D is training tokens, and training compute is C ≈ 6ND FLOPs (2 for the forward pass, 4 for the backward pass, per parameter per token).
 
@@ -82,6 +92,8 @@ These constants give exponents of 0.45 and 0.55 and tokens-per-parameter ratios 
 
 ## 13.5 Beyond Chinchilla-optimal: paying for inference
 
+Chinchilla answers the question "what is the best model for this training budget?", but a model that will serve billions of requests should be judged on total cost, including inference. That changes the answer, and it explains why most current open models are trained on far more tokens per parameter than Chinchilla recommends.
+
 Chinchilla-optimal minimises *training* compute for a given loss. A model that serves trillions of tokens costs far more in inference (about 2N FLOPs per token) than in training. Minimise training plus lifetime inference cost instead: for a target loss, a smaller model trained on more tokens costs more to train but less to run.
 
 Target: the loss of the compute-optimal 1e23 model (2.005).
@@ -100,6 +112,8 @@ Target: the loss of the compute-optimal 1e23 model (2.005).
 This is why current small open models are trained on 15–40T tokens, hundreds to thousands of tokens per parameter. Their loss keeps improving with more data, just more slowly than a compute-optimal allocation would give, and the extra training cost is repaid in serving. Data supply, not compute, becomes the limit.
 
 ## 13.6 Data-constrained scaling
+
+Scaling laws assume an unlimited supply of fresh data. In practice the stock of high-quality text is finite, and frontier runs are approaching it. The question becomes what repeating data is worth, and how to trade more epochs against more parameters when new data runs out.
 
 High-quality text is finite. What is repeated data worth? Muennighoff et al. (2023) trained hundreds of models with repeated data and fitted an "effective data" model in which each repetition is worth less, with a characteristic scale of about 15 repetitions:
 
@@ -126,6 +140,8 @@ Scaling-law thinking applies to every major design choice. Results to know, with
 - **Architectures**: compare candidates by their curves. A change that helps at 100M but has a shallower slope will lose at scale.
 
 ## 13.8 From loss to capabilities
+
+Scaling laws predict loss, but users care about what a model can do. The link between the two is not straightforward: a smoothly falling loss can coincide with benchmark scores that sit at chance and then jump. Whether such jumps reflect real "emergence" or an artefact of how they are measured matters for forecasting what larger models will be able to do.
 
 Loss scales smoothly; benchmark accuracy often does not. Wei et al. (2022) documented "emergent abilities": tasks where accuracy stays near chance and then jumps at some scale. Schaeffer et al. (2023) showed that many such jumps come from the **metric**. If an answer needs 10 tokens all correct, exact-match accuracy is roughly p^10 for per-token accuracy p:
 

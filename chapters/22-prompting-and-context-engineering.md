@@ -8,6 +8,10 @@ Prompting is the cheapest and fastest lever on an LLM system: a better prompt ca
 
 Interviewers for LLM roles probe whether you treat prompts as engineering artefacts (versioned, evaluated, cost-aware, secured) or as magic words. This chapter gives you the techniques and, more importantly, the discipline.
 
+The chapter starts with the parts every production prompt has (22.1) and the basic techniques for steering a model: examples (22.2) and reasoning (22.3). It then treats prompts as software: getting output that code can parse (22.4), and versioning and testing prompts like any other code (22.5). Sections 22.6 and 22.7 cover the economics and limits of long prompts, and 22.8 the main security problem of LLM applications, prompt injection. The chapter ends with what research says about why in-context learning works (22.9) and a worked prompt built and evaluated step by step (22.10).
+
+The common principle is that a prompt is a specification, written for a reader that is very capable, very literal and has no context except what you give it. Most prompt problems are specification problems: missing information, ambiguous instructions, or examples that teach something other than what was intended. And like any specification, a prompt is only as good as the tests that check it.
+
 ## Key concepts
 
 - **Prompt anatomy**: role and task, context, instructions and constraints, examples, output format. Vendor guides show what works for each model family: [Claude prompt engineering guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview).
@@ -20,6 +24,8 @@ Interviewers for LLM roles probe whether you treat prompts as engineering artefa
 - **Overview of techniques**: Lilian Weng's [Prompt Engineering](https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/) survey.
 
 ## 22.1 Anatomy of a prompt
+
+A prompt is the only channel through which an application tells a model what to do, and everything the model needs, the task, the context, the rules and the output format, has to be in it. Production prompts converge on the same set of parts, and knowing them makes prompts easier to write, review and debug.
 
 Every production prompt has the same parts, whether written as one string or as chat messages:
 
@@ -44,6 +50,8 @@ Every production prompt has the same parts, whether written as one string or as 
 - Put stable content first and variable content last: it is clearer, and it makes prompt caching possible (22.7).
 
 ## 22.2 Zero-shot and few-shot prompting
+
+The simplest way to specify a task is to describe it; the second simplest is to show it. Examples are often clearer than instructions, especially for format and edge cases, but they also teach things you did not intend, such as their length, their order or the balance of their labels.
 
 **Zero-shot:** instructions only. Works well for tasks the model already understands (summarise, translate, classify into obvious categories) when the instructions and definitions are precise.
 
@@ -81,6 +89,8 @@ def build_prompt(query, shots):
 Use embeddings instead of TF-IDF for semantic similarity. One trap: nearest neighbours often all share one label ("Farmacia del Mar" retrieves two pharmacies), which can push the model towards that label even when it is wrong. Mixing in a contrasting example from another class keeps the model honest.
 
 ## 22.3 Reasoning: chain of thought and reasoning models
+
+A model generates one token at a time, with a fixed amount of computation per token. Asking it to answer a hard question immediately gives it very little computation to work with; letting it write out intermediate steps gives it more, and lets later steps build on earlier ones. That simple idea, and its training-time version in reasoning models, accounts for large gains on multi-step problems.
 
 **Chain of thought (CoT):** asking the model to reason step by step before answering improved accuracy on multi-step problems (arithmetic, logic, multi-hop questions) in the original studies, and the effect is strongest for larger models.
 
@@ -158,6 +168,8 @@ In a team, use a prompt-management or LLM-observability tool (Langfuse, LangSmit
 
 ## 22.6 Long context and its failure modes
 
+A long context window invites a simple strategy: put everything in the prompt. It works less well than the advertised window suggests. Models use information unevenly across long inputs, irrelevant text distracts them, and every token adds cost and latency.
+
 Context windows now reach hundreds of thousands of tokens or more, but using them well is not automatic.
 
 - **Lost in the middle.** Liu et al. (2023) found that models used information at the start and end of a long context better than information in the middle. Newer models are better, but position effects remain: put the most important material near the start or end, and the question after the documents.
@@ -198,6 +210,8 @@ The prices here are illustrative, and the sketch ignores any cache-write premium
 *The monthly bill from the example above, split by where the tokens go. Caching 90% of the static prefix removes $21,870. What remains is mostly output, so the next lever is shorter outputs (a label instead of prose, a tighter schema) rather than a shorter prompt.*
 
 ## 22.8 Prompt injection and defences
+
+An LLM application mixes trusted instructions with untrusted data (emails, web pages, documents, tool results) in a single stream of text, and the model has no reliable way to tell them apart. Any text it reads can therefore try to give it instructions. Prompt injection is the resulting class of attacks, and it is the main security problem of LLM applications.
 
 **Prompt injection** is text that the model treats as instructions when you meant it as data. **Direct injection:** the user types "ignore your instructions and...". **Indirect injection:** the instructions hide in content the system reads: a web page, an email, a review, a PDF, a tool result. Indirect injection is the bigger risk for RAG and agents, because the attacker never talks to your system directly.
 

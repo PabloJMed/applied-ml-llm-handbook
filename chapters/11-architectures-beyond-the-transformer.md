@@ -8,6 +8,10 @@ The 2017 transformer is still the backbone, but almost no frontier model uses it
 
 Numbers in this chapter come from `code/ch11_check.py` (CPU, seconds).
 
+The chapter is built around a single observation: almost every architectural innovation since 2017 attacks one of three costs, and knowing which one tells you what a new design is for. Section 11.1 names the three costs: compute per token, memory for the KV cache, and the quadratic price of long contexts. Mixture of experts (11.2) decouples the number of parameters from compute per token. Attention variants (11.3) shrink the cache. Linear attention and state-space models (11.4) replace the growing cache with a fixed-size state, and hybrids (11.5) combine them with a few full-attention layers to keep precise recall. Multi-token prediction and diffusion models (11.6, 11.7) change the training objective and the decoding order rather than the block.
+
+The last two sections are about judgement. New architectures are announced constantly, and most do not hold up; 11.8 lists the checks that separate a real improvement from an unfair comparison, and 11.9 works through an architecture decision under a fixed serving budget, the way a design review would.
+
 ## Key concepts
 
 - **Mixture of experts (MoE)**: replace the feed-forward block with many expert FFNs and a router that sends each token to a few of them. [Switch Transformer](https://arxiv.org/abs/2101.03961), [GShard](https://arxiv.org/abs/2006.16668), [DeepSeekMoE](https://arxiv.org/abs/2401.06066).
@@ -21,6 +25,8 @@ Numbers in this chapter come from `code/ch11_check.py` (CPU, seconds).
 
 ## 11.1 Three costs that drive architecture research
 
+A transformer's cost has three separate sources, and they bind in different situations: training a larger model, serving many users at once, or reading very long documents. Architecture research is easiest to follow once each proposal is filed under the cost it reduces, and the trade-off it accepts in return.
+
 1. **Compute per token.** A dense transformer spends about 2 FLOPs per parameter per token in the forward pass. Bigger models know more but cost proportionally more for every token, in training and inference.
 2. **Attention's quadratic cost.** Self-attention compares every token with every earlier one: O(T²) compute in training and prefill. At 128k tokens this dominates.
 3. **KV-cache memory.** At generation time each layer stores keys and values for every past token. The cache grows linearly with context and batch size, and decode speed is limited by reading it from memory (Chapter 21).
@@ -28,6 +34,8 @@ Numbers in this chapter come from `code/ch11_check.py` (CPU, seconds).
 MoE attacks the first, sparse and linear attention the second, and GQA, MLA and recurrent layers the third. Most current designs combine several.
 
 ## 11.2 Mixture of experts
+
+Larger models know more, but in a dense transformer every parameter is used for every token, so knowledge and compute per token grow together. Mixture of experts breaks that link. Each token is processed by only a few of many feed-forward "experts", so the model can hold far more parameters than it uses on any one token. Most frontier models now use it, and its difficulties are practical rather than conceptual: keeping the experts evenly used, and moving tokens between GPUs.
 
 **The idea.** Replace the single FFN in a block with E expert FFNs and a small router. For each token, the router produces a score per expert; the token goes to the top k experts and their outputs are mixed with the (renormalised) router weights. Total parameters grow with E, but compute per token grows only with k.
 
@@ -70,6 +78,8 @@ class MoE(nn.Module):
 
 ## 11.3 Attention variants for memory and length
 
+During generation, the dominant memory cost is the KV cache: keys and values for every previous token, in every layer, for every user. It often limits how many users a GPU can serve and how long their contexts can be. The variants in this section keep full softmax attention but store less: fewer key and value heads, compressed keys and values, or a window of recent tokens only.
+
 **MQA and GQA** (Chapter 10) share key and value heads across query heads: 8 KV heads instead of 128 shrink the cache 16×.
 
 **Multi-head latent attention (MLA)**, from DeepSeek-V2, goes further. Each token's keys and values are produced from a single low-dimensional latent vector (512 dimensions in DeepSeek-V3), and only that latent is cached; per-head keys and values are reconstructed on the fly, and the up-projections can be folded into the query and output projections. RoPE does not commute with that folding, so a small separate set of "decoupled" rotary dimensions (64) carries position. Per token per layer in bf16:
@@ -96,6 +106,8 @@ The main attention becomes roughly O(L·k) instead of O(L²); the indexer is sti
 
 ## 11.4 Linear attention and state-space models
 
+Softmax attention has to look back at every earlier token, so its cost per generated token grows with the length of the context. Recurrent models have a fixed-size memory and a constant cost per token, but Chapter 8 showed why classic RNNs lost: they trained slowly and forgot. The models in this section are recurrent in how they run, with a fixed-size state, but they are designed to train in parallel like a transformer and to remember far better than an LSTM.
+
 **Linear attention.** Softmax attention needs all past keys. Replace exp(q·k) with a product of feature maps φ(q)·φ(k) and the sum over the past can be accumulated in a d × d state:
 
 S_t = S_(t−1) + φ(k_t) v_tᵀ,  output_t = φ(q_t)ᵀ S_t / φ(q_t)ᵀ z_t
@@ -121,6 +133,8 @@ That is an RNN with a matrix-valued state: constant memory per token at inferenc
 
 ## 11.5 Hybrid models
 
+Fixed-size memories are efficient but lossy: a state of a few megabytes cannot hold every detail of a million-token document, and pure linear models are measurably worse at exact recall, such as copying a phone number from far back. Hybrid models accept a small amount of quadratic attention to fix this. Most layers are linear-time, and a few full-attention layers give the model a way to look up exact details when it needs to.
+
 Keep a minority of full-attention layers for precise retrieval and make the rest linear-time:
 
 - **Jamba** (2024): Mamba layers with one attention layer in eight, plus MoE.
@@ -132,12 +146,16 @@ The design questions are the ratio (1:3 to 1:8 is typical), where the attention 
 
 ## 11.6 Multi-token prediction
 
+Next-token prediction gives the model one learning signal per position, about the immediate next token, and decoding produces one token per forward pass. Predicting several future tokens at once attacks both limitations: it gives a richer training signal that encourages planning ahead, and it provides draft tokens that can speed up generation.
+
 Standard training predicts only the next token. **Multi-token prediction** adds heads (or small extra transformer modules, as in DeepSeek-V3) that predict tokens t+2, t+3, ... from the same trunk. Two motivations:
 
 - **Training signal.** Planning a few tokens ahead may improve representations, especially for code; reported gains are mixed and scale-dependent.
 - **Faster inference.** The extra heads are a built-in draft model for **speculative decoding** (Chapter 21): propose several tokens, verify them in one forward pass. This is often the bigger practical win.
 
 ## 11.7 Diffusion language models
+
+Every model so far writes left to right, one token at a time, and can never revise what it has written. Diffusion language models generate a whole block of text in parallel and refine it over several steps, as image diffusion models refine pixels. Whether that can match autoregressive quality is an open research question, but the approach is now competitive enough at small and medium scale to be worth understanding.
 
 Autoregressive models generate one token at a time, left to right. **Masked diffusion models** start from a fully masked sequence and, over a number of steps, predict all masked positions in parallel, keep the most confident predictions and re-mask the rest.
 
@@ -155,6 +173,8 @@ LLaDA (2025) trained an 8B diffusion LM that was competitive with autoregressive
 
 ## 11.8 Evaluating a new architecture
 
+Claims that a new architecture "matches or beats the transformer" appear every few weeks, and few survive independent replication. The usual problems are not fraud but unfair comparisons: a weak baseline, a small scale, or benchmarks that do not test what the new design gives up. Knowing the standard checks lets you read such claims critically, and design your own comparisons so that they convince others.
+
 Most "X beats the transformer" claims dissolve under these checks:
 
 | Check | Why |
@@ -167,6 +187,8 @@ Most "X beats the transformer" claims dissolve under these checks:
 | Seeds and confidence intervals (Chapter 23) | Small differences are often noise |
 
 ## 11.9 A worked design: a long-context model on a fixed budget
+
+Architecture choices are ultimately made against a budget. This worked case shows the reasoning a design review expects: compute the memory each option needs, see which constraint binds, and choose the cheapest change that relieves it.
 
 Suppose you must serve an 8B-scale assistant with 256k-token contexts on GPUs with 80 GB of memory, at 16 concurrent sequences per GPU. Work through the options with the numbers from this chapter and Chapter 10.
 

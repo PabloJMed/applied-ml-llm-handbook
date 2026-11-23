@@ -8,6 +8,10 @@ On a food-delivery app, recommendations decide most of what a user sees: the hom
 
 In interviews for marketplace and consumer-app roles, the ML depth and architecture rounds are very likely to include a recommendation or ranking question. Chapter 46 gives you the answer framework; this chapter gives you the depth an interviewer probes once you are inside the framework. If you already work on recommendations, connect each section as you read to a decision your team has made or should make.
 
+The chapter starts with framing: what a recommender optimises and for whom (43.1). It then builds the classic foundation, collaborative filtering and matrix factorisation (43.2), and the multi-stage architecture that every large system uses (43.3), followed by each stage in turn: two-tower retrieval (43.4), ranking models (43.5) and re-ranking into a page (43.6). Sections 43.7 to 43.9 cover the problems that make recommendation hard in practice: cold start, the feedback loop that exploration breaks, and position bias. The chapter ends with evaluation (43.10) and where LLMs fit in (43.11).
+
+Two ideas recur. Scale forces a funnel: no model can score every item for every user in real time, so cheap models narrow the candidates and expensive ones order them. And the data is shaped by the system itself: users can only click what was shown, so every model trained on logs inherits the biases of the model that produced them.
+
 ## Key concepts
 
 - **Collaborative filtering**: recommend what similar users liked, using only the interaction matrix. [Collaborative filtering](https://en.wikipedia.org/wiki/Collaborative_filtering); [Google's recommendation systems course](https://developers.google.com/machine-learning/recommendation) is a gentle introduction.
@@ -98,11 +102,15 @@ def item_item_scores(R, user):
 
 *Explicit ratings:* minimise the error only on observed cells:
 
-`L = Σ over observed (u,i) of (rᵤᵢ − uᵤ·vᵢ)² + λ(‖uᵤ‖² + ‖vᵢ‖²)`
+$$
+\mathcal{L} = \sum_{(u,i)\,\mathrm{observed}}\left(r_{ui} - \mathbf{u}_u\cdot\mathbf{v}_i\right)^2 + \lambda\left(\Vert\mathbf{u}_u\Vert^2 + \Vert\mathbf{v}_i\Vert^2\right)
+$$
 
 *Implicit feedback (Hu, Koren and Volinsky, 2008):* every cell counts. The preference pᵤᵢ is 1 if the user interacted and 0 otherwise; the confidence cᵤᵢ = 1 + α·rᵤᵢ grows with the number of interactions:
 
-`L = Σ over all (u,i) of cᵤᵢ (pᵤᵢ − uᵤ·vᵢ)² + λ(‖uᵤ‖² + ‖vᵢ‖²)`
+$$
+\mathcal{L} = \sum_{u,i} c_{ui}\left(p_{ui} - \mathbf{u}_u\cdot\mathbf{v}_i\right)^2 + \lambda\left(\Vert\mathbf{u}_u\Vert^2 + \Vert\mathbf{v}_i\Vert^2\right)
+$$
 
 **ALS (alternating least squares)** solves this efficiently: fix the item vectors and each user vector has a closed-form solution, uᵤ = (VᵀCᵤV + λI)⁻¹ VᵀCᵤpᵤ; then fix the users and solve each item; repeat. Each step is a small ridge regression, so it parallelises well (Spark ALS).
 
@@ -440,7 +448,9 @@ ndcg_at_k([5, 3, 9, 1], relevant=[3, 7], k=3)     # ~0.39
 
 **Offline replay (off-policy evaluation).** Logs only tell you what happened for the items the old policy showed. To estimate how a new policy would have done, reweight logged rewards by how much more or less likely the new policy is to take the same action:
 
-`V̂(new) = (1/n) Σ rᵢ × π_new(aᵢ | xᵢ) / π_log(aᵢ | xᵢ)`
+$$
+\hat V(\mathrm{new}) = \dfrac{1}{n}\sum_{i=1}^{n} r_i\,\dfrac{\pi_{\mathrm{new}}(a_i\mid x_i)}{\pi_{\mathrm{log}}(a_i\mid x_i)}
+$$
 
 ```python
 def ips_value(rewards, p_new, p_logged, clip=10.0):

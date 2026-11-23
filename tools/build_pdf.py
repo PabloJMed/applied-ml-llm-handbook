@@ -11,6 +11,7 @@ The PDF has a linked contents page, bookmarks, running headers and page numbers.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import re
 import shutil
@@ -51,9 +52,11 @@ PARTS = [
 # Page presets: page size, margins (left/right, top, bottom), base font size, line height (lh),
 # vertical spacing between blocks (gap, a multiplier) and figure width (img, % of the text width).
 # The book preset was set denser in November 2026 (from 9 pt, lh 1.42, margins 48/58/54, gap 1.0,
-# img 78): 530 pages became 457. Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
+# img 78): 530 pages became 457. After a printed proof (the 7 x 10 in page is scaled up about 1.18x
+# when printed on A4) the type went down to 8 pt with a little more space between blocks (lh 1.4,
+# gap 0.95). Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
 PRESETS = {
-    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=8.6, lh=1.36, gap=0.85, img=72),
+    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=8.0, lh=1.4, gap=0.95, img=70),
     "a4": dict(page=pymupdf.paper_rect("a4"), mx=66, top=70, bottom=62, base=9.8),
 }
 
@@ -82,14 +85,14 @@ def css(base: float, lh: float = 1.42, gap: float = 1.0, img: int = 78) -> str:
 @font-face {{ font-family: mono; src: url(JetBrainsMono-Italic.ttf); font-style: italic; }}
 
 body {{ margin: 0; padding: 0; font-family: serif; font-size: {s(1)}; line-height: {r(1.42)}; color: #1f1f1d; }}
-p {{ margin: 0 0 {v(0.55)} 0; text-align: left; }}
+p {{ margin: 0 0 {v(0.72)} 0; text-align: left; }}
 strong, b {{ font-weight: bold; color: #141413; }}
 em, i {{ font-style: italic; }}
 a {{ color: #8f4a2c !important; text-decoration: none !important; }}
 
 h1, h2, h3, h4 {{ font-family: sans; font-weight: bold; color: #1a1a18; }}
-h2 {{ font-size: {s(1.32)}; line-height: {r(1.25)}; margin: {v(1.45)} 0 {v(0.5)} 0; }}
-h3 {{ font-size: {s(1.08)}; line-height: {r(1.3)}; margin: {v(1.15)} 0 {v(0.35)} 0; }}
+h2 {{ font-size: {s(1.22)}; line-height: {r(1.25)}; margin: {v(1.6)} 0 {v(0.75)} 0; }}
+h3 {{ font-size: {s(1.04)}; line-height: {r(1.3)}; margin: {v(1.25)} 0 {v(0.55)} 0; }}
 h4 {{ font-size: {s(1.0)}; margin: {v(1.1)} 0 {v(0.3)} 0; }}
 span.sec {{ color: #b8623f; }}
 
@@ -104,15 +107,21 @@ li {{ margin: 0 0 {v(0.22)} 0; }}
 li p {{ margin: 0 0 {v(0.25)} 0; }}
 blockquote {{ margin: {v(0.4)} 0 {v(0.8)} 0; padding-left: {s(0.9)}; border-left: 1.2pt solid #c98a6c; color: #4f4d48; }}
 
-table {{ border-collapse: collapse; margin: {v(0.45)} 0 {v(1.05)} 0; font-family: sans; font-size: {s(0.8)};
-        line-height: {r(1.38)}; width: 100%; border-top: 0.9pt solid #3a3935; border-bottom: 0.9pt solid #3a3935; }}
-th {{ font-weight: bold; text-align: left; border-bottom: 0.6pt solid #3a3935; padding: {v(0.4)} {s(0.6)}; vertical-align: bottom; }}
-td {{ border-bottom: 0.35pt solid #dcd7cd; padding: {v(0.36)} {s(0.6)}; vertical-align: top; }}
+table {{ border-collapse: collapse; margin: {v(0.55)} 0 {v(1.1)} 0; font-family: sans; font-size: {s(0.8)};
+        line-height: {r(1.38)}; width: 100%; }}
+th {{ font-weight: bold; text-align: left; color: #1d3b5a;
+     padding: {v(0.42)} {s(0.6)}; vertical-align: bottom; border-bottom: 0.8pt solid #9fbcd8; }}
+td {{ border-bottom: 0.5pt solid #ffffff; padding: {v(0.36)} {s(0.6)}; vertical-align: top; }}
+div.tbl {{ background-color: #eef4fa; border-top: {v(0.3)} solid #eef4fa; border-bottom: {v(0.3)} solid #eef4fa;
+          padding: 0 {s(0.2)}; margin: {v(0.55)} 0 {v(1.1)} 0; }}
+div.tbl table {{ margin: 0; }}
 td code, th code {{ font-size: {s(0.74)}; }}
 td strong {{ font-family: sans; }}
 
 img {{ width: {img}%; }}
 p.fig {{ text-align: center; margin: {v(0.5)} 0 {v(0.25)} 0; }}
+p.eq {{ text-align: center; margin: {v(0.45)} 0 {v(0.75)} 0; }}
+p.eq img {{ width: 100%; }}
 p.caption {{ font-family: sans; font-size: {s(0.78)}; color: #6e6c66; text-align: center; margin: 0 0 {v(1.0)} 0; }}
 hr {{ border: none; border-top: 0.5pt solid #d8d2c6; margin: {v(0.8)} 0; }}
 
@@ -126,7 +135,7 @@ p.spacer {{ margin: 0; font-size: 1pt; line-height: 1; }}
 .tighter h2 {{ margin-top: {v(1.2)}; }}
 .partlabel {{ font-family: sans; font-weight: bold; font-size: {s(0.72)}; color: #b8623f; margin: {s(1.0)} 0 {s(1.6)} 0; }}
 .chapnum {{ font-family: sans; font-size: {s(0.95)}; color: #b8623f; margin: 0 0 {s(0.25)} 0; }}
-h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bottom: {s(0.9)};
+h1 {{ font-size: {s(2.0)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bottom: {s(0.9)};
      border-bottom: 0.6pt solid #d8d2c6; }}
 .partintro {{ font-style: italic; color: #5d5b56; margin: 0 0 {s(1.4)} 0; }}
 
@@ -134,6 +143,15 @@ h1 {{ font-size: {s(2.25)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-b
 .box h2 {{ font-size: {s(0.86)}; color: #b8623f; margin: 0 0 {v(0.45)} 0; }}
 .box ul {{ margin-bottom: 0; }}
 .box p {{ margin-bottom: {v(0.45)}; }}
+.box.pitfalls {{ border-left-color: #c9822f; }}
+.box.pitfalls h2 {{ color: #a8641c; }}
+.box.questions {{ border-left-color: #5b88b5; }}
+.box.questions h2 {{ color: #35628f; }}
+.box.practice {{ border-left-color: #6d9f71; }}
+.box.practice h2 {{ color: #3f7a45; }}
+.box.readnext {{ border-left-color: #9a958b; }}
+.box.readnext h2 {{ color: #6e6a62; }}
+.box.readnext p, .box.readnext li {{ color: #4f4d48; }}
 
 .cover {{ page-break-after: always; }}
 .dedication {{ page-break-after: always; }}
@@ -219,7 +237,8 @@ def add_ids(key: str, body: str) -> str:
         elif m.group(1) == "p" and re.match(r'(?:(?!</p>).)*:(?:</strong>|</em>|</b>)*</p>\s*<(?:ul|ol|pre|table|div)', body[m.end():], flags=re.S):
             KEEP.add(eid)
     body = re.sub(r'<(h2|h3|h4|table|pre|p|ul|ol|div)((?: [^>]*)?)>', tag, body)
-    for m in re.finditer(r'<(?:table|pre) id="([^"]+)"|<div id="([^"]+)" class="(?:brk )?box"', body):
+    # tables are wrapped in <div class="tbl">: the wrapper, not the table inside it, is the tall block
+    for m in re.finditer(r'<pre id="([^"]+)"|<div id="([^"]+)" class="(?:brk )?(?:box|tbl)[^"]*"', body):
         TALL.add(m.group(1) or m.group(2))
     for m in re.finditer(r'<h[234] id="([^"]+)"', body):
         KEEP.add(m.group(1))
@@ -268,12 +287,69 @@ def wrap_code(markdown: str, cols: int) -> str:
     return re.sub(r"(^```[^\n]*\n)(.*?)(\n```)", fix, markdown, flags=re.S | re.M)
 
 
-def wrap_box(body: str, heading: str) -> str:
-    """Wrap an h2 section (up to the next h2) in a ruled box."""
+def wrap_box(body: str, heading: str, cls: str = "") -> str:
+    """Wrap an h2 section (up to the next h2) in a ruled box; `cls` adds a style variant."""
     m = re.search(rf"<h2>{re.escape(heading)}</h2>(.*?)(?=<h2>|\Z)", body, flags=re.S)
     if not m:
         return body
-    return body[:m.start()] + f'<div class="box"><h2>{heading}</h2>{m.group(1)}</div>' + body[m.end():]
+    return body[:m.start()] + f'<div class="box{" " + cls if cls else ""}"><h2>{heading}</h2>{m.group(1)}</div>' + body[m.end():]
+
+
+EQ_RE = re.compile(r"^\$\$[ \t]*\n(.*?)\n\$\$[ \t]*$", re.S | re.M)
+EQ_DIR: Path | None = None    # temporary folder holding the rendered equation images
+EQ_WIDTH = 416.0              # text width in pt, set in main()
+EQ_SIZE = 9.5                 # equation font size in pt, set in main()
+
+
+def equations(key: str, text: str) -> list[tuple[str, str]]:
+    """The display equations of a chapter, in order, as (LaTeX, number label). Chapters are numbered
+    Eq. 10.1, Eq. 10.2, ...; appendices are not. ("(10.1)" would read like a section reference.)"""
+    out = []
+    for n, m in enumerate(EQ_RE.finditer(text), 1):
+        label = f"Eq. {int(key)}.{n}" if key.isdigit() else ""
+        out.append((" ".join(m.group(1).split()), label))
+    return out
+
+
+def equation_name(latex: str, label: str) -> str:
+    return "eq-" + hashlib.sha1(f"{latex}|{label}|{EQ_WIDTH}|{EQ_SIZE}".encode()).hexdigest()[:12] + ".png"
+
+
+def render_equation(latex: str, label: str, path: Path) -> None:
+    """Typeset one display equation (matplotlib mathtext, STIX fonts) as a transparent PNG that is
+    exactly the text width wide: the formula centred, its number at the right margin."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    import matplotlib as mpl
+
+    mpl.rcParams["mathtext.fontset"] = "stix"
+    w = EQ_WIDTH / 72
+    fig = Figure(figsize=(w, 1.0))
+    FigureCanvasAgg(fig)
+    ink = "#1f1f1d"
+    t = fig.text(0.5, 0.5, f"${latex}$", ha="center", va="center", fontsize=EQ_SIZE, color=ink)
+    fig.canvas.draw()
+    bb = t.get_window_extent()
+    if bb.width > fig.bbox.width * 0.9:
+        raise SystemExit(f"equation too wide for the page: {latex[:60]}...")
+    h = bb.height / fig.dpi + 2 * 0.04
+    fig.set_size_inches(w, h)
+    t.set_position((0.5, 0.5))
+    if label:
+        fig.text(0.999, 0.5, label, ha="right", va="center", fontsize=EQ_SIZE * 0.9,
+                 color=ink, family="STIXGeneral")
+    fig.savefig(path, dpi=300, transparent=True)
+
+
+def prepare_equations() -> Path:
+    """Render every display equation of the book into a temporary folder (added to the Story archive)."""
+    tmp = Path(tempfile.mkdtemp(prefix="handbook-eq-"))
+    for key, path in chapter_files().items():
+        for latex, label in equations(key, path.read_text(encoding="utf-8")):
+            dst = tmp / equation_name(latex, label)
+            if not dst.exists():
+                render_equation(latex, label, dst)
+    return tmp
 
 
 def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
@@ -286,7 +362,15 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     text = re.sub(r"\]\(\.\./((?:code|flashcards|tools)/[^)]*)\)", rf"](https://{REPO}/tree/main/\1)", text)
     first, _, rest = text.partition("\n")
     title = first.lstrip("# ").strip()
+    eqs = equations(key, rest)
+    it = iter(range(len(eqs)))
+    rest = EQ_RE.sub(lambda m: f"@@EQ{next(it)}@@", rest)
     body = md.render(wrap_code(rest, CODE_COLS))
+    for i, (latex, label) in enumerate(eqs):
+        alt = html.escape(latex, quote=True)
+        body = body.replace(f"<p>@@EQ{i}@@</p>", f'<p class="eq"><img src="{equation_name(latex, label)}" alt="{alt}"></p>')
+    if "@@EQ" in body:
+        raise SystemExit(f"{path.name}: a $$ equation block is not a paragraph of its own (run tools/check_book.py)")
     # The first paragraph repeats the part name ("Part I · Foundations. Assumes ..."); the part is
     # shown above the title, so drop it and set the rest as the chapter's italic intro.
     body = re.sub(r"^<p>Part [IVX]+ · (?:[^.<:]*\.\s*)?", '<p class="partintro">', body, count=1)
@@ -296,8 +380,12 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     body = re.sub(r"<p><img ([^>]*)></p>", r'<p class="fig"><img \1></p>', body)
     # Section numbers in the accent colour.
     body = re.sub(r"<h([23])>([0-9]+[a-z]?\.[0-9]+(?:\.[0-9]+)?|[A-F]\.[0-9]+) ", r'<h\1><span class="sec">\2</span>&#160;&#160;', body)
-    for h in ("Key concepts", "Done when"):
-        body = wrap_box(body, h)
+    # Tables sit on a light-blue panel. The colour goes on a wrapping div: MuPDF's Story paints
+    # table and cell backgrounds at wrong positions on other pages.
+    body = re.sub(r"<table>(.*?)</table>", r'<div class="tbl"><table>\1</table></div>', body, flags=re.S)
+    for h, cls in (("Key concepts", ""), ("Done when", ""), ("Pitfalls", "pitfalls"),
+                   ("Interview questions", "questions"), ("Practice", "practice"), ("Read next", "readnext")):
+        body = wrap_box(body, h, cls)
     return title, add_ids(key, body)
 
 
@@ -384,17 +472,26 @@ def main() -> int:
     archive = pymupdf.Archive()
     archive.add(pymupdf.Archive(str(font_dir)))
     archive.add(pymupdf.Archive(str(CHAPTERS)))
+    global EQ_WIDTH, EQ_SIZE
+    EQ_WIDTH, EQ_SIZE = PAGE.width - 2 * MX, BASE * 1.12
+    archive.add(pymupdf.Archive(str(prepare_equations())))
 
     def rectfn(rect_num, filled):
         return PAGE, pymupdf.Rect(MX, TOP, PAGE.width - MX, PAGE.height - BOTTOM), None
 
     collected: list = []
+    passes = {"n": 0}            # layout passes in the current layout() run
 
     line = BASE * LH
     floor = PAGE.height - BOTTOM                 # bottom of the text area
 
     def contentfn(positions):
         collected[:] = positions
+        passes["n"] += 1
+        if passes["n"] > 25:
+            # Page breaks only accumulate, so a layout normally settles in a few passes. If two
+            # breaks keep displacing each other, stop adding new ones so the layout can converge.
+            return build_html(positions)
         starts = [p for p in (positions or []) if (p.open_close & 1) and p.id and p.id.startswith("e")]
         for prev, nxt in zip(starts, starts[1:]):
             # a heading or lead-in line whose next block starts on a later page moves with it
@@ -408,6 +505,7 @@ def main() -> int:
         return build_html(positions)
 
     def layout():
+        passes["n"] = 0
         return pymupdf.Story.write_stabilized_with_links(
             contentfn, rectfn, user_css=css(BASE, LH, GAP, IMG), em=BASE, archive=archive, add_header_ids=False)
 

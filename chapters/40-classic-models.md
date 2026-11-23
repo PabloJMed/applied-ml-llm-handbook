@@ -6,6 +6,10 @@ Part XI · Applied ML systems (optional track). Assumes Chapter 3 (losses, regul
 
 Most production ML on tabular data still runs on these models: logistic regression and gradient boosting rank, score fraud, forecast and classify at every delivery company. Interviewers use them to test depth ("how does a tree choose a split?", "why does boosting overfit less with a small learning rate?") and coding ("implement k-means", "implement logistic regression"). Knowing them well also makes you better at judging when a deep model or an LLM is worth its cost.
 
+Each section follows the same pattern, so the models are easy to compare: the intuition in a sentence or two, the maths that matters, a from-scratch implementation where it is short enough to write in an interview, and when to use the model. The order runs from linear models (40.1, 40.2), through trees and their ensembles (40.3 to 40.5), to distance-based, margin-based and probabilistic models (40.6 to 40.8), and two unsupervised methods (40.9, 40.10). Section 40.11 turns it into a decision table.
+
+The models differ mainly in their assumptions about what the decision boundary looks like: linear, axis-aligned boxes, local neighbourhoods, or a maximum-margin surface. Knowing those assumptions is what lets you predict which model will do well on a dataset before trying it, and explain why a gradient-boosted tree is still the default for most tabular problems.
+
 ## Key concepts
 
 - **Linear regression**: predicts a number as a weighted sum of features, fitted by least squares. [Linear regression](https://en.wikipedia.org/wiki/Linear_regression).
@@ -22,7 +26,13 @@ Most production ML on tabular data still runs on these models: logistic regressi
 
 **Intuition.** Predict a number as a weighted sum of features: ŷ = w·x + b. Fit the weights that minimise squared error.
 
-**Maths.** With a column of ones for the bias, the least-squares solution is the **normal equation** w = (XᵀX)⁻¹Xᵀy; ridge adds λI inside the inverse, which also makes it stable when features are correlated. For large data, use gradient descent instead (Chapter 3.5).
+**Maths.** With a column of ones for the bias, the least-squares solution is the **normal equation**
+
+$$
+w = \left(X^{\top}X\right)^{-1}X^{\top}y
+$$
+
+Ridge adds λI inside the inverse, which also makes it stable when features are correlated. For large data, use gradient descent instead (Chapter 3.5).
 
 ```python
 import numpy as np
@@ -142,7 +152,13 @@ This reaches 0.983 test accuracy on the same data where one tree gets 0.906 (sci
 
 **Intuition.** Build trees one after another, each fitting the errors the ensemble still makes, and add each with a small weight (the learning rate). Bagging reduces variance with deep trees in parallel; boosting reduces bias with shallow trees in sequence.
 
-**Maths.** Boosting is gradient descent in function space: at each step, fit a tree to the **negative gradient of the loss** with respect to the current predictions, then step in that direction: Fₘ(x) = Fₘ₋₁(x) + η·hₘ(x). For squared loss, the negative gradient is simply the residual y − F(x). For log loss it is y − p, and so on, so any differentiable loss works (including ranking losses: LambdaMART, Chapter 44).
+**Maths.** Boosting is gradient descent in function space: at each step, fit a tree to the **negative gradient of the loss** with respect to the current predictions, then step in that direction:
+
+$$
+F_m(x) = F_{m-1}(x) + \eta\,h_m(x),\qquad h_m \approx -\dfrac{\partial L\left(y, F_{m-1}(x)\right)}{\partial F_{m-1}(x)}
+$$
+
+For squared loss, the negative gradient is simply the residual y − F(x). For log loss it is y − p, and so on, so any differentiable loss works (including ranking losses: LambdaMART, Chapter 44).
 
 ```python
 from sklearn.tree import DecisionTreeRegressor
@@ -206,7 +222,13 @@ def knn_predict(X_train, y_train, X_query, k=5):
 
 **Intuition.** Among all lines (hyperplanes) that separate the classes, choose the one with the widest margin to the nearest points, the support vectors. A soft margin allows some violations, traded off by C.
 
-**Maths.** Minimise ½‖w‖² + C∑max(0, 1 − yᵢ(w·xᵢ + b)): L2 regularisation plus the hinge loss. The **kernel trick** replaces dot products with a kernel function (RBF, polynomial), giving non-linear boundaries without computing the high-dimensional features explicitly.
+**Maths.** Minimise
+
+$$
+\dfrac{1}{2}\Vert w\Vert^2 + C\sum_{i=1}^{n}\max\left(0,\ 1 - y_i\,(w\cdot x_i + b)\right)
+$$
+
+L2 regularisation plus the hinge loss. The **kernel trick** replaces dot products with a kernel function (RBF, polynomial), giving non-linear boundaries without computing the high-dimensional features explicitly.
 
 ```python
 def linear_svm(X, y, lam=0.01, epochs=20, seed=0):
