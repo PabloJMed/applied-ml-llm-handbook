@@ -1,10 +1,14 @@
 # 32 · Frameworks and tooling
 
-Part IX · Retrieval and agents.
+Part IX · Retrieval and agents. Assumes Chapters 22 (prompting), 31 (RAG) and 33 (agents) at least in outline: this chapter is about the tools used to build them.
 
 ## Why it matters
 
 Job ads list LangChain, LangGraph, LlamaIndex and Hugging Face, and interviewers ask about them, but what they really test is judgement: when a framework saves time, when it hides bugs, and whether you could build the same thing in plain Python. Framework APIs change every few months, so this chapter teaches the concepts and shapes, not exact signatures. **All framework snippets here are untested sketches: check the current documentation before using them.** The plain-Python code was run.
+
+The chapter starts with a one-table map of the landscape (32.1), then covers the frameworks you are most likely to meet: LangChain (32.2) and LangGraph (32.3) for chains and agents, LlamaIndex for the data side of RAG (32.4), DSPy for optimising prompts as parameters (32.5), and the Hugging Face stack for models (32.6). Section 32.7 gives a decision rule for whether to use a framework at all, 32.8 describes the different stack research scientists use, and 32.9 shows a RAG step written in plain Python.
+
+Frameworks change quickly; the abstractions underneath them do not. A chain, a state machine, a retriever and an optimisable prompt are the same ideas in every library. Learning the ideas lets you pick up any framework in an afternoon, and recognise when the framework is adding complexity rather than removing it.
 
 ## Key concepts
 

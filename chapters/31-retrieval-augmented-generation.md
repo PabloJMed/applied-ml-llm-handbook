@@ -8,6 +8,10 @@ RAG (retrieval-augmented generation) is the most common way companies put LLMs t
 
 A RAG design question (worked design E.4) is very likely in any applied-LLM system design round. Interviewers look for whether you see RAG as a retrieval system with an LLM at the end, can name where it fails, and can measure and fix each failure.
 
+The chapter follows a question through a RAG system. It starts with the whole pipeline, offline indexing and online answering (31.1), then takes the offline side: parsing and chunking documents (31.2) and the metadata that makes filtering possible (31.3). The online side follows: rewriting the question into better search queries (31.4), choosing and ordering the passages the model will read (31.5), and generating an answer with citations that can be checked (31.6). Sections 31.7 and 31.8 cover two extensions, graph-based retrieval and agentic retrieval that searches in several steps. The chapter ends with a table of common failures and their fixes (31.9) and a worked debugging session (31.10).
+
+The guiding principle is that a RAG system is only as good as its weakest stage, and the weakest stage is usually not the language model. Most production failures trace back to parsing, chunking or retrieval: the right passage was never indexed cleanly, or never retrieved. Debugging starts at the beginning of the pipeline, not the end.
+
 ## Key concepts
 
 - **Retrieval-augmented generation (RAG)**: retrieve relevant documents and give them to the LLM as context, so answers are grounded and knowledge can be updated without retraining. [RAG paper](https://arxiv.org/abs/2005.11401).
@@ -111,6 +115,8 @@ Run on a small refunds policy, this produces chunks such as `[Help centre > Refu
 
 ## 31.3 Metadata and filtering
 
+Similarity alone cannot answer "what is the refund policy in the UAE as of this year?": the right passage depends on the country and the date, not just the wording. Storing structured metadata with each chunk lets retrieval apply those constraints exactly, which is often worth more than a better embedding model.
+
 Store metadata with each chunk: source, document id, section, language, country, audience (customer, rider, partner), product, effective date, version, and access permissions. Then:
 
 - **Filter** on hard constraints before or during retrieval: country, audience, language, and above all **permissions** (Chapter 30.5: access control belongs in retrieval, never in the prompt).
@@ -209,6 +215,8 @@ What to do with a failed check depends on the stakes: regenerate, drop the unsup
 
 ## 31.7 GraphRAG
 
+Some questions are not answered by any single passage: "what themes come up across all complaints this quarter?" needs a view of the whole collection. Graph-based RAG builds an explicit structure of entities and relationships, or summaries of document communities, so that such global questions can be answered from it.
+
 Standard RAG retrieves passages similar to the question. It struggles with **global questions** that need the whole corpus ("what are the main themes in this year's complaints?") and with **multi-hop questions** across entities ("which partners affected by the March policy change also had late-delivery escalations?").
 
 **GraphRAG** (Microsoft, 2024) builds a knowledge graph offline: an LLM extracts entities and relationships from every chunk, groups the graph into communities, and writes a summary per community. Global questions are answered from community summaries (map-reduce); local questions combine graph neighbours with text chunks.
@@ -216,6 +224,8 @@ Standard RAG retrieves passages similar to the question. It struggles with **glo
 **Trade-offs:** indexing is expensive (LLM calls over the whole corpus) and must be redone as documents change; extraction errors propagate; it pays off for analysis over a fixed corpus and for entity-heavy domains, rarely for a help centre answering specific questions. A lighter version: store extracted entities as metadata and filter or join on them.
 
 ## 31.8 Agentic RAG
+
+A single retrieve-then-generate pass fails when the question needs several lookups, or when the first search shows that the question should have been asked differently. Agentic RAG lets the model decide when and what to search, read the results and search again, at the cost of more latency and less predictability.
 
 Instead of one fixed retrieve-then-generate pass, an agent (Chapter 33) decides: whether to retrieve at all, which source or tool to use (vector index, SQL, an orders API), whether results are good enough, and whether to search again with a refined query. Research variants include Self-RAG (the model judges when to retrieve and whether passages support its output) and Corrective RAG (grade retrieved documents and fall back to other sources when they are poor).
 

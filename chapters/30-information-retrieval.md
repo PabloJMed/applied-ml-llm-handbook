@@ -8,6 +8,10 @@ Retrieval is the part of a RAG or search system that most often decides whether 
 
 For a Senior Applied ML role with an LLM focus, you should be able to explain how an inverted index and an HNSW graph work, choose between sparse, dense, hybrid and re-ranked retrieval, pick a vector store for a given scale, and evaluate retrieval separately from generation. All of this comes up in both the ML depth and the architecture rounds.
 
+The chapter starts with the landscape: the families of retrieval methods and how they fit into a pipeline (30.1). It then covers the two main ways of finding candidates, sparse retrieval with an inverted index and BM25 (30.2) and dense retrieval with embeddings (30.3), followed by the machinery that makes dense retrieval fast at scale: approximate nearest-neighbour search (30.4) and vector databases with filtering (30.5). Sections 30.6 to 30.8 improve quality: fusing sparse and dense results, re-ranking the top candidates with a stronger model, and rewriting the query before searching. The chapter ends with evaluation (30.9), frontier topics (30.10) and a worked index sizing (30.11).
+
+Retrieval is a funnel. Each stage trades accuracy for speed: the first stage must search millions of documents in milliseconds, so it uses cheap representations; later stages see only a few hundred candidates, so they can afford expensive models. Most design decisions in this chapter are about where to put each method in that funnel.
+
 ## Key concepts
 
 - **Inverted index**: for each word, the list of documents containing it; the data structure behind classic search. [Inverted index](https://en.wikipedia.org/wiki/Inverted_index).
@@ -63,6 +67,14 @@ idx.search("late delivery")    # doc 2 first: it contains both terms
 ```
 
 **TF-IDF** scores a document by term frequency (how often the term appears) times inverse document frequency (how rare the term is across the collection). **BM25** improves it in two ways: term frequency saturates (the tenth "pizza" adds little), and long documents are normalised so they do not win just by containing more words. The BM25 formula and a from-scratch implementation are in Chapter 44.3. Real systems add tokenisation and stemming per language, field weights (title counts more than body), and phrase matching.
+
+In full, a document d's BM25 score for a query q sums over the query's terms t:
+
+$$
+\mathrm{BM25}(q,d) = \sum_{t\in q}\mathrm{IDF}(t)\,\dfrac{\mathrm{tf}(t,d)\,(k_1+1)}{\mathrm{tf}(t,d) + k_1\left(1 - b + b\,\frac{|d|}{\mathrm{avgdl}}\right)}
+$$
+
+where tf(t, d) is how often t occurs in d, |d| is the document's length and avgdl the average length in the collection. The fraction is the saturating term-frequency factor plotted below.
 
 ![BM25's term-frequency factor, tf × (k1 + 1) / (tf + k1 × (1 − b + b × length / average length))](images/30-fig-1.png)
 

@@ -6,6 +6,10 @@ Part X · Research craft and interviews. Builds on Chapter 34 (research craft), 
 
 Interviews for research scientist roles in LLMs test different things from applied ML loops. Besides coding and depth questions, you will usually face a **research design** round ("how would you test whether X improves Y?"), a **paper discussion** (yours or someone else's), a **research presentation** on your past work, and sometimes a **take-home research task**. These rounds test judgement: whether you ask the right question, design an experiment that answers it, anticipate confounds, read results sceptically and communicate clearly. This chapter explains what each round looks for and works through example answers.
 
+The chapter starts with the shape of a typical research interview loop (36.1), then takes each round in turn: the research design round (36.2), the paper discussion (36.3), the research presentation (36.4) and take-home tasks (36.5). Section 36.6 covers the depth and coding rounds as they differ for research roles, and 36.7 the questions you should ask. The chapter ends with a worked paper discussion of DPO (36.8).
+
+Research rounds probe judgement more than knowledge: what you would test first, what result would change your mind, which confounder worries you, and what you would do with a disappointing result. The best preparation is practising out loud on real questions, and this chapter gives the structure for doing so.
+
 ## Key concepts
 
 - **Research design round**: an open problem, a hypothesis, an experiment plan, risks and decision rules.

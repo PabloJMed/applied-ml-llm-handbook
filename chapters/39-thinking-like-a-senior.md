@@ -1,10 +1,14 @@
 # 39 · Thinking like a senior
 
-Part X · Research craft and interviews.
+Part X · Research craft and interviews. No prerequisites; draws on the system-design and experiment chapters for examples. Chapter 38 covers how to show these qualities in behavioural interviews.
 
 ## Why it matters
 
 Technical depth gets you into the room; judgement is what interviewers score for seniority. Across every round (coding, ML depth, system design, behavioural) they listen for the same signals: do you start from the problem rather than the model, do you name trade-offs, do you know when to stop, can you say "I'm not sure" usefully, and do other people get better around you? This chapter turns those signals into habits and phrases you can practise. It is short on purpose; the practice is in using it in every other chapter.
+
+The chapter covers the habits that distinguish senior work, each with concrete examples. It starts with reasoning about trade-offs (39.1) and product sense (39.2), then scoping and saying no (39.3), communicating uncertainty (39.4) and leading without authority (39.5). Sections 39.6 and 39.7 turn these into how you speak in an interview, and 39.8 covers what seniority looks like in research specifically. The chapter ends with a worked scoping conversation (39.9).
+
+What these habits share is a focus on decisions rather than tasks. A junior engineer is given a well-defined problem and solves it; a senior one works out which problem is worth solving, what would be good enough, and what to tell the people who must decide. Interviews for senior roles test exactly that shift.
 
 ## Key concepts
 

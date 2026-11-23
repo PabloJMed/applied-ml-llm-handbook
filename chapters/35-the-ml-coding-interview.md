@@ -6,6 +6,10 @@ Part X · Research craft and interviews. Pulls together the from-scratch code ac
 
 For many experienced data scientists, coding is the decisive gap: the area most likely to fail an otherwise strong loop. The good news is that ML coding rounds reward practice more than talent: the same twenty or so patterns come up again and again. This chapter lists them, gives you working code for the most common ones, and a plan for practising with autocomplete off until they are automatic.
 
+The chapter starts with the formats coding rounds take (35.1) and a six-step approach that works for any question (35.2). It then covers the material: pandas (35.3) and SQL (35.4) patterns for data questions, algorithms to implement from scratch (35.5), object-oriented design for ML code (35.6) and testing (35.7). Section 35.8 lists where to practise and how much, 35.9 covers the from-scratch model components research roles ask for, and 35.10 works through a full question in fifteen minutes.
+
+Coding rounds test two things at once: whether you can produce correct code under time pressure, and whether you work the way a good colleague would, clarifying the problem, checking edge cases and testing without being asked. Candidates who know the material often fail on the second, and it is the easier one to practise.
+
 ## Key concepts
 
 - **Coding round formats**: algorithmic problems, ML from scratch (implement k-means or logistic regression), data manipulation (pandas or SQL), and practical design (write a small, clean class or service).

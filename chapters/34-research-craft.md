@@ -8,6 +8,10 @@ Two researchers with the same knowledge and compute produce very different outpu
 
 Numbers in this chapter come from `code/ch34_check.py` (seconds).
 
+The chapter follows a research project from start to finish. It begins with what craft consists of (34.1) and how to choose a problem worth working on (34.2), then covers reading papers efficiently (34.3) and reproducing results before building on them (34.4). Sections 34.5 to 34.8 are the experimental core: designing experiments that can answer the question, handling noise between seeds, budgeting compute for fast iteration, and the infrastructure that keeps results trustworthy. The chapter ends with writing (34.9), collaboration and integrity (34.10), and a worked project from question to conclusion (34.11).
+
+The skill underneath all of it is turning a vague idea into an experiment whose outcome would change your mind. Most wasted research time goes into experiments that could not have failed, or whose results could not be distinguished from noise, and every section is in some way a defence against that.
+
 ## Key concepts
 
 - **Research taste**: judgement about which problems are important, tractable and suited to you. [Hamming, "You and Your Research"](https://www.cs.virginia.edu/~robins/YouAndYourResearch.html), [Schulman, "An Opinionated Guide to ML Research"](http://joschu.net/blog/opinionated-guide-ml-research.html).
