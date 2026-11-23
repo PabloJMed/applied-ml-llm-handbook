@@ -1,0 +1,35 @@
+CHANGELOG.md
+  s_6695b7a8fa5137::t_877d2053449683 17
+chapters/21-inference-decoding-and-serving.md
+  s_6695b7a8fa5137::t_24d6eeae973d2b 11-14
+chapters/22-prompting-and-context-engineering.md
+  s_6695b7a8fa5137::t_760b329d60d7dc 11-14,28-29,54-55,93-94,171-172,214-215
+chapters/23-evaluating-models.md
+  s_6695b7a8fa5137::t_bdc9c3458246a3 11-14,43-49
+chapters/24-llm-evaluation.md
+  s_6695b7a8fa5137::t_897c49ea35cb72 13-16,71-72,236-237
+chapters/25-rag-and-agent-evaluation.md
+  s_6695b7a8fa5137::t_80d209cac7bb0e 9-12,24-25,41-42,66-67
+chapters/26-interpretability.md
+  s_6695b7a8fa5137::t_c07299ed1bca4b 11-14,29-30,53-54,73-74,79-80,120-121,148-149
+chapters/27-alignment-and-safety-research.md
+  s_6695b7a8fa5137::t_10188bde848011 11-14
+chapters/28-safety-and-responsible-ai.md
+  s_6695b7a8fa5137::t_746fc0ba2c12c4 3,13-16,44-45,52-53,93-94,122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40da23f73941d66844adbb0abb4b3f18087bc8db",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "unknown"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
