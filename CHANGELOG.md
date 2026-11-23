@@ -1,5 +1,9 @@
 # Changelog
 
+## Smaller body text (November 2026)
+
+- Body 7.4 pt (was 8), after a second printed proof; headings, tables and equations scale with it. Code blocks are set relatively a little larger (0.76 of the body size, was 0.72) so they stay readable.
+
 ## Print format and deeper explanations (November 2026)
 
 **Format**
