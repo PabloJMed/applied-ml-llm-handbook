@@ -1,0 +1,45 @@
+chapters/33-agents-and-tool-use.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 9-12,122-123,130
+  s_6695b7a8fa5137::t_0477df9a65fa8f 131
+chapters/35-the-ml-coding-interview.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 9-12
+chapters/39-thinking-like-a-senior.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 3,9-11
+  s_6695b7a8fa5137::t_f62bc1d4488285 12
+chapters/29-embeddings.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 9-12,25-26,94-95,111
+  s_6695b7a8fa5137::t_ce9bad95a99502 112
+chapters/36-research-interviews.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 9-12
+chapters/31-retrieval-augmented-generation.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 11-14,118-119,218-219,228
+  s_6695b7a8fa5137::t_00489384323f9a 229
+chapters/32-frameworks-and-tooling.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 3,9-11
+  s_6695b7a8fa5137::t_98ff5b73e77634 12
+chapters/38-behavioural-interviews.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 9-12
+chapters/30-information-retrieval.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 11-14,71-77
+  s_6695b7a8fa5137::t_bd067ea5286ea0 78
+chapters/34-research-craft.md
+  s_6695b7a8fa5137::t_562cf8b5c8f945 11-14
+CHANGELOG.md
+  s_6695b7a8fa5137::t_677a74402064a5 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1633de2c737360239ee284f6402c228908b0ff0e",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
