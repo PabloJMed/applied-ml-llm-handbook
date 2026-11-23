@@ -54,9 +54,10 @@ PARTS = [
 # The book preset was set denser in November 2026 (from 9 pt, lh 1.42, margins 48/58/54, gap 1.0,
 # img 78): 530 pages became 457. After a printed proof (the 7 x 10 in page is scaled up about 1.18x
 # when printed on A4) the type went down to 8 pt with a little more space between blocks (lh 1.4,
-# gap 0.95). Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
+# gap 0.95), and after a second proof to 7.4 pt, with code blocks relatively a little larger
+# (0.76 of the body size, was 0.72) so they stay readable. Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
 PRESETS = {
-    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=8.0, lh=1.4, gap=0.95, img=70),
+    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=7.4, lh=1.4, gap=0.95, img=70),
     "a4": dict(page=pymupdf.paper_rect("a4"), mx=66, top=70, bottom=62, base=9.8),
 }
 
@@ -97,10 +98,10 @@ h4 {{ font-size: {s(1.0)}; margin: {v(1.1)} 0 {v(0.3)} 0; }}
 span.sec {{ color: #b8623f; }}
 
 code {{ font-family: mono; font-size: {s(0.82)}; color: #3b3a36; }}
-pre {{ font-family: mono; font-size: {s(0.72)}; line-height: {r(1.45)}; color: #2b2a27; background-color: #f5f2ec;
+pre {{ font-family: mono; font-size: {s(0.76)}; line-height: {r(1.45)}; color: #2b2a27; background-color: #f5f2ec;
       border-top: {v(0.55)} solid #f5f2ec; border-bottom: {v(0.55)} solid #f5f2ec;
       padding: 0 {s(0.7)}; margin: {v(0.35)} 0 {v(1.0)} 0; white-space: pre-wrap; }}
-pre code {{ font-size: {s(0.72)}; color: #2b2a27; }}
+pre code {{ font-size: {s(0.76)}; color: #2b2a27; }}
 
 ul, ol {{ margin: 0 0 {v(0.7)} 0; padding-left: {s(1.6)}; }}
 li {{ margin: 0 0 {v(0.22)} 0; }}
@@ -466,7 +467,7 @@ def main() -> int:
     LH, GAP, IMG = P["lh"], P["gap"], P["img"]
 
     global CODE_COLS
-    code_size = BASE * 0.72
+    code_size = BASE * 0.76
     CODE_COLS = int((PAGE.width - 2 * MX - 2 * 0.7 * BASE) / (0.6 * code_size)) - 2
     font_dir = prepare_fonts()
     archive = pymupdf.Archive()
