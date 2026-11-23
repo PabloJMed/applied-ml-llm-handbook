@@ -1,5 +1,16 @@
 # Changelog
 
+## Print format and deeper explanations (November 2026)
+
+**Format**
+- Smaller type for print: body 8 pt (was 8.6), headings scaled down with it. The 7 × 10 in page is enlarged about 1.18× when printed on A4, so this reads like 9.4 pt on paper.
+- More space after headings and between paragraphs (line height 1.4, gap 0.95).
+- Tables sit on a light-blue panel with a blue header rule and white row separators, replacing the heavy black rules.
+- Pitfalls, Interview questions, Practice and Read next each get their own coloured block, like Key concepts.
+
+**Content**
+- Chapter 1 rewritten towards a textbook: a fuller "Why it matters", an opening paragraph for every section, and section 1.6 (entropy, cross-entropy, KL divergence) rebuilt from first principles with worked numbers. `tools/writing-guide.md` sets this as the target depth for the other chapters.
+
 ## Typeset display equations (November 2026)
 
 - Key equations are now set as numbered display formulas, centred with real fractions, sums and roots, instead of plain-text lines: CUPED (2), bias-variance (3), log loss (4), attention (10), reward-model, RLHF, PPO and DPO objectives (18), InfoNCE (29) and the matrix-factorisation and off-policy losses (43).
