@@ -8,6 +8,10 @@ We train models whose behaviour we can measure but whose internal computations w
 
 Numbers in this chapter come from `code/ch26_check.py` (CPU, about 15 seconds): a tiny transformer trained from scratch, analysed with the same methods used on large models.
 
+The chapter starts with the questions interpretability asks and how strong each kind of evidence is (26.1), then introduces the frame most methods share: the residual stream as a running sum that every layer reads from and writes to (26.2). The methods come next, in order of increasing strength of evidence: probing what information is present (26.3), reading intermediate predictions with the logit lens (26.4), and causal interventions that test whether a component matters (26.5). Sections 26.6 and 26.7 show what these methods have found, from induction-head circuits to features recovered by sparse autoencoders, and 26.8 uses the results to steer models. The chapter ends with reasoning traces as evidence (26.9), good practice (26.10) and a worked investigation (26.11).
+
+The central distinction is between correlation and causation. A probe that finds information in a layer shows the information is there, not that the model uses it. Only interventions, changing an activation and observing the behaviour change, show what a component does. Most disagreements in the field are about how much an observational result proves.
+
 ## Key concepts
 
 - **Residual stream view**: each layer reads from and writes to a shared vector space. [A Mathematical Framework for Transformer Circuits](https://transformer-circuits.pub/2021/framework/index.html).
@@ -21,6 +25,8 @@ Numbers in this chapter come from `code/ch26_check.py` (CPU, about 15 seconds): 
 - **Tools**: [TransformerLens](https://github.com/TransformerLensOrg/TransformerLens), [nnsight](https://nnsight.net/), [SAELens](https://github.com/jbloomAus/SAELens), [Neuronpedia](https://www.neuronpedia.org/).
 
 ## 26.1 Questions and levels
+
+"What is the model doing?" can be asked at many levels: what information a layer contains, which components a behaviour depends on, or the full algorithm a circuit implements. The methods for each level differ, and so does the strength of the conclusions they support.
 
 | Question | Methods | Strength of evidence |
 |---|---|---|
@@ -44,6 +50,8 @@ Two consequences shape all of mechanistic interpretability:
 
 ## 26.3 Probing
 
+The simplest interpretability question is whether some piece of information is present in a model's internal state at all. A probe answers it by training a small classifier to read the information from the activations. The method is cheap and widely used, and its main danger is over-interpreting a positive result.
+
 Train a linear classifier on a layer's activations to predict a property (part of speech, truth value, a board-game state). High accuracy means the information is linearly decodable there.
 
 Two cautions, both visible in the check script, where the target is whether x₀·x₁ > 0, a non-linear function of the input:
@@ -62,9 +70,13 @@ And the central limitation: decodable is not the same as used. A model may repre
 
 ## 26.4 Logit lens and tuned lens
 
+The final layer of a language model turns the residual stream into next-token probabilities. Applying that same readout to earlier layers shows what the model would predict if it stopped there, which reveals how a prediction forms across depth.
+
 Apply the final layer norm and unembedding to an intermediate layer's residual stream to see which tokens it would predict if computation stopped there. The **logit lens** often shows the answer forming gradually across layers: early layers predict generic continuations; the correct token rises in the middle-to-late layers. It works poorly on early layers of some models because their representations are not yet in the output basis; the **tuned lens** fixes this by learning a small affine map per layer. Both are cheap, descriptive tools for asking "when does the model know?"
 
 ## 26.5 Causal interventions
+
+Observational methods show what information is present; they cannot show what the model uses. Interventions can: change or remove a component's contribution and measure what happens to the behaviour. They are the strongest evidence interpretability has, and the basis of circuit analysis.
 
 **Ablation**: remove a component's contribution and measure the change. How you remove it matters: zero-ablation produces activations the model never sees; **mean-ablation** (replace with the average over a dataset) or **resample-ablation** (replace with the activation from a different input) are closer to the data distribution.
 
@@ -105,6 +117,8 @@ The two induction heads are partly redundant (removing one hurts, removing both 
 
 ## 26.7 Superposition and sparse autoencoders
 
+A natural hope is that each neuron represents one concept. In practice most neurons respond to several unrelated things, because models represent more concepts than they have neurons. Sparse autoencoders are the main tool for recovering those concepts as directions in activation space, and they made large-scale feature discovery possible.
+
 Individual neurons are often **polysemantic**: one neuron responds to unrelated concepts. The leading explanation is **superposition**: a model represents more features than it has dimensions, as nearly-orthogonal directions, which works when features are sparse (rarely active together). Toy Models of Superposition showed this happens in small networks and depends on sparsity and importance.
 
 ![Absolute cosine between random unit directions](images/26-fig-1.png)
@@ -130,6 +144,8 @@ At scale, SAEs on a production model's residual stream found millions of feature
 **Open problems and evaluation.** SAEs miss features and invent others (feature splitting and absorption), the reconstruction error contains unexplained computation, and interpretability of features is judged by humans or LLMs with their own biases. Evaluate SAEs on: downstream loss when the SAE reconstruction replaces the real activation, sparsity, interpretability scores, and usefulness on concrete tasks (probing, steering, finding a known feature). Several 2025 studies found that simple baselines (linear probes) match SAE-based methods on some practical tasks: treat SAEs as one tool, not the answer.
 
 ## 26.8 Steering and editing
+
+If a concept corresponds to a direction in the residual stream, then adding or removing that direction should change the model's behaviour. Steering tests that prediction and, when it works, offers a way to control behaviour without retraining.
 
 If a concept is a direction, adding that direction to the residual stream should change behaviour.
 

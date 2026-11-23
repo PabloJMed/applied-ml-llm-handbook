@@ -8,6 +8,10 @@ Training happens once; inference happens on every request, so it is where the mo
 
 Numbers come from running the code in this chapter; hardware figures are round numbers for arithmetic, not vendor specs.
 
+The chapter moves from the model to the machine that serves it. It starts with what happens at each step of generation (21.1) and how the next token is chosen from the model's probabilities (21.2), including forcing the output into a fixed structure (21.3). Sections 21.4 and 21.5 explain why serving is limited by memory rather than arithmetic: the KV cache, and the two very different phases of a request, prefill and decode. Section 21.6 shows how serving engines exploit those facts, and 21.7 and 21.8 cover the two main ways of going faster and cheaper: speculative decoding and quantisation. The chapter ends with the arithmetic of latency, throughput and cost (21.9), a worked cost reduction (21.10) and research-level topics (21.11).
+
+One fact explains most of serving: generating a token requires reading every weight of the model, and the whole KV cache of the request, from GPU memory, while doing very little arithmetic with them. Almost every serving technique is a way to do more useful work per byte read, by batching users together, guessing several tokens at once, or storing fewer bytes.
+
 ## Key concepts
 
 - **Autoregressive generation**: the model writes one token at a time, each time reading everything written so far. [Hugging Face: generation strategies](https://huggingface.co/docs/transformers/generation_strategies).
