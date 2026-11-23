@@ -6,6 +6,10 @@ Part II · Deep learning and training dynamics.
 
 Every deep-learning question in a senior loop eventually turns into "write the training loop" or "why is this loss not going down". PyTorch is the default language for that conversation: Hugging Face, sentence-transformers, PEFT and most research code sit on top of it. You do not need to know its internals, but you need to write a correct loop from memory, put tensors on the right device, save and resume training, and debug shapes calmly. Live coding is where many otherwise strong candidates stumble, so this chapter is about fluency, not theory: type every snippet yourself.
 
+The chapter follows the path of one training step. Data starts as tensors, and autograd records what is done to them so gradients can be computed automatically (6.1). Models are modules that own their parameters (6.2). Datasets and data loaders feed batches (6.3), and the training loop ties forward pass, loss, backward pass and optimiser step together in a fixed order (6.4). The remaining sections cover what turns a loop that works into one you can trust on real hardware: devices and memory (6.5), saving and resuming (6.6), reproducibility (6.7), fitting large batches into small GPUs (6.8), debugging (6.9) and finding where the time goes (6.10).
+
+The same few patterns appear in nearly every PyTorch codebase, from a two-tower recommender to a fine-tuning script for an LLM. Once they are automatic, reading research code becomes much faster, because you can skip the familiar scaffolding and focus on what is new.
+
 All code below was run on CPU with PyTorch 2.x; outputs quoted are from that run.
 
 ## Key concepts
@@ -21,6 +25,8 @@ All code below was run on CPU with PyTorch 2.x; outputs quoted are from that run
 - **Debugging practice**: [A Recipe for Training Neural Networks](https://karpathy.github.io/2019/04/25/recipe/) (Karpathy).
 
 ## 6.1 Tensors and autograd
+
+Chapter 5 computed gradients by hand, which is instructive for a two-layer network and impossible for a transformer. PyTorch's central feature is that you write only the forward computation, as ordinary Python, and it derives the backward pass for you. Understanding how it does this, by recording operations as they run, explains most of its behaviour, including the classic bugs: gradients that accumulate, tensors that silently stop tracking gradients, and memory that is never freed.
 
 A tensor is an n-dimensional array with a `dtype`, a `device` and, optionally, a gradient. Autograd records the operations applied to tensors with `requires_grad=True` and, on `.backward()`, walks that graph in reverse to fill `.grad`.
 
@@ -43,6 +49,8 @@ Rules worth saying out loud in an interview:
 - Shapes: learn `view` vs `reshape` (view needs contiguous memory), `unsqueeze` / `squeeze`, `permute`, broadcasting rules (align from the right; size-1 dims stretch). Most bugs are silent broadcasting, for example a `(B,)` target against a `(B,1)` prediction giving a `(B,B)` loss.
 
 ## 6.2 nn.Module
+
+A model is more than a function: it has parameters to optimise, buffers such as running statistics, sub-models nested inside it, and behaviour that changes between training and evaluation. `nn.Module` is the container that keeps track of all of this, so that one call can move the whole model to a GPU, save it, or hand all its parameters to an optimiser.
 
 A module owns parameters and sub-modules, and defines `forward`. Registering layers as attributes is what makes `model.parameters()`, `.to(device)`, `state_dict()` and `train()/eval()` work.
 
@@ -88,6 +96,8 @@ In practice: `num_workers>0` and `pin_memory=True` speed up GPU training when lo
 
 ## 6.4 The training loop
 
+Every training script, however large, has the same core: for each batch, run the model, compute the loss, compute gradients, update the weights, and clear the gradients for the next step. The order matters and so does what surrounds it (switching between training and evaluation mode, turning off gradient tracking for validation), because each mistake there produces a model that trains without errors and learns badly. Write it once carefully and then reuse the same skeleton everywhere.
+
 ![The training loop](images/07-01.png)
 
 *The training loop. The inner row runs once per batch; the bottom row once per epoch.*
@@ -130,6 +140,8 @@ for epoch in range(20):
 The order inside the step is the part interviewers check: zero, forward, loss, backward, (clip), step. Forgetting `model.eval()` keeps dropout on and batchnorm updating during validation; forgetting `no_grad` wastes memory. Note the scheduler is stepped per batch here because OneCycle is defined in steps; epoch-based schedulers are stepped once per epoch.
 
 ## 6.5 Devices, mixed precision and memory
+
+A GPU is fast only when the model, the data and the computation are all on it, in a number format it handles efficiently, and within its memory. Most practical problems in deep-learning code come from one of these three: a tensor left on the CPU, a precision setting that overflows, or an out-of-memory error. The rules are simple once you know where the memory goes.
 
 - Model and batch must be on the same device; move the model once and every batch inside the loop. `RuntimeError: Expected all tensors to be on the same device` is the most common error you will see.
 - Mixed precision: run the forward pass in bf16 or fp16 for speed and memory, keep master weights in fp32.

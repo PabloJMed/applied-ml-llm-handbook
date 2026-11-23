@@ -6,6 +6,10 @@ Part II · Deep learning and training dynamics. Assumes Chapter 1 (gradients) an
 
 Every deep model, from a two-tower recommender to an LLM, is built from the pieces in this chapter. When training misbehaves (loss stuck, NaNs, overfitting), the fix comes from understanding them: initialisation, normalisation, learning rates, regularisation. Interviewers ask candidates to write backprop for a small network, explain why ReLU replaced sigmoid, or debug a model that will not learn.
 
+The chapter has two halves. The first explains what a neural network is and how it learns: why stacking layers needs a non-linearity (5.1), how backpropagation computes every gradient in one backward sweep (5.2), and which non-linearities are used and why (5.3). The second half is about making learning actually work in deep networks. A signal passing through twenty layers is multiplied twenty times, so small scale errors compound into vanishing or exploding values; initialisation (5.4), normalisation (5.5), and optimiser and precision choices (5.6) all exist to keep those signals in a healthy range. Section 5.7 turns the whole chapter into a debugging procedure.
+
+Almost nothing here is specific to one architecture. The same ideas, with the same failure modes, reappear in the transformer (Chapter 10) and in the training-stability problems of large models (Chapter 7). A small NumPy network that you can write and gradient-check yourself is the best way to make them concrete, and the chapter builds one.
+
 ## Key concepts
 
 - **Multilayer perceptron (MLP)**: stacked linear layers with non-linear activations between them; the building block of every deep model. [Multilayer perceptron](https://en.wikipedia.org/wiki/Multilayer_perceptron).
@@ -19,6 +23,8 @@ Every deep model, from a two-tower recommender to an LLM, is built from the piec
 - **Mixed precision**: computing in 16-bit while keeping a 32-bit master copy of the weights (Chapter 6).
 
 ## 5.1 From perceptron to MLP
+
+Linear models are fast, interpretable and often good enough, but they can only draw straight boundaries: they cannot represent "high value only when both of these features are high", let alone recognise a face. Neural networks keep the efficiency of linear algebra while lifting that limit. The trick is small, a non-linear function between linear layers, and it is worth seeing exactly why it is necessary and what it buys.
 
 A **perceptron** computes a weighted sum and a threshold: a linear classifier. It cannot learn XOR or any non-linear boundary. Stacking linear layers does not help either: a product of linear maps is still linear. The fix is a **non-linear activation** between layers: a multi-layer perceptron (MLP) with one hidden layer can approximate any continuous function on a bounded domain, given enough units (the universal approximation theorem). Depth makes such approximations far more efficient in practice.
 
@@ -42,6 +48,16 @@ On a three-class spiral dataset that no straight line can separate, logistic reg
 **Why depth, not just width.** One hidden layer can approximate any function in principle, but it may need exponentially many units. Each extra layer can reuse and combine the features of the one before (edges into shapes into objects; characters into words into phrases), so deep networks represent the same functions with far fewer parameters, and they learn more general features. The price is that depth makes optimisation harder, which is what the rest of this chapter (initialisation, normalisation, residual connections) is about.
 
 ## 5.2 Backpropagation by hand
+
+A network with millions of weights needs the gradient of the loss with respect to every one of them at every training step. Computing each by perturbing it (a numerical derivative) would take one forward pass per weight, which is hopeless. Backpropagation computes all of them in a single backward pass, at roughly the cost of one forward pass, by applying the chain rule from the loss towards the input and reusing each intermediate result. It is the reason deep learning is computationally possible at all.
+
+For a two-layer network with input x, the forward pass is
+
+$$
+h = \mathrm{ReLU}(W_1 x + b_1),\qquad p = \mathrm{softmax}(W_2 h + b_2),\qquad L = -\log p_y
+$$
+
+and the backward pass walks the same steps in reverse, turning "how should the output change" into "how should each weight change".
 
 ![forward and backward pass of a two-layer network](images/06-01.png)
 
@@ -90,6 +106,10 @@ Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. 
 
 ## 5.3 Activations
 
+The activation function is the only non-linear part of an MLP, and its shape affects how well gradients flow. Three properties matter. Does it **saturate**, flattening out so that its derivative approaches zero for large inputs? Saturating functions (sigmoid, tanh) shrink the gradient at every layer, which is the vanishing-gradient problem of 5.2. Is it **zero-centred**? Outputs that are always positive push all the next layer's gradients in the same direction, which slows learning. And is it **smooth**? ReLU's sharp corner at zero works well in practice, but smooth variants such as GELU and SiLU give slightly better results in large transformers, which is why they replaced ReLU there.
+
+Output layers are a separate question: their activation is chosen to produce the right kind of output (sigmoid for one probability, softmax for a distribution over classes, nothing for a regression), and it is paired with the matching loss so that the gradient simplifies to prediction minus target.
+
 | Activation | Formula | Notes |
 |---|---|---|
 | Sigmoid | 1/(1 + e^−x) | Output layer for binary probabilities; saturates, so gradients vanish in deep hidden layers |
@@ -101,6 +121,8 @@ Training for 3,000 full-batch steps on the spiral data drives the loss to 0.03. 
 | Softmax | e^zᵢ/Σe^zⱼ | Output layer for multi-class distributions |
 
 ## 5.4 Initialisation
+
+Training starts from random weights, and the scale of that randomness matters more than it seems. In a deep network the forward signal, and the backward gradient, are multiplied by a weight matrix at every layer. If each layer slightly shrinks the signal, it is gone after twenty layers; if each slightly amplifies it, it overflows. Good initialisation chooses the scale that keeps the signal's size constant from layer to layer, so that training can begin at all.
 
 Weights must start small enough not to explode activations and large enough not to vanish them, layer after layer. A test pushing random data through 20 ReLU layers of width 256: with weights of standard deviation 0.01 the output's spread collapsed to about 1e-19; with standard deviation 1 it exploded to about 1e20; with **He initialisation** (std = √(2/fan_in)) it stayed around 0.7.
 
@@ -115,6 +137,8 @@ Weights must start small enough not to explode activations and large enough not 
 - Biases at zero; for transformers, small scaled initialisation of residual projections helps deep stacks.
 
 ## 5.5 Normalisation, dropout and other regularisers
+
+Initialisation sets a healthy scale at step zero, but training moves the weights, and the distribution of each layer's inputs drifts with them. Normalisation layers re-standardise activations inside the network at every step, so each layer sees inputs of a stable scale whatever the layers before it have learned. In practice this allows larger learning rates and makes deep networks much less sensitive to initialisation. Dropout, covered in the same section, solves a different problem: overfitting in networks large enough to memorise their training data.
 
 **Batch normalisation** normalises each feature over the batch, then scales and shifts with learned parameters; at inference it uses running averages. It speeds and stabilises training of CNNs and MLPs but depends on batch statistics. **Layer normalisation** normalises each example over its features, independent of batch size and sequence length: the choice for transformers (with RMSNorm as a cheaper variant, Chapter 10.5).
 
@@ -138,6 +162,12 @@ def dropout(h, p, train=True, rng=np.random.default_rng()):
 
 ## 5.6 Optimisers, schedules and mixed precision
 
+With the network itself in good shape, the remaining choices are about the training run: which update rule, how the learning rate changes over time, how large the batches are, and in what number format the arithmetic is done. These choices are less glamorous than architecture, but in practice they decide whether a run converges, how fast, and how much memory it needs. The defaults below are what most modern training uses; Chapter 7 explains the reasons behind them in depth.
+
+**Why warm-up and decay.** At the start of training the weights are random and gradients can be large and erratic; Adam's running averages are also estimated from very few steps. A large learning rate at that point can throw the model into a region it never recovers from, so the rate is ramped up over the first steps. Later, a high rate keeps the weights bouncing around the bottom of the loss valley; decaying it lets them settle, which is why the loss often drops sharply at the end of a schedule (Chapter 7.2).
+
+**Why lower precision works.** Neural network training tolerates rounding error far better than most numerical computing, because the gradient is already a noisy estimate. The danger is not precision but *range*: very small gradients rounding to zero, or large activations overflowing. bf16 keeps fp32's range with fewer digits of precision, which is the right trade.
+
 - **SGD with momentum** still generalises well for vision; **Adam/AdamW** is the default for transformers and most deep learning (Chapter 3.5 has both from scratch).
 - **Learning-rate schedules:** linear warm-up for the first few hundred or thousand steps, then cosine or linear decay. The learning rate is the first hyperparameter to tune; a learning-rate range test (increase it exponentially and watch the loss) finds a sensible range quickly.
 - **Gradient clipping** (by global norm, often 1.0) prevents rare large gradients from destabilising training, especially for RNNs and transformers.
@@ -145,6 +175,8 @@ def dropout(h, p, train=True, rng=np.random.default_rng()):
 - **Mixed precision:** compute in bf16 (or fp16 with loss scaling) while keeping master weights in fp32. bf16 has fp32's exponent range, so it rarely needs loss scaling; it roughly halves memory for activations and speeds up matrix multiplications on modern GPUs.
 
 ## 5.7 Debugging a model that won't learn
+
+Neural network bugs rarely crash: a model with mislabelled data, a missing gradient step or a learning rate a hundred times too large still runs, it just learns badly or not at all. With no error message to follow, the fastest route is a fixed sequence of checks that each rule out one class of bug, from the cheapest to the most expensive.
 
 A checklist in the order that finds most bugs fastest:
 

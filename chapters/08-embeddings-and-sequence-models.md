@@ -1,10 +1,12 @@
 # 8 · Embeddings and sequence models
 
-Part II · Deep learning and training dynamics.
+Part II · Deep learning and training dynamics. Assumes Chapter 5 (MLPs, backpropagation) and Chapter 1.1 (vectors and similarity). Chapter 10 builds the transformer on the attention mechanism introduced here; Chapter 29 covers modern embedding models.
 
 ## Why it matters
 
 Transformers did not appear from nowhere. Word embeddings taught the field that meaning can live in dense vectors; RNNs and LSTMs taught it how to read sequences; and attention was invented to fix a weakness of RNN encoder-decoders. Interviewers still ask about these because they reveal whether you understand *why* the transformer looks the way it does. In practice you will also meet them: fastText and word2vec-style item embeddings ("item2vec") are still common in recommendation, including the order-history models in Chapter 43, and small GRUs still run on-device and in streaming systems.
+
+The chapter tells one story in two steps. The first is representation: how to turn a discrete symbol, a word or a product id, into a vector whose geometry reflects meaning (8.1 to 8.3). The answer, learn it from the company the symbol keeps, is the idea behind every embedding model since, including the ones in Chapter 29. The second step is composition: how to read a whole sequence of such vectors. Recurrent networks do it one step at a time with a running memory (8.4), and their weakness, a single fixed-size memory that long inputs overwhelm, led directly to attention (8.5). Each section ends where the next one's motivation begins, and the chapter ends where the transformer starts.
 
 Code below was run with PyTorch on CPU; quoted outputs are from that run.
 
@@ -21,6 +23,8 @@ Code below was run with PyTorch on CPU; quoted outputs are from that run.
 
 ## 8.1 From one-hot to dense vectors
 
+Models compute with numbers, but words, products and users are symbols. The simplest encoding gives each symbol its own dimension, which works mechanically but tells the model nothing: "pizza" is exactly as different from "pasta" as from "airport". Everything a model could learn about one word would then have to be learned again, separately, for every other. Dense embeddings solve this by placing symbols in a shared space where similar ones are close, so that what is learned about one transfers to its neighbours.
+
 A one-hot vector for a 50k vocabulary is 50k long, sparse, and says every pair of words is equally different. A learned embedding maps each id to a dense vector of, say, 300 dimensions where similar words end up close. `nn.Embedding(V, d)` is just a lookup table of shape `(V, d)`, mathematically the same as a one-hot vector times a weight matrix, but without building the one-hot.
 
 **One-hot times a matrix is a lookup.** Multiplying a one-hot row vector (all zeros except a 1 at position i) by a V × d matrix picks out row i. That is all an embedding layer does, and its gradient touches only the rows of the tokens in the batch, which is why embedding tables of millions of rows train efficiently with sparse updates.
@@ -28,6 +32,8 @@ A one-hot vector for a 50k vocabulary is 50k long, sparse, and says every pair o
 The idea that makes them learnable is the **distributional hypothesis**: words that appear in similar contexts have similar meanings. Every method in this section is a different way to turn co-occurrence into vectors.
 
 ## 8.2 word2vec
+
+The distributional hypothesis says what an embedding should capture, but not how to learn it. word2vec turned it into a simple prediction task: train a model to guess which words appear near a given word, and keep the vectors it learns along the way. The task itself is never used; it is an excuse to learn the vectors. That pattern, a cheap self-supervised task whose by-product is a useful representation, became the template for pretraining in general.
 
 Two variants (Mikolov et al., 2013):
 
@@ -66,6 +72,8 @@ The famous analogy result (king − man + woman ≈ queen) is real but cherry-pi
 
 ## 8.3 GloVe and fastText
 
+word2vec left two gaps. It learns from local windows one at a time, while the same information is available as global co-occurrence statistics that could be fitted directly; and it gives no vector at all to a word it never saw in training, which is a real problem for typos, rare dishes and morphologically rich languages. GloVe addresses the first gap, fastText the second.
+
 - **GloVe** (Pennington et al., 2014) builds the global co-occurrence matrix X once, then fits vectors so that `w_i · w_j + b_i + b_j ≈ log X_ij`, with a weighting that caps very frequent pairs. Count-based and global, where word2vec is predictive and local; results are similar in practice.
 - **fastText** (Bojanowski et al., 2017) represents each word as the sum of its character n-gram vectors (3 to 6 characters, plus the whole word). It can build a vector for a word it never saw, and it handles typos and rich morphology well. That matters for Arabic and for transliterated, code-switched Arabizi ("shawarma", "shawerma", "shwarma"), and for user-typed menu items. The fastText library also gives a very fast linear text classifier, still a good first baseline.
 
@@ -73,15 +81,28 @@ All three give **static** embeddings: one vector per word, whatever the context.
 
 ## 8.4 Recurrent networks
 
-An RNN reads a sequence one step at a time and keeps a hidden state: `h_t = tanh(W_x` `x_t + W_h h_{t-1} + b)`. The same weights are used at every step, so it handles any length.
+An average of word vectors throws away order: "the order arrived before the driver" and "the driver arrived before the order" have the same average. To read a sequence, a model needs memory: a summary of what it has seen so far that is updated as each new token arrives. Recurrent networks implement exactly that, with the same small set of weights applied at every step, which lets them read sequences of any length.
+
+An RNN reads a sequence one step at a time and keeps a hidden state:
+
+$$
+h_t = \tanh\left(W_x\,x_t + W_h\,h_{t-1} + b\right)
+$$
+
+The new state mixes the current input with the previous state. The same weights are used at every step, so it handles any length.
 
 The problem is training. Backpropagation through time multiplies by `W_h` (and the tanh derivative) once per step, so gradients over long distances shrink towards zero (**vanishing**) or blow up (**exploding**). Exploding is fixed with gradient clipping; vanishing needs a different cell.
 
-**LSTM** (Hochreiter and Schmidhuber, 1997) adds a cell state `c_t` that is updated additively, controlled by gates:
+**LSTM** (Hochreiter and Schmidhuber, 1997) adds a cell state c_t whose central update is additive rather than multiplicative:
+
+$$
+c_t = f_t \odot c_{t-1} + i_t \odot g_t,\qquad h_t = o_t \odot \tanh(c_t)
+$$
+
+Each gate is a sigmoid of the previous hidden state and the current input, so it lies between 0 and 1 and acts as a soft switch:
 
 - forget gate `f_t = σ(W_f [h_{t-1}, x_t])`: how much of the old cell to keep;
 - input gate `i_t` and candidate `g_t = tanh(…)`: what to write;
-- `c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t`;
 - output gate `o_t`, and `h_t = o_t ⊙ tanh(c_t)`.
 
 ![How much the final hidden state depends on the input k steps earlier (norm of the gradient, averaged over 20 random sequences, randomly initialised layers of width 32)](images/08-fig-1.png)
@@ -110,6 +131,8 @@ class LSTMClassifier(nn.Module):
 Packing stops the LSTM from reading padding. On a toy task where the label is "does token 5 appear before token 7", this model reached **0.918** test accuracy after 8 epochs, while a mean-of-embeddings model (`nn.EmbeddingBag`) stayed at **0.49**, chance level. Order-blind models cannot learn order: the point of sequence models in one experiment.
 
 ## 8.5 Seq2seq and attention
+
+Many tasks map one sequence to another of a different length: translation, summarisation, a question to an answer. Recurrent networks can do this with an encoder that reads the input and a decoder that writes the output, but the first design forced the entire input through a single vector. Attention removed that bottleneck by letting the decoder look back at every input position whenever it needs to, and that one change is the direct ancestor of the transformer.
 
 The encoder-decoder (Sutskever et al., 2014) reads the input with one RNN, squeezes it into the final hidden state, and a second RNN generates the output from that single vector. It worked for translation, but quality fell on long sentences: one fixed-size vector is a bottleneck.
 

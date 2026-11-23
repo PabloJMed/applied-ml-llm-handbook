@@ -6,6 +6,10 @@ Part II · Deep learning and training dynamics. Assumes Chapter 5 (backpropagati
 
 A research scientist spends more time looking at loss curves than at anything else. Whether a run diverges at step 40,000, whether a new architecture "doesn't work" or was simply given the wrong learning rate, whether a 2× larger batch buys anything, whether fp8 is safe: these are optimisation questions, and they decide what is learned from every GPU-hour. Interviews for LLM roles probe them directly: "write AdamW", "why warm-up?", "what is µP for?", "the loss spiked, what do you do?". This chapter gives you the mechanics and the reasoning behind them, with numbers you can reproduce on a laptop.
 
+Chapter 5 explained how a network learns; this chapter explains why learning at scale is fragile, and what keeps it on track. The sections follow the knobs of a training run. The optimiser decides how a gradient becomes an update (7.1, 7.4). The learning-rate schedule decides how large those updates are over time (7.2), and the batch size how noisy each gradient is (7.3). Initialisation and parametrisation decide whether settings found on a small model still work on a large one (7.5). Number formats decide how much of the arithmetic survives rounding (7.6). The last two sections are diagnostic: how large runs become unstable (7.7), and how to read the curves that warn you first (7.8).
+
+A single idea connects most of them: an update should have the right *size* for every parameter, at every step, at every model width. Adam normalises the size per coordinate, warm-up limits it at the start, µP keeps it constant as models widen, clipping bounds it when a gradient goes wild, and QK-norm and z-loss stop the logits from growing until a fixed-size update becomes too large. Reading the chapter with that question in mind makes the individual tricks much easier to remember.
+
 Numbers in this chapter come from `code/ch07_check.py` (CPU, about two seconds).
 
 ## Key concepts
@@ -23,9 +27,23 @@ Numbers in this chapter come from `code/ch07_check.py` (CPU, about two seconds).
 
 ## 7.1 From SGD to AdamW
 
+Almost every LLM is trained with AdamW, and the reasons are specific. A transformer contains parameters whose gradients differ by orders of magnitude, and one global learning rate cannot suit them all. Adam gives every parameter its own effective step size, and AdamW fixes a subtle interaction between that rescaling and weight decay. Both changes are small in code and large in effect.
+
 SGD moves every parameter by the learning rate times its gradient. That is fragile for transformers: gradients for embeddings, attention projections and layer norms differ by orders of magnitude, so one learning rate is too large for some and too small for others.
 
 **Adam** keeps two running averages per parameter: the mean of the gradient (momentum, β₁ ≈ 0.9) and the mean of its square (β₂ ≈ 0.95 for LLMs, 0.999 elsewhere). The update divides one by the square root of the other, so each coordinate moves by roughly the learning rate in units of its own typical gradient size. Bias correction undoes the zero initialisation of both averages in the first steps.
+
+Written out, with gradient gₜ at step t, learning rate η and weight decay λ, one AdamW step is
+
+$$
+m_t = \beta_1 m_{t-1} + (1-\beta_1)\,g_t,\qquad v_t = \beta_2 v_{t-1} + (1-\beta_2)\,g_t^2
+$$
+
+$$
+\hat m_t = \dfrac{m_t}{1-\beta_1^{\,t}},\qquad \hat v_t = \dfrac{v_t}{1-\beta_2^{\,t}},\qquad \theta_t = \theta_{t-1} - \eta\left(\dfrac{\hat m_t}{\sqrt{\hat v_t}+\epsilon} + \lambda\,\theta_{t-1}\right)
+$$
+
+The ratio m̂ / √v̂ is a gradient measured in units of its own recent size, so it is close to ±1 when the gradient is consistent and close to 0 when it keeps changing sign. The weight-decay term λθ sits outside that ratio, which is the whole difference between AdamW and Adam with L2.
 
 **AdamW** applies weight decay directly to the weights instead of adding it to the gradient. With Adam, an L2 term added to the gradient is divided by √v like everything else, so heavily-updated weights are barely regularised; decoupling fixes that.
 
@@ -48,6 +66,8 @@ Practical settings for LLM pretraining: β₁ = 0.9, β₂ = 0.95 (a shorter mem
 Memory: Adam stores two fp32 states per parameter, 8 bytes, on top of weights and gradients. That is the 16 bytes per parameter of mixed-precision training (Chapter 6) and the reason optimiser-state sharding (ZeRO, Chapter 17) exists.
 
 ## 7.2 Learning-rate schedules
+
+The learning rate is the most important hyperparameter of a training run, and its best value changes during training: small at the start while the optimiser's statistics settle, as large as stability allows in the middle to make fast progress, and small again at the end so the model can settle into a minimum. A schedule is a plan for that trajectory. The choice of schedule also has a practical side effect that has become important for research: whether a run can be stopped early, or extended, and still produce a good model.
 
 Three phases appear in nearly every LLM run:
 
@@ -77,11 +97,15 @@ WSD runs show a higher loss than cosine runs during the stable phase, then catch
 
 ## 7.3 Batch size, gradient noise and the critical batch size
 
+Larger batches use hardware better and need fewer optimiser steps, so it is tempting to make them as large as memory allows. But a step on a batch twice as large is not worth two steps on the smaller batch: past a point, the extra examples only refine a gradient that was already accurate enough. Knowing where that point is decides how many GPUs a run can use efficiently, and it moves as training progresses.
+
 A mini-batch gradient is the true gradient plus noise whose variance falls as 1/B. Doubling the batch halves the noise. While noise dominates, doubling B lets you nearly double the learning rate and halve the number of steps: **perfect scaling**. Once the noise is small compared with the gradient itself, larger batches only waste compute.
 
 McCandlish et al. (2018) made this quantitative. The **simple noise scale**
 
-B_simple = tr(Σ) / |G|²
+$$
+B_{\mathrm{simple}} = \dfrac{\mathrm{tr}(\Sigma)}{\Vert G\Vert^2}
+$$
 
 (total per-example gradient variance divided by the squared norm of the mean gradient) predicts the **critical batch size**: below it, more batch saves steps almost one for one; above it, returns diminish.
 
@@ -100,6 +124,8 @@ Rules of thumb:
 - **Tokens, not sequences**: LLM batch sizes are quoted in tokens (for example 4M tokens = 1,024 sequences of 4,096).
 
 ## 7.4 Beyond Adam: Adafactor, Lion, Shampoo, SOAP and Muon
+
+Adam treats every parameter as an independent number. The weights of a transformer are not independent numbers; they are matrices, and the gradient of a matrix has structure, a few dominant directions and many weak ones. The optimisers in this section either cut Adam's memory cost or exploit that matrix structure to take better steps. Muon, the most important of them, has moved from a research curiosity to the optimiser of some frontier-scale open models in under two years.
 
 **Adafactor** stores the second moment of a matrix as a row vector and a column vector (their outer product approximates it), so the optimiser state is O(m + n) instead of O(mn). Used for T5 and PaLM, useful when memory is tight.
 
@@ -126,6 +152,8 @@ The intuition: gradient matrices of transformers are dominated by a few directio
 
 ## 7.5 Initialisation, residual scaling and µP
 
+Large models are too expensive to tune: nobody sweeps learning rates on a 100-billion-parameter run. The practical hope is to tune a small model and reuse its settings. Whether that works depends on the parametrisation, the rules that set initial weight scales and per-layer learning rates as a function of width and depth. Get those rules right and the best settings stay put as the model grows; get them wrong and every size needs its own sweep.
+
 **The variance argument** (Chapter 5): a linear layer with fan-in n and weights of variance σ² multiplies the variance of its input by nσ². σ² = 1/n (Xavier/LeCun, or 2/n for ReLU, He) keeps activations from exploding or vanishing through depth.
 
 **Residual streams** add each block's output to a running sum. With L blocks of unit-variance outputs, the stream's variance grows like L. GPT-2 scaled the output projection of each block by 1/√(2L); many recipes initialise those projections smaller or to zero. Pre-norm (normalise the input of each block, not its output) keeps gradients well behaved at depth and is the standard.
@@ -151,6 +179,8 @@ The check script shows the core problem. One Adam step on a three-layer MLP, sam
 Under SP, the same step moves the output 50× more at width 1,024 than at 64: a learning rate that is safe for the small model blows up the large one. Under µP the effect is constant, so the best learning rate found on a small proxy model transfers. This is **µTransfer**: tune on a 40M-parameter proxy, train the 10B model once. Several labs use µP or close variants; others fit learning-rate scaling laws instead (Chapter 13). Either way, "we tuned hyperparameters at small scale and they transferred" is a claim to check, not assume.
 
 ## 7.6 Numerical precision
+
+Every halving of the number of bits per value roughly doubles matrix-multiplication throughput and halves memory traffic, so the history of large-model training is a steady move to smaller formats: fp32, then fp16, bf16, and now fp8 and 4-bit block formats. Each step only works if the values that matter still fit. A number format has a fixed budget of bits split between the **exponent**, which sets the range (how large and how small a value can be), and the **mantissa**, which sets the precision (how finely values are spaced). Training needs range more than precision, and that single fact explains the choices below.
 
 | Format | Exponent / mantissa bits | Largest value | Notes |
 |---|---|---|---|
@@ -183,6 +213,8 @@ Production fp8 training (DeepSeek-V3 was the first widely documented frontier-sc
 
 ## 7.7 Stability: spikes, logits and the edge of stability
 
+A small model that trains badly wastes an afternoon; a large run that diverges after three weeks wastes millions. Instabilities become more common with scale, because larger models and longer runs give rare events (a bad batch, a slowly growing logit) more chances to happen, and because the learning rate is pushed as high as stability allows. Most failures have a handful of recognisable causes, each with a standard fix.
+
 Large runs fail in a few recognisable ways.
 
 **Loss spikes.** The loss jumps by a large amount, then either recovers or diverges. Common causes: a bad batch (corrupted or extremely repetitive data), attention logits growing until softmax saturates, the output logits drifting, or Adam's second moment going stale for a parameter that suddenly gets a large gradient. Standard responses, cheapest first: skip the offending batches and restart from the last good checkpoint; lower the learning rate; add the architectural fixes below.
@@ -208,6 +240,8 @@ z_loss = 1e-4 * log_z.pow(2).mean()           # 0.0077, added to the cross-entro
 **Edge of stability.** Cohen et al. (2021) showed that full-batch gradient descent raises the sharpness (largest Hessian eigenvalue) of the loss until it reaches about 2/η, then oscillates there while the loss keeps falling non-monotonically. Classical theory says such a learning rate should diverge. Adam shows an analogous behaviour on its preconditioned sharpness. The practical lesson: the learning rate partly determines which regions of the loss landscape training can stay in, so "a larger learning rate finds flatter minima" has a mechanism, and instability at too high a rate is a sharpness problem, not bad luck.
 
 ## 7.8 Reading training curves
+
+Training curves are the main instrument panel of a research scientist. Most problems leave a characteristic signature, in the loss, the gradient norm or the weight norms, well before the run fails outright. The table below maps common signatures to their usual causes and the first thing to try.
 
 | What you see | Likely cause | First thing to try |
 |---|---|---|

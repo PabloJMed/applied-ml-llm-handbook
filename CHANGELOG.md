@@ -11,6 +11,7 @@
 **Content**
 - Chapter 1 rewritten towards a textbook: a fuller "Why it matters", an opening paragraph for every section, and section 1.6 (entropy, cross-entropy, KL divergence) rebuilt from first principles with worked numbers. `tools/writing-guide.md` sets this as the target depth for the other chapters.
 - Part I (chapters 2–4) expanded the same way: longer chapter openings that explain how the sections fit together, an opening paragraph for every section, and deeper explanations where the text was a list of one-liners (the central limit theorem, a p-value worked by hand, power formulas as display equations, the arithmetic of multiple testing, how interleaving works, confounding, regularisation as a prior, proper scoring rules, MAE/RMSE/WAPE as display formulas).
+- Part II (chapters 5–8) expanded the same way, with the MLP forward pass, AdamW, the gradient noise scale and the RNN and LSTM updates as display equations, and openings that explain why each technique exists (initialisation, normalisation, schedules, number formats, recurrence, attention).
 
 ## Typeset display equations (November 2026)
 
