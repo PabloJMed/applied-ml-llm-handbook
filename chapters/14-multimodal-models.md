@@ -8,6 +8,10 @@ Frontier models read images, documents, screenshots, audio and video, and increa
 
 Numbers in this chapter come from `code/ch14_check.py` (CPU, seconds).
 
+The chapter starts with the basic design question: how information from another modality enters a language model (14.1). It then follows the most common path, images, step by step: how a vision encoder turns pixels into tokens (14.2), how those tokens are connected to an LLM (14.3), and how the combined model is trained (14.4). Sections 14.5 to 14.7 extend the same ideas to audio, image generation and video, each with its own cost problem. The chapter ends with how to evaluate multimodal models without being fooled by a strong language prior (14.8), and a worked cost estimate for a common product request (14.9).
+
+The recurring theme is tokens. An image, a second of audio or a frame of video becomes some number of tokens, and that number drives cost, latency and how much fits in the context. Being able to estimate it quickly is the most practical skill in this chapter.
+
 ## Key concepts
 
 - **Vision Transformer (ViT)**: split an image into patches, embed each patch as a token. [Dosovitskiy et al.](https://arxiv.org/abs/2010.11929).
@@ -20,6 +24,8 @@ Numbers in this chapter come from `code/ch14_check.py` (CPU, seconds).
 
 ## 14.1 Four ways to combine modalities
 
+A language model reads tokens, so any other modality has to be turned into something the model can attend to. The four designs in the table differ in where and how that conversion happens: for example, whether images become tokens in the same sequence as text, are read through separate cross-attention layers, or are trained jointly with text from the start. Each choice trades quality against cost and against how much of an existing language model can be reused.
+
 | Design | How images enter | Examples | Trade-off |
 |---|---|---|---|
 | Encoder + projector ("late fusion") | A pretrained vision encoder's patch features, mapped into the LLM's embedding space and placed in the token sequence | LLaVA family, most open VLMs | Simple and data-efficient; understanding only, unless a separate generator is added |
@@ -30,6 +36,8 @@ Numbers in this chapter come from `code/ch14_check.py` (CPU, seconds).
 Most open understanding models use the first design, and the rest of this chapter starts there.
 
 ## 14.2 Vision encoders
+
+Before a language model can reason about an image, something has to turn pixels into a sequence of vectors. Vision transformers do it by treating an image as a grid of patches, each patch becoming one token, so that the same architecture as for text can be used. The resolution and patch size decide how many tokens an image costs, which is the main lever on the cost of vision-language models.
 
 **Patches as tokens.** A ViT cuts an image into p × p patches, flattens each and maps it linearly to the model width. A 224 × 224 image with 16-pixel patches becomes 196 tokens of 768 raw values each. Positions are added (learned or 2-D sinusoidal), then a standard transformer encoder runs over the patches.
 
@@ -46,6 +54,8 @@ Each pair is a separate binary decision, so no batch-wide normalisation is neede
 Why contrastive encoders for VLMs: their features are already aligned with language, which makes the projector's job easy. Their weakness: trained to match whole captions, they under-represent fine detail (small text, counting, spatial relations), which VLM training then has to recover.
 
 ## 14.3 Connecting vision to an LLM
+
+Strong vision encoders and strong language models already exist, trained separately. The cheapest way to build a vision-language model is to connect them: map the image features into the language model's input space so that they look like a few hundred extra tokens. The design of that connector, and how many tokens it produces, matters more than one would expect.
 
 **The LLaVA recipe.** Run the vision encoder, take its patch features (576 tokens from a 336-pixel image with 14-pixel patches), map them with a small MLP projector to the LLM's width, and splice them into the text sequence where the image appears. The LLM then trains with the usual next-token loss on the answer tokens only:
 
@@ -77,6 +87,8 @@ A document page needs high resolution to read small print; a photo of a cat does
 
 ## 14.4 Training a VLM
 
+Connecting an encoder to an LLM does not by itself make the model understand images: the connector has to be trained to translate between the two spaces, and the combined model has to learn to follow instructions about images. Open recipes do this in stages, each with its own data and its own set of trainable parameters.
+
 A typical open recipe has three or four stages:
 
 1. **Alignment**: freeze the vision encoder and LLM, train only the projector on image–caption pairs. Cheap; teaches the LLM to read the projected features.
@@ -87,6 +99,8 @@ A typical open recipe has three or four stages:
 **Data matters more than architecture.** Most gains in open VLMs have come from better data: dense, accurate re-captioning of images by strong models, synthetic charts and documents with known answers, large OCR corpora, and careful mixing. Keep text-only data in every stage, or the LLM's language and reasoning skills degrade.
 
 ## 14.5 Audio and speech
+
+Speech is the most natural interface for many products, and audio is just another signal that can be cut into frames and turned into tokens. The two directions, recognising speech and generating it, use different models today, and end-to-end speech-to-speech models are starting to merge them.
 
 **Recognition.** Whisper converts 30 seconds of 16 kHz audio into a log-mel spectrogram with a 10 ms hop (3,000 frames), downsamples by 2 with a convolution (1,500 encoder positions) and decodes text with a transformer decoder trained on 680k hours of weakly labelled audio. Audio LLMs reuse the same pattern as VLMs: an audio encoder, a projector, an LLM.
 
@@ -103,6 +117,8 @@ commit = F.mse_loss(z, zq.detach())
 
 ## 14.6 Generating images
 
+Understanding images and generating them are different problems. Generation needs a model of the whole distribution of images, and the dominant approach, diffusion, learns it indirectly by training a network to remove noise. The mechanism is worth knowing because it also appears in diffusion language models (Chapter 11.7).
+
 **Diffusion.** Train a network to undo noise. The forward process mixes an image x₀ with Gaussian noise: x_t = √ᾱ_t x₀ + √(1 − ᾱ_t) ε. With the standard linear schedule over 1,000 steps, the signal weight is 1.000 at t = 0, 0.722 at t = 250, 0.279 at t = 500 and 0.006 at t = 999. The network predicts ε from (x_t, t); sampling starts from pure noise and removes predicted noise step by step. **Latent diffusion** runs the process in the compressed latent space of an autoencoder, which is far cheaper. **Flow matching** learns a velocity field along straight paths from noise to data and samples in fewer steps; most recent image and video generators use it with transformer backbones (diffusion transformers).
 
 ![The weights of the original image and of the noise in xt over the 1,000-step linear schedule](images/14-fig-2.png)
@@ -117,9 +133,13 @@ commit = F.mse_loss(z, zq.detach())
 
 ## 14.7 Video
 
+Video combines the costs of images with the length of long documents: every frame is an image, and a few minutes contain thousands of frames. Every practical video model is therefore built around reducing the number of tokens, by sampling frames, compressing them, or both.
+
 Video is images over time, and the token count explodes: 10 minutes at 2 frames per second with 256 tokens per frame is 307,200 tokens. Standard tools: sample frames sparsely (and adaptively, more where the scene changes), merge tokens across time as well as space, use 3-D (time, row, column) rotary positions, and process long videos with memory or retrieval over clips. Evaluate on questions that need the whole video, not a single frame, or the model will learn to answer from one lucky frame.
 
 ## 14.8 Evaluating multimodal models
+
+A vision-language model can often answer questions about an image without looking at it, because its language prior guesses well: a picture of a kitchen probably contains a fridge. Good multimodal evaluation therefore checks not only whether answers are right, but whether they depend on the image at all.
 
 | What to test | Examples | Watch for |
 |---|---|---|

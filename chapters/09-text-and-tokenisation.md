@@ -1,10 +1,14 @@
 # 9 · Text and tokenisation
 
-Part III · Transformers and architectures.
+Part III · Transformers and architectures. No prerequisites beyond Chapter 8.1 (embeddings as lookup tables). Chapter 10 picks up where the tokenizer hands over: token ids become vectors at the first layer of the transformer.
 
 ## Why it matters
 
 Every LLM bill, context-window limit and many strange model failures trace back to the tokenizer. A model never sees letters: it sees integer ids from a fixed vocabulary chosen before pre-training. That choice decides how many tokens your Arabic menu costs, why the model cannot count the r's in "strawberry", why prices like "12.50 AED" are split oddly, and why a fine-tuned model breaks if you change the chat template. In a region where users mix Arabic, English and Arabizi ("3al fa7m") in one query, tokenisation and normalisation are real product questions, not trivia.
+
+The chapter starts with what a tokenizer is: a fixed pipeline of steps, every one of them frozen when the model was pretrained (9.1). It then explains why modern models split text into subwords rather than words or characters (9.2), builds the standard algorithm, byte-pair encoding, from scratch (9.3), and compares it with the alternatives (9.4). Sections 9.5 and 9.6 cover the consequences of tokenizer design: vocabulary size, and the unequal cost of different languages. Sections 9.7 to 9.10 are applied: what tokens cost, which model failures they cause, what pretraining teams choose and why, and worked cases where tokenisation explains a model's behaviour.
+
+The recurring lesson is that the tokenizer is part of the model. It cannot be swapped after pretraining without retraining the embeddings, and its quirks show up downstream in cost, latency, multilingual quality, arithmetic and spelling. A good practitioner checks it as routinely as they check the data.
 
 ## Key concepts
 
@@ -19,6 +23,8 @@ Every LLM bill, context-window limit and many strange model failures trace back 
 
 ## 9.1 The pipeline
 
+A model's first layer is an embedding table indexed by integers, so raw text has to become a sequence of integers before anything else can happen. Doing that well involves more than splitting on spaces: the same word can be written with different Unicode code points, chat models need special markers for roles and turns, and the split must be reversible so that the model's output can be turned back into text. A tokenizer is the pipeline of steps that handles all of this.
+
 ![A tokenizer is a pipeline](images/09-01.png)
 
 *A tokenizer is a pipeline. Each stage is a choice baked into the model at pre-training time.*
@@ -32,9 +38,17 @@ Always load the tokenizer that matches the model checkpoint. Mixing them gives n
 
 ## 9.2 Why subwords
 
-Word-level vocabularies explode in size and still meet unknown words (new dishes, brand names, typos). Character-level sequences are very long, which is costly with attention's quadratic cost. Subwords sit between: frequent words stay whole, rare words split into reusable pieces, and nothing is ever out of vocabulary if the base alphabet covers all bytes.
+Any tokenizer has to choose the unit of text that becomes one id, and the two obvious choices both fail.
+
+**Words** give short sequences, but the vocabulary has no natural end. Every new dish, brand name, inflection and typo is another entry, and anything not in the list at training time becomes an "unknown" token that the model cannot read at all. Rare words also appear too seldom for their embeddings to be learned well.
+
+**Characters** (or bytes) solve the coverage problem completely, since every string is a sequence of a few hundred symbols. But sequences become several times longer, and attention's cost grows with the square of the length. A 1,000-character menu description is 1,000 character tokens; with the 32,000-entry tokenizer measured in 9.5 it is about 250, and the attention cost is about 16 times lower. The model would also have to spend capacity learning to assemble letters into words before it can learn anything about meaning.
+
+**Subwords** sit between: frequent words stay whole, rare words split into reusable pieces ("re", "order", "ing"), and nothing is ever out of vocabulary if the base alphabet covers all bytes. The vocabulary size becomes a dial between sequence length and table size, which 9.5 examines.
 
 ## 9.3 BPE from scratch
+
+Given that subwords are the right unit, which subwords? Choosing them by hand is impossible for a vocabulary of 100,000 entries across dozens of languages, so they are learned from a corpus. The most widely used method is also the simplest: start from single characters and repeatedly glue together the pair that occurs most often. Frequent words end up as single tokens because their pieces keep appearing together.
 
 Byte-pair encoding (Sennrich et al., 2016) starts from characters and repeatedly merges the most frequent adjacent pair. The list of merges, in order, *is* the tokenizer.
 
@@ -91,6 +105,8 @@ This naive version is O(merges × corpus); real implementations keep pair counts
 
 ## 9.4 The other algorithms
 
+BPE chooses merges by raw frequency, which is simple but not the only sensible criterion. The alternatives differ in how they score candidate pieces (frequency, likelihood gain, or pruning from a large set) and in what they treat as the base alphabet (characters, raw text with spaces, or bytes). In practice the base alphabet matters more than the scoring rule: byte-level tokenizers can encode any string, which is why they now dominate.
+
 - **WordPiece** (BERT): like BPE, but picks the merge that most increases the likelihood of the training data, roughly `count(ab) / (count(a)·count(b))`, so it prefers pairs that are surprising together rather than just frequent. Continuation pieces carry a `##` prefix (`order ##ing`). Encoding is greedy longest-match.
 - **Unigram LM** (Kudo, 2018): start from a big candidate vocabulary and prune pieces whose removal hurts the likelihood least. Encoding picks the most probable segmentation (Viterbi), and it can sample alternative segmentations during training (subword regularisation) for robustness to typos.
 - **SentencePiece**: a library, not an algorithm. It runs BPE or Unigram on raw text with spaces kept as a symbol (`▁`), so no language-specific pre-tokeniser is needed and decoding is lossless. Used by T5, Llama 1–2 and many multilingual models.
@@ -118,6 +134,8 @@ The toy vocabulary was trained on a few repeated English and Arabic menu lines, 
 
 ## 9.5 Vocabulary size trade-offs
 
+Every tokenizer is trained to a fixed vocabulary size, chosen before pretraining and permanent afterwards. A larger vocabulary packs more text into each token, which shortens sequences and lets more fit in the context window, but each entry costs a row in the embedding and output matrices and gets fewer training examples. The table lists the trade-offs; the figure shows how fast the gains diminish.
+
 | Larger vocabulary | Smaller vocabulary |
 |---|---|
 | Shorter sequences: cheaper attention, more text per context window | Longer sequences |
@@ -134,6 +152,8 @@ The curve flattens because each new merge covers rarer and rarer strings: the fi
 Typical sizes: BERT about 30k, GPT-2 about 50k, recent multilingual LLMs 100k to 250k. Bigger vocabularies became popular partly to treat non-English languages more fairly.
 
 ## 9.6 Multilingual text, Arabic and code-switching
+
+A tokenizer learns its pieces from its training corpus, and most training corpora are dominated by English. Languages that are rarer in that corpus get fewer dedicated pieces and are split into more tokens per word. The consequences are not cosmetic: users of those languages pay more per request, fit less into the context window, and often get worse answers, because the model sees their text as longer sequences of less meaningful pieces.
 
 A tokenizer trained mostly on English splits other scripts into more pieces. The same meaning then costs more tokens, fills the context faster, and is often modelled worse. In UTF-8 an Arabic letter takes 2 bytes against 1 for a Latin letter ("دجاج شاورما" is 21 bytes vs 16 for "chicken shawarma"), which hurts byte-level tokenizers with little Arabic in training. Measure your own token-per-word ratio per language before quoting costs.
 
@@ -158,6 +178,8 @@ Code-switching and Arabizi (Arabic in Latin letters, with digits for sounds: 3 s
 
 ## 9.7 Tokens and money
 
+Every cost and latency figure for an LLM product is ultimately a token count: input tokens, output tokens, and cached tokens, each priced and timed differently. Estimating them is everyday work for anyone designing an LLM feature, and a standard interview exercise. The arithmetic is simple, but only if you count with the right tokenizer and remember that output tokens are both pricier and slower than input tokens.
+
 API prices are per token, usually different for input and output, so cost is arithmetic you should do on a whiteboard:
 
 ```text
@@ -176,6 +198,8 @@ Count tokens with the model's own tokenizer (tiktoken for OpenAI models, the pro
 
 ## 9.8 Tokenisation quirks behind model failures
 
+Some famous LLM failures that look like failures of reasoning are really failures of perception: the model is asked about units it never sees. A model that reads "strawberry" as two or three opaque ids cannot look at its letters, and a model that reads "1234" as a single id cannot see its digits. Knowing these quirks helps you tell a capability gap from a representation problem, and often suggests a cheap fix such as spacing out characters or asking for digit-by-digit work.
+
 - **Counting and spelling**: "strawberry" may be 2–3 tokens, so the model never sees individual letters.
 - **Numbers**: digits group inconsistently ("1234" vs "12" + "34"), which hurts arithmetic; some newer tokenizers split numbers into single digits for this reason.
 - **Leading spaces**: "Dubai" and " Dubai" are different tokens; prompt templates that add or drop a space change behaviour.
@@ -184,6 +208,8 @@ Count tokens with the model's own tokenizer (tiktoken for OpenAI models, the pro
 - **Chat templates**: fine-tuning with one template and serving with another is a silent quality killer. Use `tokenizer.apply_chat_template`.
 
 ## 9.9 Tokenizer research for model builders
+
+For a team pretraining its own model, the tokenizer is one of the earliest and least reversible decisions. It fixes how efficiently every language and domain is represented for the life of the model, and changing it later means retraining at least the embeddings. The choices below are those that published reports discuss, with what is known about each.
 
 Choices a pretraining team makes, and what is known about them:
 
@@ -196,6 +222,8 @@ Choices a pretraining team makes, and what is known about them:
 - **Glitch and under-trained tokens**: tokens present in the vocabulary but nearly absent from the training data have untrained embeddings and cause erratic behaviour; they can be found automatically by looking for embeddings close to the initialisation distribution.
 
 ## 9.10 Worked cases: how tokenisation shapes behaviour
+
+The cases below show tokenisation decisions turning into visible behaviour, in arithmetic, letter counting, code and cost. Each is a pattern you are likely to meet, with the reason behind it and the usual fix.
 
 **Arithmetic.** If "1234" is one token and "1235" another, the model must memorise relationships between thousands of opaque symbols instead of learning digit-wise rules. Tokenizers that split numbers into single digits, or into groups of three aligned from the right, give the model a consistent positional structure to learn carry and place value; models trained this way are measurably better at multi-digit arithmetic. When you see an LLM fail at "what is 7,341 × 6?", part of the answer is that it may never have seen those digits as separate symbols.
 
