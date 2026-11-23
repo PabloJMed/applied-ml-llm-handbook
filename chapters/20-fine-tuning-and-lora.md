@@ -6,6 +6,10 @@ Part V · Post-training. Assumes Chapter 10 (transformers) and Chapter 1's SVD a
 
 Fine-tuning adapts a pretrained model to your task, format or domain. Parameter-efficient methods, above all LoRA, made this possible on a single GPU and turned it into a routine tool: distilling an LLM's behaviour into a small model, enforcing a strict output format, teaching domain style or vocabulary, cutting cost and latency. Interviewers ask when fine-tuning is the right call (often it is not), how LoRA works mathematically, and how you would evaluate the result. Section 20.5 connects the older prompt-based methods (prefix-tuning and prompt tuning) to current practice.
 
+The chapter starts with the decision that comes before any fine-tune: whether prompting or retrieval would solve the problem more cheaply (20.1). It then compares full fine-tuning (20.2) with the parameter-efficient methods that made fine-tuning routine: LoRA, explained from its linear-algebra intuition (20.3), QLoRA, which fits large models on small GPUs (20.4), and the older adapter and prompt-based methods (20.5). Sections 20.6 to 20.8 cover the data side and its main risk: chat templates, synthetic data, and forgetting what the model knew. The chapter ends with evaluation (20.9), working code (20.10), the methods beyond task fine-tuning (20.11) and a worked fine-tune on a single 24 GB GPU (20.12).
+
+The idea that ties the methods together is that adapting a model to a narrow task changes it very little. Chapter 1.2 showed that such a small change is well described by a low-rank matrix, and that is why updating a fraction of a percent of the parameters can recover most of the gain of updating them all.
+
 ## Key concepts
 
 - **Full fine-tuning vs parameter-efficient fine-tuning (PEFT)**: updating every weight vs training a small number of new parameters on a frozen model. [Hugging Face PEFT documentation](https://huggingface.co/docs/peft/index).
@@ -17,6 +21,8 @@ Fine-tuning adapts a pretrained model to your task, format or domain. Parameter-
 - **When not to fine-tune**: if prompting or retrieval solves it, those are cheaper to build and change (20.1).
 
 ## 20.1 Prompt, retrieve or fine-tune?
+
+Fine-tuning is often the first idea and rarely the first thing to try. Prompting changes behaviour in minutes, retrieval adds knowledge that stays current, and fine-tuning is the right tool for a narrower set of needs: a consistent format, a specific style, a narrow task at high volume, or a cheaper model. Choosing correctly saves weeks.
 
 | Need | Best first tool | Why |
 |---|---|---|
@@ -30,6 +36,8 @@ Fine-tuning adapts a pretrained model to your task, format or domain. Parameter-
 **The usual order:** prompt well, add retrieval if knowledge is missing, and fine-tune only when evaluation shows a consistent gap that prompting cannot close, or when cost and latency demand a smaller model. Fine-tuning brings costs of its own: data collection, training infrastructure, model hosting, re-training when the base model updates, and evaluation for regressions.
 
 ## 20.2 Full fine-tuning
+
+The most direct way to adapt a model is to keep training all of its parameters on the new data. It gives the most capacity for change, and it costs the most: memory for gradients and optimiser states of every parameter, and a full copy of the model for every task.
 
 Update every parameter on your data, usually with a small learning rate (around 1e-5 to 5e-5 for transformers), warm-up and decay, a few epochs, early stopping on validation loss.
 
@@ -52,7 +60,15 @@ Full fine-tuning is still right for smaller encoders (BERT-sized classifiers, Ch
 
 ## 20.3 LoRA in depth
 
-**The idea (Hu et al., 2021).** The weight change needed to adapt a model to a task has low intrinsic rank. So instead of learning a full update ΔW (d × k), learn it as the product of two thin matrices: ΔW = B·A, with B of size d × r and A of size r × k, r much smaller than d and k. The pretrained W stays frozen.
+Full fine-tuning updates billions of parameters to make what is, in practice, a small change to the model's behaviour. LoRA starts from that observation: if the change is small and structured, it can be represented with far fewer numbers.
+
+**The idea (Hu et al., 2021).** The weight change needed to adapt a model to a task has low intrinsic rank. So instead of learning a full update ΔW (d × k), learn it as the product of two thin matrices:
+
+$$
+W' = W + \Delta W = W + \dfrac{\alpha}{r}\,B A,\qquad B \in \mathbb{R}^{d\times r},\ A \in \mathbb{R}^{r\times k}
+$$
+
+with r much smaller than d and k. The pretrained W stays frozen; only A and B are trained, and α / r is a fixed scaling factor.
 
 ![Cumulative share of a full fine-tuning update's squared singular values kept by its best rank-r approximation](images/20-fig-1.png)
 
@@ -109,6 +125,8 @@ Checks from a test run: wrapping a 4096 × 4096 layer with r = 16 gives 131,072 
 
 ## 20.4 QLoRA
 
+LoRA shrinks the trainable parameters, but the frozen base model still has to fit in GPU memory, which for a 70B model means several high-end GPUs. QLoRA stores the frozen weights in 4-bit precision and trains LoRA adapters on top, bringing large-model fine-tuning to a single GPU with little loss in quality.
+
 QLoRA (Dettmers et al., 2023) fine-tunes LoRA adapters on top of a base model **quantised to 4 bits**, so a 7B model's frozen weights take about 3.5 GB instead of 14 GB. Its ingredients:
 
 - **NF4 (4-bit NormalFloat):** a 4-bit data type whose levels are spaced for normally distributed weights.
@@ -163,6 +181,8 @@ it is more stable to train, works well across model sizes, and adds no inference
 
 ## 20.6 Instruction data and chat templates
 
+A chat model expects conversations in an exact format, with special tokens marking roles and turns, and it learns what to say only from the parts of the data that the loss covers. Most fine-tuning bugs that silently degrade a model come from these two details.
+
 **Supervised fine-tuning (SFT)** trains on (instruction, response) pairs, or multi-turn conversations. Quality beats quantity: the LIMA paper (Zhou et al., 2023) showed strong instruction-following from about 1,000 carefully chosen examples. For a narrow task, a few hundred to a few thousand high-quality examples is a common range.
 
 **What good task data looks like:** realistic inputs (from production where possible), covering the full distribution and the hard cases; correct, consistent outputs in exactly the target format; deduplicated; no overlap with your evaluation set.
@@ -184,6 +204,8 @@ Always keep a human-verified evaluation set that the synthetic pipeline never to
 
 ## 20.8 Catastrophic forgetting
 
+Training on a narrow task moves the model towards that task and away from everything else. The more it moves, the more general ability, safety behaviour and knowledge it can lose. Forgetting is the main hidden cost of fine-tuning, and it has to be measured, not assumed away.
+
 Fine-tuning on a narrow task can degrade general abilities, including safety behaviour and instruction-following outside the task. Mitigations:
 
 - PEFT methods, which change fewer parameters and tend to forget less (Biderman et al., 2024, found LoRA "learns less and forgets less" than full fine-tuning).
@@ -193,6 +215,8 @@ Fine-tuning on a narrow task can degrade general abilities, including safety beh
 - Evaluating a small general and safety suite before and after every fine-tune.
 
 ## 20.9 Evaluating a fine-tune
+
+A fine-tune is only worth shipping if it beats the cheaper alternatives on the target task and does not break anything else. A credible evaluation therefore compares against strong baselines and checks for regressions, not just the task score.
 
 1. **Baselines:** the base model with your best prompt, the base model with few-shot examples, and possibly a larger model. The fine-tune must beat these on the task by enough to justify itself.
 2. **Task metrics** on a held-out set never used for training or prompt tuning (Chapter 24), per slice.

@@ -8,6 +8,10 @@ From late 2024 the most important advances in LLMs came from reinforcement learn
 
 Numbers in this chapter come from `code/ch19_check.py` (NumPy, under a second).
 
+The chapter starts with what changed in 2024 to make RL for reasoning work (19.1), then takes the components of a run in turn: the verifier that defines the reward (19.2), GRPO, the algorithm most open recipes use (19.3), the biases found in it and their fixes (19.4), and the choice of training problems (19.5). Section 19.6 asks the research question behind it all: does RL teach new reasoning, or only surface what the base model could already do? Sections 19.7 to 19.9 cover process rewards, ways to spend inference compute, and distilling reasoning into small models. The chapter ends with the systems side (19.10), a worked run (19.11) and what is known about predicting RL results at scale (19.12).
+
+The key difference from Chapter 18 is the reward. A verifier is cheap, exact and hard to fool, so the policy can be optimised far harder than against a learned reward model, for thousands of steps. Most of the chapter's techniques are about using that freedom well: choosing problems of the right difficulty, assigning credit fairly across long responses, and keeping generation, which dominates the cost, fast.
+
 ## Key concepts
 
 - **RL with verifiable rewards (RLVR)**: reward from a programmatic check of the final answer. [Tülu 3 (RLVR)](https://arxiv.org/abs/2411.15124), [DeepSeek-R1](https://arxiv.org/abs/2501.12948).
@@ -24,6 +28,8 @@ Numbers in this chapter come from `code/ch19_check.py` (NumPy, under a second).
 
 ## 19.1 What changed
 
+Earlier models were taught to reason by imitating written solutions, and they learned the form of reasoning more than its substance. The breakthrough of 2024 was to let the model find its own solutions, rewarding only correct final answers, at large scale. Long chains of thought, self-checking and backtracking then appeared without being demonstrated.
+
 Earlier attempts to teach reasoning through supervised chains of thought or learned process rewards helped but did not scale cleanly. The recipe that worked is simple:
 
 1. Start from a strong base model (pretraining and mid-training on maths and code matter a lot).
@@ -34,6 +40,8 @@ Earlier attempts to teach reasoning through supervised chains of thought or lear
 DeepSeek-R1-Zero went straight from base model to RL with no SFT and still learned long reasoning, self-verification and backtracking (the "aha moment" of the report), though with readability problems that the cold-start SFT fixed in R1. Response length grew steadily during training: the model learned to use more tokens because more thinking earned more reward.
 
 ## 19.2 Verifiers and reward design
+
+In RL with verifiable rewards, the verifier is the entire specification of what the model should learn. Anything it fails to check, the policy is free to exploit, so reward design is mostly about closing loopholes: answers in the wrong format, tests that can be gamed, or partial credit that rewards the wrong behaviour.
 
 The reward is the specification. Typical verifiers:
 
@@ -56,9 +64,13 @@ Practical rules:
 
 ## 19.3 GRPO in detail
 
+PPO needs a value model as large as the policy to estimate how good each state is, which doubles memory and adds its own training problems. GRPO removes it with a simple idea: sample several answers to the same prompt, and judge each one against the others. The group's average reward is the baseline, and each answer's advantage is how much better or worse it did than its siblings.
+
 For each prompt, sample a group of G responses (8 to 64), score each with the verifier, and use the score relative to the group as the advantage of every token in that response:
 
-A_i = (r_i − mean(r)) / std(r)
+$$
+A_i = \dfrac{r_i - \mathrm{mean}(r_1,\ldots,r_G)}{\mathrm{std}(r_1,\ldots,r_G)}
+$$
 
 No value model is needed: the group is the baseline. The objective is PPO's clipped surrogate (Chapter 18) applied per token with this advantage, often with a KL penalty to the reference model.
 
@@ -67,6 +79,8 @@ For rewards [1, 0, 0, 1, 1, 0, 0, 0], the advantages are +1.21 for correct and �
 **Why groups work.** A value model for long reasoning must predict, from a partial chain of thought, the chance of eventual success: hard to learn and memory-hungry. A group of samples estimates the prompt's baseline directly, at the price of more generation.
 
 ## 19.4 Known biases and the fixes
+
+The original GRPO objective contains normalisation choices that looked harmless and turned out to shape behaviour, most visibly the length of responses. Understanding them matters both for running RL and for interpreting published results, since several "emergent" behaviours turned out to be partly artefacts of the objective.
 
 Careful analysis in 2025 found that the original GRPO objective has biases, and that several engineering choices matter as much as the algorithm.
 
@@ -97,12 +111,16 @@ Other algorithms in the same family: **RLOO** (leave-one-out baseline within the
 
 ## 19.5 Data and curriculum
 
+RL only learns from problems where the model sometimes succeeds and sometimes fails. Problems it always solves, or never solves, give every sample the same reward and therefore no learning signal. Choosing and updating the training problems is as important as the algorithm.
+
 - **Difficulty**: keep prompts whose pass rate under the current policy is neither 0 nor 1 (often 10–90%). Re-estimate as the policy improves; prompts that become easy stop teaching.
 - **Coverage**: maths of several levels, code in several languages, logic puzzles, STEM questions with short answers, instruction constraints. Narrow prompt sets give narrow gains.
 - **Verifiability first**: drop prompts whose reference answers are wrong or ambiguous (a surprising fraction in scraped maths sets); these teach the model to fit noise.
 - **Curricula**: increase difficulty or maximum response length in stages; long-context reasoning is expensive, so many runs grow the length limit over training.
 
 ## 19.6 Does RL teach new reasoning?
+
+RL raises the share of correct answers, but it is a fair question whether it creates new abilities or only makes the model choose, more reliably, solutions it could already produce occasionally. The answer decides how far RL alone can push a model, and the evidence is more nuanced than either side's headline.
 
 Yue et al. (2025) compared base and RL-trained models with pass@k for large k. RL models win clearly at k = 1, but base models often catch up or win at k = 256: RL mostly **sharpens** the distribution towards solutions the base model could already sample, and can **narrow** it, losing rare solutions. Others argue that longer RL, larger models or more diverse prompts do extend the frontier, and that distillation from a stronger model genuinely adds new capability to a small one. The debate is about evidence, so you should be able to produce some.
 
@@ -129,11 +147,15 @@ Compute pass@k with the unbiased estimator from n ≥ k samples (Chapter 13), on
 
 ## 19.7 Process supervision
 
+A reward on the final answer says nothing about which steps were good. A model that reaches the right answer through a wrong argument is rewarded, and a model that makes one slip in a long correct argument is not. Process supervision scores the intermediate steps, at the cost of needing a way to judge them.
+
 An outcome reward model (ORM), or a verifier, judges the final answer. A **process reward model (PRM)** scores each step of the reasoning. Lightman et al. (2023) trained a PRM on 800k human step labels (PRM800K) and found that, for selecting the best of many solutions, process supervision beat outcome supervision on competition maths. Math-Shepherd labelled steps automatically: a step's label is the fraction of continuations from that step that reach the right answer (a Monte Carlo estimate of its value).
 
 PRMs are used for: reranking samples, guiding search (beam search over steps, tree search), and dense rewards in RL. Their problems: human step labels are expensive; automatic labels are noisy; and PRMs used as RL rewards get hacked (the policy produces steps that look good to the PRM). R1-style training used outcome rewards only, and most RLVR pipelines still do; PRMs are more common at inference.
 
 ## 19.8 Spending inference compute
+
+A model's accuracy can be raised after training by spending more compute per question: sampling several answers, checking them, or searching. The strategies differ in what they need (a verifier, a reward model, or nothing at all) and in how quickly their gains flatten out.
 
 | Strategy | How | Needs |
 |---|---|---|
@@ -155,11 +177,15 @@ The practical check before adding voting is cheap. Sample 20–40 answers on a f
 
 ## 19.9 Distilling reasoning
 
+RL is expensive and works best on large models. Small models can acquire much of the same ability far more cheaply by training directly on the reasoning traces of a large one. For models below a certain size, distillation consistently beats running RL on the small model itself.
+
 The cheapest way to give a small model reasoning ability is SFT on reasoning traces from a stronger model. DeepSeek released distilled models trained on about 800k samples from R1 that outperformed the same small models trained with RL directly. s1 and LIMO showed that around a thousand carefully chosen, hard, verified traces already elicit much of the behaviour from a strong base model. The emerging rule: **distil into small models, run RL on large ones**, then distil again. Quality filters on traces matter: verify final answers, remove repetitive or incoherent thinking, prefer diverse problems.
 
 **On-policy distillation.** SFT on teacher traces is off-policy: the student learns from states the teacher visits, not the ones it reaches itself (the exposure-bias problem of Chapter 18). On-policy distillation samples responses from the *student* and asks the teacher to score every token, typically with the per-token reverse KL between student and teacher as a dense negative reward. It combines RL's on-policy sampling with SFT's dense signal: one bit of reward per episode becomes a target for every token. The Qwen3 report found it beat RL on the same student (74.4% against 67.6% on AIME'24) at about a tenth of the GPU hours, and Thinking Machines (2025) showed it also restores instruction-following lost after fine-tuning on new domain documents. It needs a teacher that shares the student's tokenizer, or a mapping between vocabularies, and access to the teacher's log-probabilities. The 2025–26 open-model recipes increasingly use it as the last post-training stage.
 
 ## 19.10 Systems for RL
+
+A reasoning RL run spends most of its time generating long responses, not computing gradients. The engineering problem is therefore keeping inference fast inside a training loop, with the policy's weights changing at every step.
 
 RL for reasoning is dominated by **generation**: sampling long responses for many prompts takes most of the time. Practical consequences:
 

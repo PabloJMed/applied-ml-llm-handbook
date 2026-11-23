@@ -8,6 +8,10 @@ Architectures converge; data does not. Model reports from the last few years agr
 
 Numbers in this chapter come from `code/ch16_check.py` (seconds on a laptop).
 
+The chapter follows a web document from the raw crawl to the training mixture. It starts with the sources (16.1) and the shape of a processing pipeline (16.2), then the three kinds of filtering: cheap heuristics (16.3), model-based quality classifiers (16.4) and deduplication (16.5). Decontamination (16.6) protects the evaluation. Sections 16.7 and 16.8 decide what the model actually sees: the proportions of each source, and the high-quality data reserved for the end of training. Synthetic data (16.9) is now part of every stage. The chapter ends with how to run data experiments that give trustworthy answers (16.10), and a worked budget for a real pair of runs (16.11).
+
+Data work is mostly about trade-offs with no single right answer: stricter filters give cleaner data but less of it, and more of one source means less of another. The common thread is measurement. Every data decision should be tested on small proxy models before it is applied to a large run, and the chapter shows how.
+
 ## Key concepts
 
 - **Common Crawl**: the public web crawl most open pretraining corpora start from. [Common Crawl](https://commoncrawl.org/).
@@ -21,6 +25,8 @@ Numbers in this chapter come from `code/ch16_check.py` (seconds on a laptop).
 - **Open corpora and tooling**: [Dolma](https://arxiv.org/abs/2402.00159), [datatrove](https://github.com/huggingface/datatrove).
 
 ## 16.1 Where the tokens come from
+
+A frontier pretraining run needs tens of trillions of tokens, and very few sources are that large. The open web is the only source at that scale, and it is mostly low quality; everything else (code, books, papers, curated reference text) is smaller but denser in useful information. A mixture balances the two.
 
 | Source | Role | Issues |
 |---|---|---|
@@ -38,6 +44,8 @@ Numbers in this chapter come from `code/ch16_check.py` (seconds on a laptop).
 
 ## 16.2 The pipeline
 
+Raw web crawls are mostly boilerplate, spam, duplicates and broken text. Turning them into training data is a pipeline of filters, each removing a different kind of problem. The order matters for cost: cheap filters run first so that the expensive ones, such as model-based scoring, only see the documents that survived.
+
 A typical web pipeline, cheapest steps first so expensive steps see less data:
 
 1. **URL filtering**: block lists for adult, spam and malware domains.
@@ -54,6 +62,8 @@ Every step is an experiment: change one, train a small model, compare. Open pipe
 
 ## 16.3 Heuristic filters
 
+Much of the junk on the web can be recognised from simple statistics: the share of lines that end in punctuation, the ratio of symbols to words, how often lines repeat. Such rules cost almost nothing to run, and they remove most of the obviously bad text before anything more expensive sees it.
+
 Simple statistics remove most junk. Rules in the spirit of Gopher and C4: minimum length, mean word length within a range, low symbol ratio, at least a few common stopwords (real prose has them), and a low fraction of repeated n-grams.
 
 ```python
@@ -65,6 +75,8 @@ def keep(h):
 On five toy documents the rules keep the news paragraph and its near-duplicate, drop the navigation boilerplate (symbol ratio 0.68, no stopwords) and the keyword spam (38% of trigrams repeated), and also drop a short Python function: prose rules are wrong for code. Every domain needs its own filters, and every rule removes some good data along with the bad. Measure what each rule removes by sampling and reading, not only by its effect on benchmarks.
 
 ## 16.4 Model-based quality filtering
+
+Heuristics remove junk but cannot tell a mediocre page from an excellent one. A small classifier trained to recognise text that resembles high-quality references, or that a strong model rates as educational, can rank the remaining documents. Since 2024 such classifiers have been the biggest single lever on pretraining data quality.
 
 Heuristics catch junk; classifiers rank the rest. Two well-documented designs:
 
@@ -81,6 +93,8 @@ clf = LogisticRegression(C=10).fit(vec.transform(good + bad), [1] * len(good) + 
 **Costs and risks.** A classifier trained on one notion of quality narrows the distribution: aggressive educational filtering improves knowledge benchmarks but can hurt conversational, creative or dialect-rich text, and it can encode biases (some topics, regions or registers score lower). Common practice: keep several quality buckets, mix the top buckets with some of the middle, and check performance by domain and language, not just averages.
 
 ## 16.5 Deduplication
+
+The web is full of copies: mirrored sites, templates, boilerplate, quoted text. Training on duplicates wastes compute, encourages memorisation, and over-weights whatever happens to be copied most. Exact duplicates are easy to remove; near-duplicates, which differ by a date or an advertisement, need approximate methods that scale to billions of documents.
 
 Duplicates waste compute, encourage memorisation (including of personal data) and inflate benchmark scores when test items are duplicated in the data. Three levels:
 
@@ -111,6 +125,8 @@ Duplicates waste compute, encourage memorisation (including of personal data) an
 
 ## 16.6 Decontamination
 
+A benchmark only measures generalisation if the model has not seen its questions. Web crawls contain benchmark questions, answers and discussions of both, so evaluation data leaks into training unless it is removed deliberately. Decontamination is the step that protects every number reported later.
+
 If benchmark questions are in the training data, benchmark scores measure memory. Standard practice is n-gram overlap: flag training documents that share any long n-gram (often 13 words) with a test item, then remove them or the overlapping span.
 
 ```python
@@ -121,6 +137,8 @@ len(ngrams(benchmark_item) & ngrams(paraphrase))        # 0 -> missed
 N-gram matching misses paraphrases, translations and solutions posted in a different format. Stronger checks use embedding similarity or an LLM judge on candidate pairs. Contamination can also arrive later, through synthetic data generated by a model that saw the test set. Chapter 23 covers how to detect contamination in a trained model when you cannot inspect its data.
 
 ## 16.7 Data mixtures
+
+After filtering, the pipeline has many sources of different sizes and qualities. How often the model sees each one, the mixture, is one of the most consequential and least obvious decisions of a run: natural proportions over-weight the web, while over-sampling small sources risks repeating them too often.
 
 A mixture assigns a sampling weight to each source. Natural proportions (by size) let the web dominate; small, valuable sources (maths, books, low-resource languages) would barely appear. **Temperature sampling** with p_i ∝ n_i^(1/T) flattens the distribution:
 
@@ -149,12 +167,16 @@ The fit gives a usable rule. Up to about four epochs, repeating good data costs 
 
 ## 16.8 Annealing and mid-training
 
+Not all training tokens are equal. Data seen while the learning rate decays at the end of a run has an outsized effect on the final model, so teams save their highest-quality and most targeted data for that phase. The final stretch of pretraining has become a stage of its own.
+
 The end of training has outsized influence: as the learning rate decays, the model consolidates whatever it is seeing. Current recipes exploit this:
 
 - **Annealing**: in the final decay (the last few percent of tokens, often the decay phase of a WSD schedule, Chapter 7), switch to a higher-quality mixture: filtered maths, code, curated web, instruction-like data, textbooks. Small anneal experiments are also a cheap way to measure the value of a new data source: anneal a checkpoint with and without it and compare.
 - **Mid-training**: a distinct phase between pretraining and post-training, with its own mixture and objectives: long-context extension (training on long documents while raising the RoPE base, Chapter 10), reasoning traces, tool-use formats, domain data. It blurs the line with post-training, deliberately: post-training (Chapters 18–19) works better when mid-training has already made the target behaviours likely.
 
 ## 16.9 Synthetic data
+
+High-quality human text is finite, and some kinds of data (step-by-step solutions, long reasoning traces, instruction-following examples) are scarce on the web. Models can now generate useful training data themselves, and synthetic data appears at every stage of training. Its risks are real, especially loss of diversity, and so are the gains.
 
 Synthetic data now enters at every stage.
 
@@ -165,6 +187,8 @@ Synthetic data now enters at every stage.
 Risks: **narrowing** (generators are less diverse than the web), **error inheritance** (the generator's mistakes become facts), **contamination** (generators that saw test sets reproduce them), and, when models are trained repeatedly on their own outputs without fresh data, **model collapse**: the tails of the distribution disappear. Practical rules: keep real data in the mix, filter synthetic data as strictly as web data, verify whatever can be verified, and generate from diverse prompts and seeds.
 
 ## 16.10 Running data experiments
+
+Data decisions are made by experiment, and small experiments mislead easily: differences between mixtures are often smaller than the noise between seeds, and some data only helps at scale. A reliable data experiment needs the right proxy model, the right evaluations and enough repetitions to trust the difference.
 
 Data decisions are only as good as the experiments behind them.
 

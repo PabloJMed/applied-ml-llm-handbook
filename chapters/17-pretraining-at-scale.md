@@ -8,6 +8,10 @@ A 70B-parameter model trained on 15 trillion tokens needs about 6 × 10²⁴ flo
 
 Numbers in this chapter come from `code/ch17_check.py` (instant; hardware figures are round numbers for arithmetic, not vendor specifications).
 
+The chapter starts with the budget: how much compute, memory and time a run needs (17.1, 17.2). Those numbers show that no single GPU can hold a large model, so the rest of the chapter is about splitting the work. Data parallelism and its sharded variants split the batch and the optimiser state (17.3); tensor parallelism splits each matrix multiplication (17.4); pipeline parallelism splits the layers (17.5); sequence and context parallelism split long sequences (17.6); expert parallelism splits the experts of an MoE model (17.7). Section 17.8 shows how real runs combine them. The last sections cover what keeps a run alive for months: reliability (17.9), monitoring (17.10), and a worked memory and time budget (17.11).
+
+Every parallelism scheme trades memory for communication. Splitting a model saves memory on each GPU but forces GPUs to exchange data, and the art of distributed training is arranging the splits so that the heaviest communication happens over the fastest links. Keeping that trade-off in mind makes the combinations in 17.8 easy to follow.
+
 ## Key concepts
 
 - **Data parallelism and all-reduce**: replicas process different batches and average gradients. [PyTorch DDP](https://docs.pytorch.org/docs/stable/notes/ddp.html).
@@ -21,7 +25,15 @@ Numbers in this chapter come from `code/ch17_check.py` (instant; hardware figure
 
 ## 17.1 The budget
 
-**Compute.** Training FLOPs ≈ 6ND (Chapter 13). For 70B parameters and 15T tokens: 6.3 × 10²⁴ FLOPs.
+A large training run is planned like a construction project: before anything starts, you estimate how much compute it needs, how many GPUs for how long, and how much it will cost. The estimate rests on one formula and one efficiency number, and it is accurate enough to decide whether a run is feasible at all.
+
+**Compute.** Training FLOPs ≈ 6ND (Chapter 13): for N parameters and D tokens,
+
+$$
+C \approx 6\,N\,D
+$$
+
+two FLOPs per parameter per token for the forward pass and four for the backward pass. For 70B parameters and 15T tokens: 6.3 × 10²⁴ FLOPs.
 
 **Time.** Divide by the cluster's sustained throughput: number of GPUs × peak FLOP/s × MFU. With round numbers (989 TFLOP/s dense bf16 per GPU):
 
@@ -37,6 +49,8 @@ GPU-hours barely change with cluster size; wall-clock time does. Larger clusters
 
 ## 17.2 Where the memory goes
 
+Before choosing how to split a model across GPUs, you need to know what has to be stored. The weights are the smallest part: gradients, optimiser states and activations add several times more, and each grows with different settings. Knowing the bytes per parameter and per token lets you see immediately which split a model needs.
+
 Per parameter, bf16 mixed precision with Adam needs 16 bytes: 2 for bf16 weights, 2 for bf16 gradients, 12 for the fp32 master copy and the two Adam moments. A 70B model therefore needs 1.12 TB before a single activation is stored; a GPU has 80–192 GB.
 
 **Activations** are the other big term. For a transformer layer with sequence length s, micro-batch b, width h and a attention heads, stored activations are roughly s·b·h·(34 + 5·a·s/h) bytes (Korthikanti et al., 2022). The second term is the attention score matrix, quadratic in s. For 80 layers at width 8,192, 64 heads and 8k tokens: 1,901 GB with everything stored, 183 GB if the attention scores are recomputed in the backward pass (which FlashAttention does automatically). Tensor and sequence parallelism divide this further by the parallel degree, and pipeline parallelism divides the layers among stages.
@@ -44,6 +58,8 @@ Per parameter, bf16 mixed precision with Adam needs 16 bytes: 2 for bf16 weights
 **Activation recomputation** (checkpointing): store only each layer's input and recompute the rest during the backward pass. Full recomputation costs about one extra forward pass (around 33% more compute); selective recomputation of the cheap-to-compute, memory-heavy parts (attention) gets most of the saving for a few percent.
 
 ## 17.3 Data parallelism, ZeRO and FSDP
+
+The simplest way to use many GPUs is to give each a different slice of the batch. It requires every GPU to hold the whole model, which quickly becomes impossible. Sharded data parallelism keeps the simplicity of the batch split but spreads the model's states across GPUs, gathering them only when needed.
 
 **Data parallelism (DP).** Every GPU holds a full model copy, processes a different slice of the batch, and the gradients are averaged with an **all-reduce** before each update.
 
@@ -73,11 +89,15 @@ ZeRO-1 and ZeRO-2 cost no extra communication (a reduce-scatter plus all-gather 
 
 ## 17.4 Tensor parallelism
 
+When a single layer's matrix multiplications are too large or too slow for one GPU, the matrices themselves can be split, with each GPU computing part of every product. It needs fast communication within every layer, so it is used inside a node, where GPUs are connected by the fastest links.
+
 Split each weight matrix across GPUs so each computes part of every matmul (Megatron-LM). In an MLP, split the first matrix by columns and the second by rows: each GPU computes its slice of the hidden layer independently, and one all-reduce at the end sums the partial outputs. Attention splits naturally by heads. That is two all-reduces of the activations per layer in the forward pass and two in the backward.
 
 Tensor parallelism (TP) communicates on every layer, so it needs the fastest links: it is used **within a node** (8 GPUs on NVLink), rarely across nodes. It cuts weights, gradients, optimiser states and (with **sequence parallelism**, which splits the layer-norm and dropout regions along the sequence) activations by the TP degree, and it reduces the per-GPU matmul size, which lowers efficiency if pushed too far.
 
 ## 17.5 Pipeline parallelism
+
+Splitting a model by layers, with each group of layers on a different set of GPUs, needs communication only at the boundaries between stages, so it works across slower links between nodes. Its cost is idle time: a stage has to wait for the previous one, and keeping that "bubble" small is the main design problem.
 
 Split the layers into p stages on different GPUs (or nodes); activations flow forward through the stages and gradients flow back. Only activations at stage boundaries cross the network, so pipeline parallelism (PP) tolerates slower links.
 
@@ -97,9 +117,13 @@ More micro-batches shrink the bubble but need a large global batch. Schedules re
 
 ## 17.6 Sequence and context parallelism
 
+Long-context training makes the activations of a single sequence too large for one GPU, even when the model fits. The remedy is to split the sequence itself across GPUs, which requires care in attention, where every token must see the others.
+
 Long-context training (32k to 1M tokens) makes activations per sequence too large for one GPU even with recomputation. **Context parallelism** splits each sequence across GPUs. Attention needs every query to see every earlier key, so keys and values circulate: in **ring attention** each GPU computes attention for its query block against one key–value block at a time while passing blocks round the ring, overlapping communication with computation. Causal masking makes the work uneven across positions; implementations reorder blocks so each GPU gets a balanced share. Long-context extension is usually done in a separate mid-training phase (Chapter 16), with context parallelism switched on only then.
 
 ## 17.7 Expert parallelism
+
+A mixture-of-experts model has far more parameters than a dense model of the same compute, held in many separate experts. Placing different experts on different GPUs is natural, but each token must then travel to wherever its chosen experts live, which turns routing into a communication problem.
 
 For MoE models (Chapter 11), place different experts on different GPUs. Each MoE layer then needs two **all-to-all** exchanges: send each token to the GPUs holding its chosen experts, and send the results back. All-to-all traffic is heavy and sensitive to load imbalance (one hot expert stalls everyone), which is why routing balance matters as much for systems as for quality. Common tricks: limit how many nodes a token's experts can span, overlap the all-to-all of one micro-batch with the computation of another, and use custom communication kernels.
 
@@ -116,6 +140,8 @@ Large runs combine these into "3D" (DP × TP × PP) or "4D/5D" layouts (adding c
 A layout for the 70B example on 1,024 GPUs: TP = 8, PP = 4, DP = 32. Each GPU holds 2.19B parameters: 8.8 GB of bf16 weights and gradients, plus 0.82 GB of Adam state when the optimiser is sharded across the 32 DP ranks, leaving room for activations. A global batch of 4M tokens is 32 replicas × 1 sequence of 8,192 tokens × 16 gradient-accumulation micro-batches, which also gives the pipeline 16 micro-batches per step.
 
 ## 17.9 Reliability
+
+A run on thousands of GPUs for several months will see hardware fail regularly: one failing GPU somewhere in the cluster every few hours is normal. Training at that scale is as much about recovering quickly as about running fast.
 
 At scale, hardware failure is routine. With a per-GPU mean time between failures of 50,000 hours, a 1,024-GPU job fails about every 49 hours; a 16,384-GPU job every 3 hours. The Llama 3 report described roughly 400 unexpected interruptions in a 54-day period of its largest run, most from GPU and memory faults.
 
