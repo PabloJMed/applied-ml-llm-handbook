@@ -54,10 +54,10 @@ PARTS = [
 # The book preset was set denser in November 2026 (from 9 pt, lh 1.42, margins 48/58/54, gap 1.0,
 # img 78): 530 pages became 457. After a printed proof (the 7 x 10 in page is scaled up about 1.18x
 # when printed on A4) the type went down to 8 pt with a little more space between blocks (lh 1.4,
-# gap 0.95), and after a second proof to 7.4 pt, with code blocks relatively a little larger
+# gap 0.95), and after further proofs to 7 pt, with code blocks relatively a little larger
 # (0.76 of the body size, was 0.72) so they stay readable. Pass --base, --lh, --gap, --mx, --top, --bottom or --img to test others.
 PRESETS = {
-    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=7.4, lh=1.4, gap=0.95, img=70),
+    "book": dict(page=pymupdf.Rect(0, 0, 504, 720), mx=44, top=54, bottom=50, base=7.0, lh=1.4, gap=0.95, img=70),
     "a4": dict(page=pymupdf.paper_rect("a4"), mx=66, top=70, bottom=62, base=9.8),
 }
 
@@ -66,6 +66,8 @@ INK = (0.12, 0.12, 0.11)
 MUTED = (0.47, 0.46, 0.44)
 RULE = (0.82, 0.80, 0.76)
 COVER_BG = (0.973, 0.961, 0.937)
+COVER_INK = (0.106, 0.102, 0.094)   # front-page background
+COVER_GLOW = (0.878, 0.537, 0.380)  # lighter terracotta that reads on the dark front page
 
 
 def css(base: float, lh: float = 1.42, gap: float = 1.0, img: int = 78) -> str:
@@ -159,12 +161,11 @@ h1 {{ font-size: {s(2.0)}; line-height: 1.12; margin: 0 0 {s(0.9)} 0; padding-bo
 .dedication p {{ font-family: serif; font-style: italic; font-size: {s(1.15)}; line-height: 1.5; color: #3d3b37; text-align: center; margin: 0; }}
 .dedication p.top {{ padding-top: {s(16)}; }}
 .dedication p.sig {{ font-style: normal; font-family: sans; font-size: {s(0.82)}; color: #8a8882; margin: {s(0.6)} 0 {s(3.2)} 0; }}
-.cover-title {{ font-family: sans; font-weight: bold; font-size: {s(3.6)}; line-height: 1.08; color: #1a1a18; margin: {s(11)} 0 0 0; }}
-.cover-sub {{ font-family: serif; font-size: {s(1.22)}; line-height: 1.45; color: #4f4d48; margin: {s(2.6)} {s(2)} 0 0; }}
-.cover-author {{ font-family: sans; font-weight: bold; font-size: {s(1.45)}; color: #1a1a18; margin: {s(3.2)} 0 0 0; }}
-.cover-meta {{ font-family: sans; font-weight: bold; font-size: {s(0.74)}; color: #b8623f; margin: {s(4.2)} 0 {s(0.5)} 0; }}
-.cover-parts {{ font-family: sans; font-size: {s(0.86)}; color: #55534e; line-height: 1.6; }}
-.cover-edition {{ font-family: sans; font-size: {s(0.8)}; color: #6e6c66; margin: {s(3.4)} 0 0 0; }}
+.cover-kicker {{ font-family: sans; font-weight: bold; font-size: {s(0.8)}; color: #e0895f; margin: 0; }}
+.cover-title {{ font-family: sans; font-weight: bold; font-size: {s(4.6)}; line-height: 1.04; color: #f4efe6; margin: {s(41)} 0 0 0; }}
+.cover-sub {{ font-family: serif; font-style: italic; font-size: {s(1.5)}; line-height: 1.45; color: #c9c1b4; margin: {s(4.2)} {s(10)} 0 0; }}
+.cover-author {{ font-family: sans; font-weight: bold; font-size: {s(1.45)}; color: #f4efe6; margin: {s(20)} 0 0 0; }}
+.cover-repo {{ font-family: sans; font-size: {s(0.82)}; color: #938c80; margin: {s(0.6)} 0 0 0; }}
 
 .toc h1 {{ border-bottom: none; padding-bottom: 0; margin-bottom: {s(0.6)}; }}
 .toc-part {{ font-family: sans; font-weight: bold; font-size: {s(0.7)}; color: #b8623f; margin: {s(1.05)} 0 {s(0.15)} 0; }}
@@ -246,6 +247,52 @@ def add_ids(key: str, body: str) -> str:
     for m in re.finditer(r'<p id="([^"]+)"[^>]*>(?:(?!</p>).)*:</p>\s*<(?:ul|ol|pre|table|div)', body, flags=re.S):
         KEEP.add(m.group(1))
     return body
+
+
+def draw_front_page(page, mx: float, base: float) -> None:
+    """Decorate the front page: a dark background, a large causal attention matrix as the motif
+    (each query row attends only to earlier positions, shaded by a fixed softmax of random scores;
+    masked future positions are faint outlines), a terracotta rule under the title and a hairline
+    above the authors. The text itself is laid out by the Story."""
+    import math, random
+    W, H = page.rect.width, page.rect.height
+    shape = page.new_shape()
+    shape.draw_rect(page.rect); shape.finish(fill=COVER_INK, color=None)
+    shape.commit(overlay=False)
+
+    title = page.search_for("The AI & LLM")
+    bottom = title[0].y0 - base * 5 if title else H * 0.5
+    kicker = page.search_for(EDITION.upper()[:14])
+    n, gap_ratio = 18, 0.16
+    y0 = kicker[0].y0 if kicker else base * 7          # top aligned with the edition line
+    cell = (bottom - y0) / (n + (n - 1) * gap_ratio)
+    gap = cell * gap_ratio
+    x0 = W - mx - n * cell - (n - 1) * gap             # right edge on the text margin
+    rng = random.Random(7)
+    shape = page.new_shape()
+    for i in range(n):
+        scores = [rng.gauss(0, 1.3) + (1.6 if j == i else 0) + (0.9 if j == i - 1 else 0) for j in range(i + 1)]
+        z = [math.exp(v) for v in scores]
+        weights = [v / sum(z) for v in z]
+        for j in range(n):
+            r = pymupdf.Rect(x0 + j * (cell + gap), y0 + i * (cell + gap),
+                             x0 + j * (cell + gap) + cell, y0 + i * (cell + gap) + cell)
+            if j <= i:
+                t = 0.10 + 0.90 * min(1.0, weights[j] * 2.2) ** 0.7       # weight -> colour mix
+                fill = tuple(COVER_INK[k] + (COVER_GLOW[k] - COVER_INK[k]) * t for k in range(3))
+                shape.draw_rect(r); shape.finish(fill=fill, color=None)
+            else:
+                shape.draw_rect(r); shape.finish(color=(0.20, 0.19, 0.18), width=0.5, fill=None)
+    shape.commit()
+
+    sub = page.search_for("Scientist Handbook")
+    if sub:
+        y = sub[0].y1 + base * 1.6
+        page.draw_line((mx, y), (mx + 64, y), color=COVER_GLOW, width=2.2)
+    auth = page.search_for(AUTHORS.split(" & ")[0])
+    if auth:
+        y = auth[0].y0 - base * 2.2
+        page.draw_line((mx, y), (W - mx, y), color=(0.30, 0.29, 0.27), width=0.5)
 
 
 def chapter_files() -> dict[str, Path]:
@@ -400,16 +447,15 @@ def build_html(positions: list | None) -> str:
     pg = lambda anchor: str(pages.get(anchor, "000"))
 
     out = []
-    parts_list = "<br>".join((f"{num} · {name}" if num else name) for num, name, _ in PARTS)
-    n_chapters = sum(len(keys) for num, _, keys in PARTS if num)
+    # The front page holds only the edition, title, subtitle and authors; the background, the
+    # attention-matrix motif and the rules are drawn by draw_front_page() once the page exists.
     out.append(f"""
 <div class="cover">
+<p class="cover-kicker">{html.escape(EDITION.upper())}</p>
 <p class="cover-title">The AI &amp; LLM<br>Scientist Handbook</p>
 <p class="cover-sub">{html.escape(SUBTITLE)}</p>
 <p class="cover-author">{html.escape(AUTHORS)}</p>
-<p class="cover-meta">{n_chapters} CHAPTERS · {len(PARTS) - 1} PARTS · {len(PARTS[-1][2])} APPENDICES</p>
-<p class="cover-parts">{parts_list}</p>
-<p class="cover-edition">{EDITION}</p>
+<p class="cover-repo">{html.escape(REPO)}</p>
 </div>""")
     out.append("""
 <div class="dedication">
@@ -580,13 +626,7 @@ def main() -> int:
         if n == 2:
             continue                  # dedication page: no number
         if n == 1:
-            shape = page.new_shape()
-            shape.draw_rect(page.rect); shape.finish(fill=COVER_BG, color=None)
-            shape.draw_rect(pymupdf.Rect(0, 0, 14, H)); shape.finish(fill=ACCENT, color=None)
-            shape.commit(overlay=False)
-            hits = page.search_for("Scientist Handbook")
-            y = (hits[0].y1 + BASE * 1.4) if hits else H * 0.35
-            page.draw_line((MX, y), (MX + 80, y), color=ACCENT, width=1.4)
+            draw_front_page(page, MX, BASE)
             continue
         if n in chapter_of_page:
             cur = chapter_of_page[n]

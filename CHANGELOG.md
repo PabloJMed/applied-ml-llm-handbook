@@ -1,5 +1,10 @@
 # Changelog
 
+## Front page and 7 pt body text (November 2026)
+
+- New front page: dark background with a causal attention matrix as the motif, the title, subtitle, authors and edition only; the list of parts is gone from the cover (the contents page is unchanged).
+- Body text 7 pt (was 7.4). The book is 386 pages.
+
 ## Smaller body text (November 2026)
 
 - Body 7.4 pt (was 8), after a second printed proof; headings, tables and equations scale with it. Code blocks are set relatively a little larger (0.76 of the body size, was 0.72) so they stay readable.
