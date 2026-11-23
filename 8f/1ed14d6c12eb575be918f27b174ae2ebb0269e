@@ -1,0 +1,43 @@
+chapters/41-nlp-tasks-with-modern-tools.md
+  s_6695b7a8fa5137::t_c10380e1271664 11-14
+chapters/40-classic-models.md
+  s_6695b7a8fa5137::t_c10380e1271664 9-12,29-35,155-157,159-161,225-231
+  s_6695b7a8fa5137::t_308e086e515159 158
+chapters/44-search-and-learning-to-rank.md
+  s_6695b7a8fa5137::t_c10380e1271664 11-14
+chapters/46-ml-system-design.md
+  s_6695b7a8fa5137::t_c10380e1271664 3
+chapters/47-mlops-and-llmops.md
+  s_6695b7a8fa5137::t_c10380e1271664 11-14
+chapters/42-infrastructure-primer.md
+  s_6695b7a8fa5137::t_c10380e1271664 11-14
+tools/build_pdf.py
+  s_6695b7a8fa5137::t_1221ce19543aa6 372-373
+tools/check_book.py
+  s_6695b7a8fa5137::t_1221ce19543aa6 10-11,76-80
+chapters/43-recommender-systems.md
+  s_6695b7a8fa5137::t_c10380e1271664 11-14
+chapters/45-marketplace-and-logistics-ml.md
+  s_6695b7a8fa5137::t_c10380e1271664 9-12
+chapters/48-data-for-ml.md
+  s_6695b7a8fa5137::t_c10380e1271664 3,11-13
+  s_6695b7a8fa5137::t_e52b3b759a5483 14
+CHANGELOG.md
+  s_6695b7a8fa5137::t_6e7dbe9c77a1a0 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f1ed14d6c12eb575be918f27b174ae2ebb0269e",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
