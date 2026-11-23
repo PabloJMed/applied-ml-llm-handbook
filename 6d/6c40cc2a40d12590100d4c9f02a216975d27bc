@@ -1,0 +1,37 @@
+chapters/14-multimodal-models.md
+  s_6695b7a8fa5137::t_68bad548b97c28 11-14,27-28,40-41,58-59,90-91,103-104,120-121,136-137,142
+  s_6695b7a8fa5137::t_3d3436a443da1b 143
+chapters/11-architectures-beyond-the-transformer.md
+  s_6695b7a8fa5137::t_68bad548b97c28 11-14,28-29,38-39,81-82,109-110,136-137,149-150,158-159,176-177,191
+  s_6695b7a8fa5137::t_1b1020e87ac22a 192
+chapters/10-the-transformer-in-depth.md
+  s_6695b7a8fa5137::t_68bad548b97c28 9-12,26-27,112-113,168-169,210-211,219-223,234-235,240-246,264-265,276-277,304-305,335-336,388
+  s_6695b7a8fa5137::t_4eb0ebb987a41c 389
+chapters/12-model-families-and-scaling.md
+  s_6695b7a8fa5137::t_68bad548b97c28 3,9-12,26-27,42-43,58-59,91-92,110-111,137-138,164
+  s_6695b7a8fa5137::t_62193a95727fb0 165
+chapters/13-scaling-laws.md
+  s_6695b7a8fa5137::t_68bad548b97c28 11-14,27-28,46-47,50-52,95-96,116-117,144
+  s_6695b7a8fa5137::t_52a6551d00b4d3 145
+chapters/09-text-and-tokenisation.md
+  s_6695b7a8fa5137::t_68bad548b97c28 3,9-12,26-27,41-47,51-52,108-109,137-138,156-157,181-182,201-202,212-213,226
+  s_6695b7a8fa5137::t_9744fb15dd2e8d 227
+CHANGELOG.md
+  s_6695b7a8fa5137::t_09c0b93b7a55bd 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d6c40cc2a40d12590100d4c9f02a216975d27bc",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
