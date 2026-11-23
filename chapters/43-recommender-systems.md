@@ -8,6 +8,10 @@ On a food-delivery app, recommendations decide most of what a user sees: the hom
 
 In interviews for marketplace and consumer-app roles, the ML depth and architecture rounds are very likely to include a recommendation or ranking question. Chapter 46 gives you the answer framework; this chapter gives you the depth an interviewer probes once you are inside the framework. If you already work on recommendations, connect each section as you read to a decision your team has made or should make.
 
+The chapter starts with framing: what a recommender optimises and for whom (43.1). It then builds the classic foundation, collaborative filtering and matrix factorisation (43.2), and the multi-stage architecture that every large system uses (43.3), followed by each stage in turn: two-tower retrieval (43.4), ranking models (43.5) and re-ranking into a page (43.6). Sections 43.7 to 43.9 cover the problems that make recommendation hard in practice: cold start, the feedback loop that exploration breaks, and position bias. The chapter ends with evaluation (43.10) and where LLMs fit in (43.11).
+
+Two ideas recur. Scale forces a funnel: no model can score every item for every user in real time, so cheap models narrow the candidates and expensive ones order them. And the data is shaped by the system itself: users can only click what was shown, so every model trained on logs inherits the biases of the model that produced them.
+
 ## Key concepts
 
 - **Collaborative filtering**: recommend what similar users liked, using only the interaction matrix. [Collaborative filtering](https://en.wikipedia.org/wiki/Collaborative_filtering); [Google's recommendation systems course](https://developers.google.com/machine-learning/recommendation) is a gentle introduction.

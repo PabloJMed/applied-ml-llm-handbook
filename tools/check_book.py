@@ -7,7 +7,8 @@ Checks:
 - every relative link (chapters, code, images, #anchors in other chapters) points to a file or
   heading that exists;
 - every chapter file is listed in the README contents and in tools/build_pdf.py;
-- every $$ display-equation block is opened and closed on lines of its own;
+- every $$ display-equation block is opened and closed on lines of its own, with a blank line
+  before and after it (otherwise it merges into the paragraph and is not typeset);
 - every <details> block is closed (collapsible answers render on GitHub and are flattened in the PDF).
 
 Exits non-zero and lists the problems if any check fails.
@@ -72,6 +73,11 @@ def main() -> int:
         no_code = re.sub(r"^```.*?^```", "", text, flags=re.S | re.M)
         if len(re.findall(r"^\$\$[ \t]*$", no_code, flags=re.M)) % 2:
             problems.append(f"{rel}: unbalanced $$ equation delimiters")
+        for m in re.finditer(r"^\$\$[ \t]*\n.*?\n\$\$[ \t]*$", no_code, flags=re.S | re.M):
+            before, after = no_code[:m.start()], no_code[m.end():]
+            if not before.endswith("\n\n") or not (after.startswith("\n\n") or not after.strip()):
+                line = before.count("\n") + 1
+                problems.append(f"{rel}:{line}: $$ block needs a blank line before and after it")
 
         # relative links and images
         prose = re.sub(r"^```.*?^```", "", text, flags=re.S | re.M)

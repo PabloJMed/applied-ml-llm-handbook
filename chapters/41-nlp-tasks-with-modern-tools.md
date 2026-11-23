@@ -8,6 +8,10 @@ Most applied NLP in companies is not research: it is classifying merchants, tick
 
 Interviewers for LLM-focused roles probe exactly this judgement: when an LLM is the right tool, when a TF-IDF model is, and how to combine them. Section 41.3 works through a typical case, an LLM-based merchant classifier made cheap with a batch API, in the structure interviewers want.
 
+The chapter starts with a ladder of approaches for any text task, from a keyword rule to a fine-tuned LLM, and how to decide how far up to climb (41.1). It then covers the common tasks one by one: classification (41.2, with a worked LLM classifier in 41.3), entity and information extraction (41.4), sentiment (41.5), topic modelling (41.6), summarisation (41.7) and translation (41.8). Section 41.9 explains the task metrics and where each one misleads, and the chapter ends with two worked cases: evaluating an extractor at the entity level (41.10) and choosing between an LLM and a distilled classifier on cost (41.11).
+
+The theme is that the newest tool is not automatically the right one. An LLM can do every task in this chapter with a prompt, but a TF-IDF model or a small fine-tuned encoder is often as accurate for a fraction of the cost and latency. The skill is knowing when the extra capability is worth paying for.
+
 ## Key concepts
 
 - **TF-IDF + linear model**: weight words by how specific they are to a document, then fit logistic regression; still the fastest strong baseline for text classification. [Tf–idf](https://en.wikipedia.org/wiki/Tf%E2%80%93idf).

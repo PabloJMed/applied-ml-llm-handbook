@@ -369,6 +369,8 @@ def chapter_html(md: MarkdownIt, key: str, path: Path) -> tuple[str, str]:
     for i, (latex, label) in enumerate(eqs):
         alt = html.escape(latex, quote=True)
         body = body.replace(f"<p>@@EQ{i}@@</p>", f'<p class="eq"><img src="{equation_name(latex, label)}" alt="{alt}"></p>')
+    if "@@EQ" in body:
+        raise SystemExit(f"{path.name}: a $$ equation block is not a paragraph of its own (run tools/check_book.py)")
     # The first paragraph repeats the part name ("Part I · Foundations. Assumes ..."); the part is
     # shown above the title, so drop it and set the rest as the chapter's italic intro.
     body = re.sub(r"^<p>Part [IVX]+ · (?:[^.<:]*\.\s*)?", '<p class="partintro">', body, count=1)

@@ -16,6 +16,8 @@
 - Parts IV and V (chapters 15–20): the same treatment, with 6ND, the GRPO advantage and the LoRA update as display equations, and chapter openings that name the idea tying each chapter together (each training stage changes something different; every parallelism scheme trades memory for communication; post-training maximises reward under a KL leash; a narrow adaptation is a low-rank change).
 - Parts VI–VIII (chapters 21–28): chapter openings that lay out the sections and their unifying idea (serving is bound by memory reads; a prompt is a specification; evaluation is measurement; interpretability needs interventions; alignment failures are optimisers exploiting objectives; safety is defence in depth), section openings where sections started cold, and the benchmark standard error as a display equation.
 - Parts IX–X (chapters 29–39, except the question bank in 37): chapter openings that lay out the sections and their unifying idea, section openings where sections started cold, BM25 as a display equation, and prerequisite lines for chapters 32 and 39.
+- Part XI (chapters 40–48): chapter openings that lay out the sections and their unifying idea, the normal equation, the boosting update and the SVM objective as display equations, and prerequisite lines for chapters 46 and 48.
+- `tools/check_book.py` now also checks that every `$$` block has a blank line before and after it, and `tools/build_pdf.py` stops if an equation was not typeset.
 
 ## Typeset display equations (November 2026)
 
