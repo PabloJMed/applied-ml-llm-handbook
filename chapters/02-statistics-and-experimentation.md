@@ -6,6 +6,10 @@ Part I · Foundations. Assumes basic probability (Chapter 1). Chapter 4 covers c
 
 Every model you ship is judged by an experiment, and in a delivery marketplace experiments are hard: effects are small, metrics are noisy, users interact, and couriers are shared between test groups. Data scientists at delivery and marketplace companies spend a large share of their time on experiment design and analysis, and interviewers test it directly ("how many users do you need?", "the test is significant on day 3, do you stop?", "how do you test a new dispatch algorithm?"). Getting these answers right is one of the clearest signals of seniority.
 
+The chapter follows the life of an experiment. It starts with the problem every measurement has: a number computed from a sample would have come out differently with another sample (2.1). Hypothesis tests turn that uncertainty into a decision rule (2.2), and power analysis turns it into a plan: how much data you need before you start (2.3). Sections 2.4 to 2.7 are the practice of A/B testing: design, variance reduction, the traps of testing many things at once and of looking at results too early. Sections 2.8 and 2.9 cover designs for situations where a plain user-level split fails: comparing rankers, and marketplaces where the two arms compete for the same couriers. Section 2.10 covers what to do when you cannot randomise at all, and 2.11 applies the same ideas to comparing models.
+
+One thread runs through all of it. An experiment is a measurement with noise, and almost every mistake in this chapter, from peeking to reporting the best of twenty metrics, is a way of mistaking noise for signal. The tools are there to keep the false-alarm rate where you think it is, and to make the signal large enough relative to the noise that a real effect can be seen.
+
 ## Key concepts
 
 - **Sampling distribution and the central limit theorem**: an average computed from a sample varies from sample to sample; for large samples that variation is roughly normal, which is what makes confidence intervals and tests work. [Central limit theorem](https://en.wikipedia.org/wiki/Central_limit_theorem); see it animated at [Seeing Theory](https://seeing-theory.brown.edu/).
@@ -20,11 +24,15 @@ Every model you ship is judged by an experiment, and in a delivery marketplace e
 
 ## 2.1 Sampling, confidence intervals and the bootstrap
 
+Suppose this week's conversion rate is 5.2%. Is that different from last week's 5.0%? The question cannot be answered from the two numbers alone, because each was computed from a sample of users, and a different sample would have given a slightly different rate. Before comparing anything, you need to know how much a number would move if you repeated the measurement. That spread is what this section quantifies, with a formula when one exists and with the bootstrap when it does not.
+
 **The sampling distribution.** A metric computed on a sample (a conversion rate, a mean order value) varies from sample to sample. Its standard deviation across samples is the **standard error**: for a mean, σ/√n; for a proportion, √(p(1−p)/n). The central limit theorem says the sampling distribution of a mean is approximately normal for large n, whatever the data's distribution.
+
+The last clause is what makes the theorem so useful. Basket values are strongly skewed: in the simulated data below (log-normal, like real order values) the mean is about 22.8 euros and the standard deviation about 12.1, with a long tail of large orders. A single order tells you little. But the *average* of 2,000 orders, recomputed on many independent samples, forms a narrow, symmetric bell curve centred on the true mean with standard deviation 12.1/√2,000 ≈ 0.27 euros. The individual data are not normal; their average is, and every test in this chapter is a test about averages. The approximation needs more data when the distribution is very skewed or the event is rare: with a 0.1% conversion rate, a few thousand users give only a handful of conversions, and normal-based intervals become unreliable.
 
 **Why √n.** If each observation has standard deviation σ, the sum of n independent observations has variance nσ² (variances add), so the mean, the sum divided by n, has variance σ²/n and standard deviation σ/√n. Precision improves only with the square root of the data: four times the users halve the uncertainty, and a hundred times the users cut it by ten. This one fact drives every sample-size calculation in this chapter.
 
-**A 95% confidence interval** is estimate ± 1.96 × standard error. Correct reading: if we repeated the experiment many times, 95% of intervals built this way would contain the true value. It is not "a 95% probability that the true value is in this interval" (a Bayesian credible interval says that).
+**A 95% confidence interval** is estimate ± 1.96 × standard error. The 1.96 comes from the normal distribution: 95% of its mass lies within 1.96 standard deviations of the centre. Correct reading: if we repeated the experiment many times, 95% of intervals built this way would contain the true value. It is not "a 95% probability that the true value is in this interval" (a Bayesian credible interval says that).
 
 **The bootstrap** gives intervals for any statistic (medians, ratios, percentiles, model metrics) without formulas: resample the data with replacement many times, recompute the statistic, take percentiles. Resample the independent unit (users, not orders, if one user has many orders; Chapter 4.9).
 
@@ -41,7 +49,11 @@ np.median(order_values), np.percentile(boots, [2.5, 97.5])   # ~20.3, (19.7, 20.
 
 ## 2.2 Hypothesis tests and p-values
 
-**The logic:** assume no effect (the null hypothesis); compute how surprising the observed difference would be under that assumption. The **p-value** is the probability of a result at least this extreme *if the null were true*.
+A confidence interval says how uncertain an estimate is. A product decision needs something sharper: did the change work, yes or no, with a known risk of being fooled by noise? Hypothesis testing provides that rule. Its logic is indirect, and most misreadings of p-values come from forgetting how indirect it is.
+
+**The logic:** assume no effect (the null hypothesis); compute how surprising the observed difference would be under that assumption. The **p-value** is the probability of a result at least this extreme *if the null were true*. If that probability is small, either something unusual happened or the assumption of no effect is wrong, and you choose to reject the assumption.
+
+**Worked through once.** Control converts 1,000 of 20,000 users (5.0%) and treatment 1,080 of 20,000 (5.4%), a difference of 0.4 points. Under the null both arms share one rate, best estimated by pooling them: 2,080 / 40,000 = 5.2%. The standard error of a difference between two such rates is √(0.052 × 0.948 × (1/20,000 + 1/20,000)) = 0.222 points. The observed difference is 0.4 / 0.222 = 1.80 standard errors from zero. Under the null, a normal variable lands at least 1.80 standard errors from zero (either side) 7% of the time: p = 0.07. Noise alone produces a gap this large about one experiment in fourteen, too often to rule out at the usual 5% threshold. The function `two_prop_ztest` below does the same calculation.
 
 What a p-value is not: the probability that the null is true, the probability the result is a fluke, or the size or importance of the effect. A tiny, useless effect can have p < 0.001 with enough data.
 
@@ -100,9 +112,21 @@ It makes no distributional assumptions and works for any statistic (medians, rat
 
 ## 2.3 Power and sample size
 
-Before running a test, decide the **minimum detectable effect (MDE)**: the smallest effect worth detecting. Then compute the sample size that detects it with the desired power.
+The example in 2.2 ended with a real-looking 8% lift that the test could not confirm. That is not bad luck; it is a design failure. A test with 20,000 users per arm simply cannot distinguish an effect of that size from noise most of the time. Power analysis is the step that prevents it: before launching, you decide what effect you care about and compute how much data it takes to see it reliably. It is also the calculation that tells you when an experiment is not worth running at all.
 
-For two proportions, per arm: `n ≈ (z₁₋α/₂ + z₁₋β)² · [p₁(1−p₁) + p₂(1−p₂)] / (p₂` `− p₁)²`. For means: `n ≈ 2(z₁₋α/₂ + z₁₋β)² σ² / δ²`.
+Before running a test, decide the **minimum detectable effect (MDE)**: the smallest effect worth detecting. Then compute the sample size that detects it with the desired power. For two proportions p₁ and p₂, per arm:
+
+$$
+n \approx \dfrac{\left(z_{1-\alpha/2} + z_{1-\beta}\right)^2\,\left[p_1(1-p_1) + p_2(1-p_2)\right]}{(p_2 - p_1)^2}
+$$
+
+and for means with standard deviation σ and absolute effect δ:
+
+$$
+n \approx \dfrac{2\left(z_{1-\alpha/2} + z_{1-\beta}\right)^2\,\sigma^2}{\delta^2}
+$$
+
+With α = 0.05 (two-sided) and 80% power, z₁₋α/₂ = 1.96 and z₁₋β = 0.84, so the squared factor is about 7.85. The numerator is the noise per user; the denominator is the squared signal. Every lever of experiment design acts on one of them.
 
 ```python
 def n_per_arm_proportion(p_base, mde_rel, alpha=0.05, power=0.8):
@@ -131,6 +155,8 @@ The rule to remember: **halving the MDE quadruples the sample size.** This is wh
 
 ## 2.4 A/B test design
 
+Randomisation is what makes an A/B test causal: if users are assigned to arms by a coin flip, the arms differ, on average, only in the treatment, so any systematic difference in outcomes was caused by it. Everything else in a test's design exists to protect that property, or to make sure the result answers the question you care about. Most failed experiments are not failed statistics; they are a wrong unit of randomisation, a metric chosen after the fact, or a broken assignment that nobody checked.
+
 A checklist that covers what interviewers probe:
 
 1. **Hypothesis and decision:** what change, what you expect, and what you will do with each outcome.
@@ -153,6 +179,8 @@ def srm_p_value(n_a, n_b, expected_ratio=0.5):
 
 ## 2.5 Variance reduction with CUPED
 
+Section 2.3 showed that the sample size is driven by noise divided by signal. You usually cannot make the effect bigger, and traffic is limited, so the remaining lever is the noise. Much of it is not random at all: it comes from differences between users that existed before the experiment started. Variance reduction removes that predictable part, and it is the cheapest way to make an experimentation platform more sensitive.
+
 **CUPED** (Deng et al., Microsoft, 2013) uses pre-experiment data to remove predictable variance. For each user, adjust the metric with their pre-period value of a correlated covariate X (often the same metric before the test):
 
 $$
@@ -173,7 +201,11 @@ In a simulation with a correlation of about 0.82 between pre- and in-test order 
 
 ## 2.6 Multiple testing
 
-Test 20 metrics at α = 0.05 with no real effect and you expect one false positive. Segments, metrics, variants and repeated looks all multiply the chances.
+A 5% significance level means that each test, on its own, has a 5% chance of a false alarm. Real experiments rarely run one test. They track a dozen metrics, slice results by country, platform and user type, and compare several variants. Each extra comparison is another draw from the same 5% lottery, and the chance that at least one of them comes up "significant" by luck grows quickly.
+
+Test 20 metrics at α = 0.05 with no real effect and you expect one false positive. The chance of at least one is 1 − 0.95²⁰ = 64%; with five metrics it is already 23%. A results dashboard that highlights every metric below 0.05 will, on almost every experiment, show something green. Segments, metrics, variants and repeated looks all multiply the chances.
+
+The corrections differ in what they promise:
 
 - **Bonferroni:** test each of m hypotheses at α/m. Controls the chance of any false positive (family-wise error); very conservative.
 - **Benjamini-Hochberg:** controls the **false discovery rate** (the expected share of false positives among discoveries); more power, the usual choice for many metrics or segments.
@@ -194,6 +226,8 @@ The practical defence: one pre-registered primary metric, a small set of guardra
 
 ## 2.7 Sequential testing and peeking
 
+Peeking is the multiple-testing problem in time. A test that is checked every day and stopped at the first significant result is not one test but many, each a new chance for noise to cross the threshold. The temptation is strong, because stakeholders want results and early wins look real, so it is worth seeing exactly how badly it distorts the error rate, and what designs allow early looks safely.
+
 Checking results every day and stopping the first time p < 0.05 inflates false positives dramatically. In a simulated A/A test (no real difference) checked daily for 20 days, about 25% of runs reached "significance" at some point, five times the nominal 5%.
 
 ![Simulated A/A tests checked at evenly spaced looks, stopping at the first p < 0.05: 5% with one look, 15% with five, 26% with twenty, 32% with fifty](images/02-fig-3.png)
@@ -211,9 +245,17 @@ Options:
 
 ## 2.8 Interleaving for ranking
 
-For comparing two rankers (search, recommendations), interleaving merges both rankings into one list per user and credits clicks or orders to the ranker that contributed each item. Because each user sees both systems, between-user variance disappears, and interleaving typically needs far less traffic than an A/B test to find the better ranker. Use it to screen candidates; confirm business impact with an A/B test (Chapter 44.9).
+Ranking changes are hard to A/B test. A better search ranker might lift orders by a fraction of a percent, far below what a user-level split can detect without enormous traffic, because users differ much more from one another than two good rankers do. Interleaving avoids that between-user noise by letting every user compare the two rankers directly.
+
+**How it works.** For each request, both rankers produce a list, and the two lists are merged into one. In **team-draft interleaving**, the most common scheme, the rankers take turns like captains picking teams: a coin flip decides who goes first, each picks its highest-ranked item not yet chosen, and every item remembers which ranker contributed it. The user sees a single, normal-looking list. Clicks or orders are credited to the ranker that contributed the item, and the ranker that wins more credit across many requests is preferred.
+
+**Why it is so sensitive.** Each user acts as their own control: a heavy user and a light user both contribute a comparison between the two rankers on the same query, at the same moment, so differences between users cancel out. Industry reports (Netflix, Airbnb and others) put the traffic saving at one or two orders of magnitude relative to an A/B test for detecting which ranker is better.
+
+**What it does not tell you.** Interleaving measures preference between rankers, not the business impact of shipping one: a ranker can win the interleaving test and still not move total orders. Use it to screen many candidates quickly; confirm the winner's impact with an A/B test (Chapter 44.9).
 
 ## 2.9 Experiments in two-sided marketplaces
+
+Every method so far assumes that one user's outcome depends only on their own treatment. In a marketplace that assumption breaks, because both arms draw on the same pool of couriers, restaurants or drivers. The treatment can then change the control group's outcomes, and the A/B comparison measures something that would never happen at full rollout.
 
 In a delivery marketplace, users in treatment and control **share couriers and restaurants**. If a new dispatch algorithm grabs the nearest couriers for treatment orders, control orders get worse couriers: the measured difference overstates the real effect (and the effect at 100% rollout may even be negative). This violates the assumption that one unit's treatment does not affect another (SUTVA).
 
@@ -230,6 +272,10 @@ In a delivery marketplace, users in treatment and control **share couriers and r
 User-level A/B tests remain fine for changes whose effect stays on the demand side and does not draw on shared supply (most UI changes, ranking within what is available, notification copy). The senior skill is recognising which kind of change you have. Chapter 45 covers marketplace experiments further.
 
 ## 2.10 Causal inference basics
+
+Many important questions arrive after the fact: a loyalty programme launched everywhere at once, a promotion offered only to some users, a policy change in one city. There is no randomised control group, and comparing those who were treated with those who were not almost always misleads.
+
+**Why naive comparisons fail.** Users who joined the loyalty programme ordered more afterwards, but they also ordered more *before*: the programme attracted heavy users. The variable that drives both who gets treated and the outcome is a **confounder**, and its effect is mixed into the naive difference. Formally, each unit has two potential outcomes, one with treatment and one without, and you only ever observe one of them. Randomisation makes the unobserved outcomes of the control group a fair stand-in for the treated group's; without it, you have to make that substitution valid by design and assumptions. The methods below are different ways of building a credible comparison group.
 
 When you cannot randomise, you estimate effects from observational data, with assumptions.
 
@@ -259,6 +305,8 @@ In a simulation where heavy users are more likely to get a promotion and the tru
 Other tools to name: regression discontinuity, instrumental variables, synthetic control, and causal graphs (DAGs) to reason about which variables to adjust for.
 
 ## 2.11 Statistics for model evaluation
+
+Comparing two models on a benchmark is an experiment too: the benchmark is a sample of possible questions, and a different sample would have given different scores. The mistakes are the same as in product experiments (declaring a winner on noise, testing many variants and reporting the best), and so are the remedies.
 
 The same tools apply when the "experiment" is a comparison between models rather than between product variants, with three differences covered in depth in Chapter 23:
 

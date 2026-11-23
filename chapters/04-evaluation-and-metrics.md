@@ -6,6 +6,10 @@ Part I · Foundations. No prerequisites beyond basic probability. Chapters 43 an
 
 A model is only as good as the way you measure it. Most failed ML projects did not fail on modelling: they optimised a metric that did not match the business goal, evaluated on the wrong split, or celebrated a difference that was noise. Choosing and defending metrics is one of the clearest signals of seniority in interviews, and it comes up in every round: ML depth ("why PR-AUC here?"), coding ("implement AUC"), system design ("how do you evaluate it?") and behavioural ("tell me about a model that looked good offline and failed online").
 
+A metric is a summary, and every summary throws information away. Accuracy forgets which kind of mistake was made; AUC forgets the threshold you will actually use; RMSE forgets whether you were early or late; an average forgets the city where the model fails. Choosing a metric is choosing what to forget, and the right choice depends on the decision the model feeds. The chapter is organised by the kind of output being judged: hard decisions at a threshold (4.1), rankings of scores (4.2), probabilities (4.3), many classes (4.4), numbers (4.5) and ordered lists (4.6).
+
+The last three sections are about trusting the result. An offline metric is a proxy for what happens when the model is live, and the link has to be checked (4.7). A single number hides the segments where things go wrong (4.8). And every metric on a finite test set is an estimate with an error bar (4.9). The aim is that for any model you build, you can say which number you report, why that one, and how sure you are of it.
+
 This chapter is the reference for all later chapters: every metric used in the book is defined here once, with code you should be able to write from memory.
 
 ## Key concepts
@@ -20,6 +24,8 @@ This chapter is the reference for all later chapters: every metric used in the b
 - **Offline–online gap**: offline metrics predict but do not guarantee online impact; experiments decide (Chapter 2).
 
 ## 4.1 The confusion matrix, precision, recall and thresholds
+
+Most classifiers end in a yes/no action: block the payment, send the voucher, escalate the ticket. The two possible mistakes, acting when you should not and failing to act when you should, almost never cost the same. A blocked legitimate payment loses a customer; a missed fraud loses money. Before any summary metric, you need a way to count each kind of mistake separately, and to see how the counts move as you make the model more or less eager to say yes.
 
 A binary classifier outputs a score; a **threshold** turns it into a decision. Every decision falls into one of four cells.
 
@@ -77,6 +83,8 @@ Other common rules: a fixed precision floor ("at least 90% of flags must be real
 
 ## 4.2 Threshold-free metrics: ROC-AUC and PR-AUC
 
+While a model is being developed, the threshold is usually not settled yet: it depends on costs, capacity and policy, which may change after launch. You still need to compare models. Threshold-free metrics judge the quality of the scores themselves, by asking how well they separate positives from negatives across every possible threshold. The two standard ones answer different questions, and choosing the wrong one is a classic mistake with rare events.
+
 Precision and recall depend on the threshold. To judge the **ranking** of scores itself, sweep every threshold and summarise the curve.
 
 **ROC curve and ROC-AUC.** Plot recall (TPR) against the false positive rate for every threshold. The area under it has a clean meaning: **the probability that a random positive gets a higher score than a random negative.** 0.5 is random, 1.0 is perfect. That meaning gives a one-line implementation through ranks (the Mann-Whitney U statistic):
@@ -125,6 +133,8 @@ AUC is also blind to calibration: multiply all scores by 0.1 and AUC does not ch
 
 ## 4.3 Probabilistic metrics and calibration
 
+Ranking metrics only care about order: a model that gives every fraud case 0.02 and every legitimate one 0.01 has a perfect AUC. Many decisions need more than order. Suppose an order is worth 30 euros in margin and a fraudulent one costs 200 euros: blocking pays off when p × 200 > (1 − p) × 30, that is, above p ≈ 0.13. That rule only works if a predicted 0.13 really means 13%. When probabilities are used as numbers, a second property matters beside ranking quality.
+
 When the model's probability is used as a number (multiplied by a value, compared with a bid, turned into an expected cost), it must be **calibrated**: of all cases scored 0.2, about 20% should be positive.
 
 **Log loss (cross-entropy)** punishes confident mistakes heavily:
@@ -135,7 +145,13 @@ $$
 
 It is the training loss of logistic regression and most classifiers, and a good evaluation metric for probabilities.
 
-**Brier score** is the mean squared error of the probabilities: `mean((p − y)²)`. Less harsh on confident mistakes than log loss; easier to explain.
+**Brier score** is the mean squared error of the probabilities:
+
+$$
+\mathrm{Brier} = \dfrac{1}{n}\sum_{i=1}^{n}\left(p_i - y_i\right)^2
+$$
+
+It is bounded between 0 and 1, less harsh on confident mistakes than log loss, and easier to explain to a non-technical audience. Both log loss and Brier are **proper scoring rules**: their expected value is best when the predicted probability equals the true one, so a model cannot improve its score by shading its probabilities up or down. That is the property that makes them suitable for judging probabilities, and it is what accuracy and AUC lack.
 
 ```python
 def log_loss(y_true, p, eps=1e-15):
@@ -191,6 +207,8 @@ def correct_downsampling(p, w):
 
 ## 4.4 Multi-class and multi-label metrics
 
+With many classes, a single accuracy number is dominated by the frequent ones. A taxonomy classifier can be 95% accurate while never getting a rare but important class right. The question becomes how to combine per-class performance into one number, and the three standard averages encode three different answers to "which classes matter".
+
 With more than two classes (a merchant or dish taxonomy, intent classes), compute precision, recall and F1 per class, then average.
 
 | Averaging | How | Favours | Use when |
@@ -214,6 +232,30 @@ Other tools: **top-k accuracy** (is the true class in the top k predictions? Use
 **Multi-label** (one item can have several labels, like dietary tags): compute metrics per label and average (macro or micro), or use example-based measures such as the Jaccard overlap between predicted and true label sets. Thresholds are usually chosen per label.
 
 ## 4.5 Regression and forecasting metrics
+
+For a numeric target (delivery time, demand, basket value), every prediction has an error e = ŷ − y, and a regression metric is a way of summarising those errors. The summaries differ in two ways that matter in practice: how strongly they punish large errors compared with small ones, and whether they are expressed in the target's units or as a percentage. Both choices should follow from what an error costs the business.
+
+The two most common summaries average either the absolute errors or the squared errors. With n predictions,
+
+$$
+\mathrm{MAE} = \dfrac{1}{n}\sum_{i=1}^{n}\left|\hat{y}_i - y_i\right|
+$$
+
+The **mean absolute error** is in the units of the target (minutes, orders, euros), and every minute of error counts the same, whether it comes from one large miss or several small ones.
+
+$$
+\mathrm{RMSE} = \sqrt{\dfrac{1}{n}\sum_{i=1}^{n}\left(\hat{y}_i - y_i\right)^2}
+$$
+
+The **root mean squared error** is also in the target's units, because the square root undoes the squaring. But squaring before averaging gives large errors disproportionate weight: one 20-minute miss adds 400 to the sum, as much as a hundred 2-minute misses. RMSE is therefore always at least as large as MAE, and a big gap between them signals a few large misses. It was the official metric of the Netflix Prize.
+
+Neither is comparable across targets of different scale: an MAE of 3 is excellent for a 45-minute delivery and terrible for a 5-minute pickup. **Scaled** metrics divide by the size of the target. The usual choice for demand is the weighted absolute percentage error, which divides total error by total volume:
+
+$$
+\mathrm{WAPE} = \dfrac{\sum_{i}\left|\hat{y}_i - y_i\right|}{\sum_{i}\left|y_i\right|}
+$$
+
+The table summarises these and the other common metrics.
 
 | Metric | Formula | Properties | Use when |
 |---|---|---|---|
@@ -250,6 +292,8 @@ The example shows why WAPE beats MAPE for demand: one small actual value (a quie
 
 ## 4.6 Ranking metrics
 
+Search results, recommendations and feeds are judged as lists, and users only look at the top of them. A good ranking metric therefore cares about position: a relevant item at rank 1 is worth much more than the same item at rank 20, and a list with the best item first beats one with it third. The metrics below differ in whether relevance is yes/no or graded, and in how fast credit decays with rank.
+
 Ranking metrics evaluate an ordered list per query or user, then average over queries. Chapters 43 and 44 use them heavily and include the code; this is the summary.
 
 | Metric | Definition | Graded relevance? | Use for |
@@ -266,6 +310,8 @@ Ranking metrics evaluate an ordered list per query or user, then average over qu
 Two traps from the later chapters worth repeating: compute the ideal DCG from **all** known relevant items, not just the retrieved ones (Chapter 44.9), and do not evaluate against "the true item plus 100 random negatives" (Chapter 43.10). And for per-user ranking of a classifier's scores, **GAUC** (AUC computed per user, then averaged weighted by impressions) is what ad and feed teams often report, because a global AUC mixes up between-user differences with within-user ranking quality.
 
 ## 4.7 Offline vs online metrics
+
+Everything so far measures a model on a fixed test set. The business, however, cares about what happens when the model is live: whether users order more, wait less or come back. Those outcomes can only be measured in an experiment, which is slow and expensive, so day-to-day work relies on offline metrics as stand-ins. The question this section addresses is when that substitution is safe.
 
 **The metric hierarchy.** A well-run ML project has metrics at three levels, and you should be able to name all three for any system you design:
 
@@ -291,6 +337,8 @@ The offline metric is a **proxy**: cheap, fast and repeatable, but only useful i
 
 ## 4.8 Slicing
 
+A model that is better on average can still be worse for an important group of users. A new ETA model might improve the city-wide error while getting much worse in one district where couriers use bikes; a classifier might be excellent on English text and poor on Arabic. Averages weight groups by their size, so small groups can fail without moving the total. Slicing is the habit of breaking every key metric down by the segments that matter.
+
 An average hides the segment where the model fails. Always report key metrics by slice: city, platform, new vs returning users, cuisine, language, time of day, high- vs low-value customers, and for text models, input length and language.
 
 ```python
@@ -311,6 +359,8 @@ by_slice(df, "city", lambda g: roc_auc_score(g["y"], g["p"]))
 **What to do with a bad slice:** first check whether it is real (enough rows, confidence interval from 4.9), then whether it matters (volume, value, fairness or legal risk), then fix it with more data for that slice, slice-specific features, or a separate threshold. Report the slice table in every model review: it is what experienced reviewers look for first.
 
 ## 4.9 Confidence intervals on metrics
+
+A test set is a sample, exactly like the users in an A/B test (Chapter 2), and a metric computed on it would come out differently on another sample. Before saying that one model beats another, you need to know how large that sampling noise is compared with the difference. The tools are the same as in Chapter 2; the main new difficulty is identifying what the independent unit is.
 
 "Model B has AUC 0.912 vs 0.909" means nothing without an interval. Metrics computed on a finite test set are estimates.
 
