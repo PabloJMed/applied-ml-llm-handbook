@@ -1,0 +1,37 @@
+chapters/19-post-training-rl-and-reasoning.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 11-14,31-32,44-45,67-68,71-73,83-84,114-115,123-124,150-151,158-159,180-181,188
+  s_6695b7a8fa5137::t_092343173b3b3e 189
+chapters/20-fine-tuning-and-lora.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 9-12,25-26,40-41,63-71,128-129,184-185,207-208,219
+  s_6695b7a8fa5137::t_790d94be0fd756 220
+chapters/16-pretraining-data.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 11-14,29-30,47-48,65-66,79-80,97-98,128-129,141-142,170-171,179-180,191
+  s_6695b7a8fa5137::t_5ce3de7b2dbe5e 192
+chapters/17-pretraining-at-scale.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 11-14,28-36,52-53,62-63,92-93,100-101,120-121,126-127,144
+  s_6695b7a8fa5137::t_5bd9d30993783a 145
+chapters/18-post-training-sft-and-preferences.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 11-14,28-29,48-49,82-83,210-211,283-284,291
+  s_6695b7a8fa5137::t_905402b052a563 292
+chapters/15-how-llms-are-trained.md
+  s_6695b7a8fa5137::t_6481ec23de7e89 3,13-16,30-31,48-49,68-69,93-94,116-117,122-123,139-140,169
+  s_6695b7a8fa5137::t_14a39396505c1e 170
+CHANGELOG.md
+  s_6695b7a8fa5137::t_d044b3fb3cb101 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8006edd98434502bf6929acc20f19776decf2f65",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
