@@ -1,0 +1,32 @@
+tools/writing-guide.md
+  s_6695b7a8fa5137::t_5c01b15cce97ca 1-40
+chapters/01-the-maths-you-actually-use.md
+  s_6695b7a8fa5137::t_ecb0c401275ff1 159-218,237-239,241-242,244
+  s_6695b7a8fa5137::t_f19a4670f898fd 9-12,27-28,55-56,83-91,113-114,136,248-250,260
+  s_6695b7a8fa5137::t_a532ef19c9c93b 240
+  s_6695b7a8fa5137::t_659594395ce421 137,261
+tools/build_pdf.py
+  s_6695b7a8fa5137::t_6c58fedf219e82 59,88,94-95,110,113,138,146-154,290-291,295,384-386
+  s_6695b7a8fa5137::t_49636075fe0d6f 481,488-492,506
+  s_6695b7a8fa5137::t_63942a7161c088 111
+  s_6695b7a8fa5137::t_132318fe76e1a1 112,114-117,381-383
+  s_6695b7a8fa5137::t_542f0fa82fef51 55-57,240-241
+CHANGELOG.md
+  s_6695b7a8fa5137::t_54ee20dbcfb6f4 3-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7c42cfa2d7ea615479b92986e85b8d0be53e826",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
