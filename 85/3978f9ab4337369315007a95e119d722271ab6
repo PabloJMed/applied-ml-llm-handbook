@@ -1,0 +1,31 @@
+chapters/08-embeddings-and-sequence-models.md
+  s_6695b7a8fa5137::t_5386c1dbdf32c4 3,9-10,26-27,36-37,75-76,84-92,96-102,135
+  s_6695b7a8fa5137::t_4260a0825ab939 136
+chapters/05-neural-network-fundamentals.md
+  s_6695b7a8fa5137::t_5386c1dbdf32c4 9-12,27-28,52-61,109-112,125-126,141-142,165-170,179
+  s_6695b7a8fa5137::t_b5c6e76aa705aa 180
+chapters/06-pytorch-for-practitioners.md
+  s_6695b7a8fa5137::t_5386c1dbdf32c4 9-12,29-30,53-54,99-100,144
+  s_6695b7a8fa5137::t_783500d08d3b6f 145
+chapters/07-optimisation-and-training-dynamics.md
+  s_6695b7a8fa5137::t_5386c1dbdf32c4 9-12,30-31,36-47,70-71,100-101,106-108,128-129,155-156,183-184,216-217,244
+  s_6695b7a8fa5137::t_49fd7e3b904901 245
+CHANGELOG.md
+  s_6695b7a8fa5137::t_5c4dc5be7e94e5 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "853978f9ab4337369315007a95e119d722271ab6",
+  "prompts": {},
+  "sessions": {
+    "s_6695b7a8fa5137": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296781bd-a7c7-43d7-92a0-149c7e77bfb4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Pablo Medina <pablojmed@gmail.com>"
+    }
+  }
+}
