@@ -113,3 +113,74 @@ logits = torch.randn(4, L, V)                         # stand-in for a bidirecti
 ce = F.cross_entropy(logits.transpose(1, 2), tokens, reduction="none")
 loss = ((ce * masked) / t).sum() / (4 * L)
 print("masked fraction per sequence:", [round(v, 2) for v in masked.float().mean(1).tolist()], " loss %.2f" % loss.item())
+
+# ---- review additions ----------------------------------------------------------------------
+import math
+import numpy as np
+
+# 11.2 capacity factor: share of routed tokens dropped for the skewed loads above (step 0) and balanced loads
+scores = torch.randn(4096, n) + torch.tensor([1.5, 1.0, 0.5, 0, 0, 0, -0.5, -1.0])
+load0 = torch.bincount(scores.topk(2, dim=-1).indices.flatten(), minlength=n).float() / (4096 * 2)
+for cf in (1.0, 1.25, 2.0):
+    drop = torch.clamp(load0 - cf / n, min=0).sum().item()
+    print(f"capacity factor {cf}: skewed router drops {drop:.1%} of routed tokens")
+print("skewed loads:", [round(v, 3) for v in sorted(load0.tolist(), reverse=True)])
+
+# 11.2 experts touched in one decode step: 128 routed experts, top 8, B tokens routed independently
+for B_ in (1, 4, 16, 64, 256):
+    print(f"batch {B_:>3}: expected experts touched {128 * (1 - (1 - 8/128) ** B_):6.1f} of 128")
+
+# 11.2 router z-loss example
+logits_ex = torch.tensor([[2.0, 1.0, 0.0, -1.0]])
+print("router z-loss for one token:", round((torch.logsumexp(logits_ex, -1) ** 2).mean().item(), 3))
+
+# 11.4 1-D selective SSM: zero-order-hold discretisation with A = -1, B = C = 1
+def ssm_1d(x, deltas, A=-1.0):
+    h, hs = 0.0, []
+    for xt, dt in zip(x, deltas):
+        a_bar = math.exp(dt * A); b_bar = (a_bar - 1) / A        # ZOH: (exp(dA) - 1)/A * B
+        h = a_bar * h + b_bar * xt; hs.append(round(h, 3))
+    return hs
+x = [2.0, 0.3, -0.5, 0.4]
+print("fixed delta 0.5:      ", ssm_1d(x, [0.5] * 4), " a_bar", round(math.exp(-0.5), 3), "b_bar", round(1 - math.exp(-0.5), 3))
+print("selective (3, .01x3): ", ssm_1d(x, [3.0, 0.01, 0.01, 0.01]), " a_bar(3)", round(math.exp(-3), 3))
+
+# 11.4 the recurrence h_t = a_t h_{t-1} + b_t is an associative scan
+def combine(p, q):            # apply p then q
+    return (p[0] * q[0], q[0] * p[1] + q[1])
+rng = np.random.default_rng(0)
+a_, b_ = rng.uniform(0.5, 1, 8), rng.standard_normal(8)
+h, seq = 0.0, []
+for at, bt in zip(a_, b_):
+    h = at * h + bt; seq.append(h)
+acc = (a_[0], b_[0]); left = [(a_[i], b_[i]) for i in range(1, 4)]; right = [(a_[i], b_[i]) for i in range(4, 8)]
+L_ = acc
+for e in left: L_ = combine(L_, e)
+R_ = right[0]
+for e in right[1:]: R_ = combine(R_, e)
+print("scan: two halves combined == sequential:", np.isclose(combine(L_, R_)[1], seq[-1]))
+
+# 11.4 state-space duality: scalar-decay SSM == masked 'attention' y = (L o C B^T) x
+T_, N_ = 6, 4
+a_t = rng.uniform(0.6, 1.0, T_); Bm = rng.standard_normal((T_, N_)); Cm = rng.standard_normal((T_, N_)); xs = rng.standard_normal(T_)
+h = np.zeros(N_); y_rec = []
+for t in range(T_):
+    h = a_t[t] * h + Bm[t] * xs[t]; y_rec.append(Cm[t] @ h)
+Lmask = np.array([[np.prod(a_t[s + 1:t + 1]) if s <= t else 0.0 for s in range(T_)] for t in range(T_)])
+y_mat = (Lmask * (Cm @ Bm.T)) @ xs
+print("SSD: recurrent == (L o C B^T) x:", np.allclose(y_rec, y_mat))
+
+# 11.4 the delta rule is one gradient step on 0.5 * ||S^T k - v||^2
+S0 = torch.randn(4, 4); kk = F.normalize(torch.randn(4), dim=0); vv = torch.randn(4)
+S_ = S0.clone().requires_grad_(True)
+(0.5 * ((S_.T @ kk - vv) ** 2).sum()).backward()
+beta = 1.0
+print("delta rule == gradient step:", torch.allclose(S0 - beta * S_.grad, S0 + beta * torch.outer(kk, vv - S0.T @ kk), atol=1e-6),
+      "| after the step S^T k == v:", torch.allclose((S0 + torch.outer(kk, vv - S0.T @ kk)).T @ kk, vv, atol=1e-5))
+
+# 11.6 MTP as a draft: one extra token accepted with probability 0.85-0.90
+for acc_ in (0.85, 0.90):
+    print(f"acceptance {acc_:.2f}: tokens per forward pass {1 + acc_:.2f}")
+
+# 11.9 MoE active share for the fine-grained layer above
+print(f"active share {active/total:.1%}")

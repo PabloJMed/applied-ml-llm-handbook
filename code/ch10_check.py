@@ -39,7 +39,7 @@ class MultiHeadAttention(nn.Module):
             k = k.repeat_interleave(self.h // self.kv, dim=1); v = v.repeat_interleave(self.h // self.kv, dim=1)
         Tk = k.shape[2]
         scores = q @ k.transpose(-2, -1) / math.sqrt(self.dh)
-        mask = torch.ones(T, Tk, dtype=torch.bool).tril(diagonal=Tk - T)
+        mask = torch.ones(T, Tk, dtype=torch.bool, device=x.device).tril(diagonal=Tk - T)
         scores = scores.masked_fill(~mask, float("-inf"))
         att = F.dropout(F.softmax(scores, dim=-1), self.dropout, self.training)
         y = (att @ v).transpose(1, 2).reshape(B, T, self.h * self.dh)
@@ -106,7 +106,7 @@ class MiniGPT(nn.Module):
         self.head.weight = self.tok.weight
     def forward(self, idx, caches=None, start=0):
         B, T = idx.shape
-        x = self.tok(idx) + self.pos(torch.arange(start, start + T))
+        x = self.tok(idx) + self.pos(torch.arange(start, start + T, device=idx.device))
         for i, blk in enumerate(self.blocks):
             x = blk(x, None if caches is None else caches[i])
         return self.head(self.ln(x))
@@ -186,3 +186,38 @@ norms = L * 2 * dm + dm
 total = 2 * emb + attn + ffn + norms                       # untied input and output embeddings
 print(f"8B-shaped decoder: embeddings 2 x {emb/1e9:.2f}B, attention {attn/1e9:.2f}B, FFN {ffn/1e9:.2f}B, total {total/1e9:.2f}B")
 print(f"forward FLOPs per token ~ 2 x params = {2*total/1e9:.1f} GFLOPs; weights in bf16 {2*total/1e9:.1f} GB")
+
+# ---- review additions ----------------------------------------------------------------------
+import math as _m
+
+# 10.1 teacher forcing: three next-token losses from one pass
+ps = [0.2, 0.5, 0.4]
+print("teacher-forcing losses", [round(-_m.log(p), 3) for p in ps], "mean", round(sum(-_m.log(p) for p in ps) / 3, 3))
+
+# 10.2 softmax Jacobian diag(p) - p p^T shrinks as p saturates
+for p in (np.full(3, 1 / 3), np.array([0.98, 0.01, 0.01])):
+    J = np.diag(p) - np.outer(p, p)
+    print("softmax Jacobian for p =", p.round(2).tolist(), "-> largest entry", round(np.abs(J).max(), 4))
+
+# 10.8 attention vs matmul crossover, and 6ND
+per_layer = dm * dm * 2 + dm * kvh * hd * 2 + 3 * dm * ff
+print(f"weights per layer {per_layer/1e6:.0f}M; crossover T = 2*W/(4d) = {2*per_layer/(4*dm):,.0f} keys; 6d = {6*dm:,}")
+print(f"6ND for 8B on 15T tokens: {6*8e9*15e12:.1e} FLOPs")
+att = 6 * 8192 * dm * L
+print(f"causal attention fwd+bwd at T=8192: {att/1e9:.1f} GFLOPs/token vs 6N = {6*total/1e9:.1f} ({att/(6*total):.0%})")
+print(f"days on 1,000 GPUs at 989 TFLOP/s and 40% MFU: {6*8e9*15e12/(1000*989e12*0.4)/86400:.0f}")
+
+# 10.8 arithmetic intensity: weights ~ batch size; KV cache ~ GQA group size
+print(f"ridge point 989 TFLOP/s / 3.35 TB/s = {989e12/3.35e12:.0f} FLOPs/byte; KV intensity = 32/8 = {32//8}")
+print(f"single-sequence decode lower bound: {2*total/3.35e12*1e3:.1f} ms per token")
+
+# 10.9 FlashAttention: d^2/M with d = 128 and M = 50,000 values of SRAM
+print(f"d^2/M = {128**2/50000:.2f}")
+
+# 10.11 slowest RoPE wavelength for head dim 128, base 10,000; attention-sink share
+print(f"slowest wavelength {2*_m.pi*10000**(126/128):,.0f} tokens (2*pi*base = {2*_m.pi*10000:,.0f})")
+print(f"sink logit 2 vs four zero scores: sink weight {_m.e**2/(_m.e**2+4):.2f}")
+
+# 10.12 tying fractions, z-loss and soft-capping
+print(f"one 128,256 x 2,048 matrix: {128256*2048/1e6:.0f}M; one 128,256 x 4,096 matrix: {emb/1e6:.0f}M = {emb/total:.1%} of the 8B model")
+print(f"z-loss at log Z = 30: {1e-4*30**2:.2f}; soft-cap 30*tanh(60/30) = {30*_m.tanh(2):.1f}")
