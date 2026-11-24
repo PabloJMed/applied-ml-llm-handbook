@@ -102,3 +102,28 @@ pb = {"a#0": "Vouchers are worth 20% of the order value, up to 10 euros.",
       "b#0": "Report missing items in the app within 48 hours."}
 ans = "You get a voucher worth 20% of the order value [a#0]. Missing items must be reported within 48 hours [b#0]. Refunds take 3 days [c#9]."
 print(check_citations(ans, {"a#0", "b#0"}, pb))
+
+# 31.4 HyDE: the mean of two unit vectors has norm cos(theta/2), so renormalise
+import numpy as np
+rng = np.random.default_rng(0)
+a, b = rng.normal(size=8), rng.normal(size=8); a /= np.linalg.norm(a); b /= np.linalg.norm(b)
+theta = np.arccos(a @ b)
+print(f"|mean| = {np.linalg.norm((a + b) / 2):.4f}, cos(theta/2) = {np.cos(theta / 2):.4f}")
+
+# 31.6 abstention arithmetic: coverage 0.85 at selective accuracy 0.90 vs answering everything at 0.80
+print(f"correct overall {0.85 * 0.90:.3f}; wrong overall {0.85 * 0.10:.3f} (was 0.20)")
+
+# 31.11 RAG-sequence vs RAG-token with two documents and a two-token answer
+pz = np.array([0.6, 0.4])                 # retriever p(z|x)
+p_y1 = np.array([0.9, 0.2])               # p(y1 | x, z)
+p_y2 = np.array([0.1, 0.9])               # p(y2 | x, z, y1)
+seq = (pz * p_y1 * p_y2).sum()
+tok = (pz * p_y1).sum() * (pz * p_y2).sum()
+post = pz * p_y1 * p_y2 / seq
+print(f"RAG-sequence {seq:.4f}, RAG-token {tok:.4f}; posterior {post.round(3)}; retriever-logit gradient {(post - pz).round(3)}")
+
+# Q12 cost per question at an illustrative $3 per million input tokens (300-token passages, 500 tokens of instructions and question)
+for n in (5, 50):
+    tokens = n * 300 + 500
+    print(f"{n} passages: {tokens} tokens, ${tokens * 3 / 1e6:.4f}")
+print(f"whole 200k-token corpus: ${200_000 * 3 / 1e6:.2f}; at a 10% cached-read price: ${200_000 * 0.3 / 1e6:.2f}")

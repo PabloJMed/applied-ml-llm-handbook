@@ -56,7 +56,8 @@ def kmeans(X, k, iters=20, seed=0):
 class IVFIndex:
     def __init__(self, X, n_lists=100, seed=0):
         sample = X[np.random.default_rng(seed).choice(len(X), min(len(X), 5000), replace=False)]
-        self.centroids, _ = kmeans(sample, n_lists, iters=10, seed=seed)
+        C, _ = kmeans(sample, n_lists, iters=10, seed=seed)
+        self.centroids = C / np.linalg.norm(C, axis=1, keepdims=True)   # unit centroids: inner product = cosine
         assign = np.argmax(X @ self.centroids.T, axis=1)
         self.lists = [np.flatnonzero(assign == j) for j in range(n_lists)]
         self.X = X
@@ -115,6 +116,17 @@ index.add(X)
 index.hnsw.efSearch = 64
 _, I = index.search(Q, 10)
 print("HNSW recall@10", round(recall_vs_exact(I, truth), 3))
+for ef in (8, 16, 32, 64, 128):                       # recall against efSearch
+    index.hnsw.efSearch = ef
+    _, I = index.search(Q, 10)
+    print("HNSW efSearch", ef, "recall@10", round(recall_vs_exact(I, truth), 3))
+index.hnsw.efSearch = 64
+# why PQ alone gets ~0.33: its score error compared with the gaps between neighbours' scores
+S = Q @ X.T
+approx_scores = np.stack([np.stack([pq.codebooks[i] @ q[i * pq.ds:(i + 1) * pq.ds] for i in range(pq.m)])[np.arange(pq.m), pq.codes].sum(1) for q in Q])
+srt = -np.sort(-S, axis=1)
+print(f"PQ score error std {np.std(approx_scores - S):.3f}; median gap 10th-11th {np.median(srt[:, 9] - srt[:, 10]):.4f}; "
+      f"mean score 10th {srt[:, 9].mean():.3f}, 100th {srt[:, 99].mean():.3f}")
 
 quantizer = faiss.IndexFlatIP(d)
 ivfpq = faiss.IndexIVFPQ(quantizer, d, 100, 16, 8, faiss.METRIC_INNER_PRODUCT)
@@ -151,6 +163,12 @@ def post_filter_search(index, q, allowed_mask, k=10, oversample=4):
 mask = city == "DXB"
 res = post_filter_search(index, Q[0], mask)
 print("post-filter got", len(res))
+short = np.mean([len(post_filter_search(index, q, mask)) < 10 for q in Q])
+from scipy.stats import binom
+print(f"share of queries short of 10: {short:.2f}; binomial P(X < 10 | n=40, p=0.25) = {binom.cdf(9, 40, 0.25):.2f}")
+for s in (0.5, 0.1, 0.01):
+    o = next(o for o in range(1, 2000) if binom.sf(9, 10 * o, s) >= 0.95)
+    print(f"selectivity {s}: oversample x{o} for 95% of queries to get 10")
 # FAISS pre-filter with IDSelector (supported by flat/IVF/HNSW in recent versions)
 sel = faiss.IDSelectorBatch(np.flatnonzero(mask).astype("int64"))
 params = faiss.SearchParametersHNSW(sel=sel, efSearch=64)
@@ -165,3 +183,36 @@ for name, bpv in (("float32", d * 4), ("int8", d), ("Matryoshka 256 dims, int8",
 print(f"IVF-PQ at 64 bytes: {N * 64 / 1e9:.1f} GB; exact search: {N * d / 1e9:.1f}e9 multiply-adds per query")
 print(f"re-scoring 200 candidates from float32 on SSD: {200 * d * 4 / 1e6:.2f} MB read per query")
 print(f"embedding 50M chunks at 20k chunks/min per GPU: {N / 20000 / 60:.0f} GPU-hours")
+
+# exact search is memory-bandwidth bound: one query reads every vector
+print(f"bytes read per exact query: float32 {N * d * 4 / 1e9:.1f} GB -> {N * d * 4 / 100e9:.2f} s at 100 GB/s; int8 {N * d / 100e9:.2f} s")
+print(f"GPU brute force: fp16 corpus {N * d * 2 / 1e9:.1f} GB, one pass at 3.35 TB/s = {N * d * 2 / 3.35e12 * 1e3:.0f} ms; "
+      f"200 QPS needs {200 * 2 * N * d / 1e12:.1f} TFLOP/s")
+
+# 30.4 HNSW level arithmetic: P(level >= l) = M^-l, so about log_M N layers
+M = 32
+print(f"layers for 50M at M=32: {math.log(N) / math.log(M):.2f}; share above layer 0: {1 / M:.4f}; "
+      f"expected extra upper-layer links per node: {M / (M - 1):.2f}; bytes per vector (768-d float32, 2M links) {768 * 4 + 2 * M * 4}")
+
+# 30.2 BM25 IDF and a worked score: 3 documents, query "late refund", k1 = 1.2, b = 0.75
+docs3 = [s.split() for s in ["late order refund", "refund policy refund rules for every order", "delivery address change"]]
+avgdl = sum(map(len, docs3)) / len(docs3)
+def idf_bm25(term):
+    df = sum(term in doc for doc in docs3)
+    return math.log(1 + (len(docs3) - df + 0.5) / (df + 0.5))
+def bm25(query, doc, k1=1.2, b=0.75):
+    s = 0.0
+    for term in query.split():
+        tf = doc.count(term)
+        if tf:
+            s += idf_bm25(term) * tf * (k1 + 1) / (tf + k1 * (1 - b + b * len(doc) / avgdl))
+    return s
+print("avgdl", round(avgdl, 3), "IDF late/refund/order", [round(idf_bm25(w), 3) for w in ("late", "refund", "order")],
+      "classic IDF at df=2:", round(math.log((3 - 2 + 0.5) / (2 + 0.5)), 3))
+print("BM25 scores", [round(bm25("late refund", doc), 3) for doc in docs3])
+
+# 30.9 nDCG@5 with graded gains 2^rel - 1
+def dcg(rels): return sum((2 ** r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
+rels = [3, 0, 2, 1, 0]
+print(f"DCG {dcg(rels):.3f}, ideal {dcg(sorted(rels, reverse=True)):.3f}, nDCG@5 {dcg(rels) / dcg(sorted(rels, reverse=True)):.3f}")
+print(f"growth 3%/month for 12 months: x{1.03 ** 12:.2f}, int8 HNSW {51.2 * 1.03 ** 12:.0f} GB")

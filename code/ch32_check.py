@@ -43,6 +43,7 @@ class Answer(BaseModel):
 class TransientError(Exception):
     pass
 
+PROMPT_VERSION = "rag-answer-v3"
 PROMPT_V3 = ("Answer from the passages only. Return JSON with 'answer' and 'citations' (passage ids).\n"
              "If the passages do not answer the question, say so.\n\nPassages:\n{passages}\n\nQuestion: {question}")
 
@@ -55,14 +56,15 @@ def call_with_retries(llm, prompt, attempts=3, base_delay=0.5):
                 raise
             time.sleep(base_delay * 2 ** i * (1 + random.random()))
 
-def answer(question, retrieve, llm, cache, trace, model="small-model", k=5):
+def answer(question, retrieve, llm, cache, trace, model="small-model", temperature=0.0, k=5):
     passages = retrieve(question, k=k)
     trace.append({"step": "retrieve", "ids": [p["id"] for p in passages]})
     prompt = PROMPT_V3.format(passages="\n".join(f"[{p['id']}] {p['text']}" for p in passages), question=question)
-    key = hashlib.sha256(json.dumps([model, prompt]).encode()).hexdigest()
-    raw = cache.get(key)
-    if raw is None:
-        t0 = time.time(); raw = call_with_retries(llm, prompt); cache[key] = raw
+    key = hashlib.sha256(json.dumps([model, PROMPT_VERSION, temperature, prompt]).encode()).hexdigest()
+    raw = cache.get(key) if temperature == 0 else None   # never serve a sampled output from cache
+    cached = raw is not None
+    if not cached:
+        t0 = time.time(); raw = call_with_retries(llm, prompt)
         trace.append({"step": "llm", "cached": False, "seconds": round(time.time() - t0, 3)})
     else:
         trace.append({"step": "llm", "cached": True})
@@ -72,7 +74,11 @@ def answer(question, retrieve, llm, cache, trace, model="small-model", k=5):
         trace.append({"step": "parse", "ok": False}); return None
     unknown = set(out.citations) - {p["id"] for p in passages}
     trace.append({"step": "check", "unknown_citations": sorted(unknown)})
-    return out if not unknown else None
+    if unknown:
+        return None
+    if not cached and temperature == 0:
+        cache[key] = raw                                  # cache only outputs that passed every check
+    return out
 
 docs = [{"id": "p1", "text": "Refunds go to the original payment method within 5 days."},
         {"id": "p2", "text": "Vouchers expire after 30 days."}]
@@ -86,3 +92,17 @@ cache, trace = {}, []
 r1 = answer("When do I get my refund?", lambda q, k: docs[:k], fake_llm, cache, trace)
 r2 = answer("When do I get my refund?", lambda q, k: docs[:k], fake_llm, cache, trace)
 print("32.9:", r1.citations, "llm calls", calls["n"], [e["step"] + ("(cached)" if e.get("cached") else "") for e in trace])
+
+# a response with a hallucinated citation is rejected and NOT cached: the next identical call goes back to the model
+bad = {"n": 0}
+def bad_llm(prompt):
+    bad["n"] += 1
+    return json.dumps({"answer": "Vouchers last a year.", "citations": ["p9"]})
+cache2, trace2 = {}, []
+r3 = answer("How long do vouchers last?", lambda q, k: docs[:k], bad_llm, cache2, trace2)
+r4 = answer("How long do vouchers last?", lambda q, k: docs[:k], bad_llm, cache2, trace2)
+print("32.9 invalid output:", r3, r4, "model calls", bad["n"], "cache entries", len(cache2))
+# sampled outputs (temperature > 0) are never served from the cache
+calls["n"] = 1
+r5 = answer("When do I get my refund?", lambda q, k: docs[:k], fake_llm, cache, [], temperature=0.7)
+print("32.9 temperature 0.7: model called again ->", calls["n"] == 2)

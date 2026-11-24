@@ -55,3 +55,48 @@ print("binary", recall(approx_b), "binary+rescore", recall(approx_rescored), "by
 for k in [64, 128, 384]:
     Xk = X[:, :k] / np.linalg.norm(X[:, :k], axis=1, keepdims=True); Qk = Q[:, :k] / np.linalg.norm(Q[:, :k], axis=1, keepdims=True)
     print("trunc", k, recall(np.argsort(-(Qk @ Xk.T), axis=1)[:, :10]))
+
+# ---- 29.2 InfoNCE gradient worked example: dL/ds_ij = (p_ij - 1[j=i]) / tau
+import math
+s = np.array([0.8, 0.7, 0.3])
+for tau in (0.05, 0.3):
+    z = s / tau; p = np.exp(z - z.max()); p /= p.sum()
+    g = p.copy(); g[0] -= 1; g /= tau
+    print(tau, p.round(3), "dL/ds", g.round(2), "loss", round(-math.log(p[0]), 3))
+# MI bound ceiling log B and false-negative probability 1-(1-f)^(B-1)
+for B in (256, 1024, 4096, 32768): print(B, round(math.log(B), 2))
+for f in (1e-4,):
+    for B in (256, 4096, 32768): print("FN", B, round(1 - (1 - f) ** (B - 1), 3))
+print('MarginMSE example', (0.1 - 7) ** 2)
+
+# ---- 29.5/29.6 caveat: a skewed-spectrum, offset, rotated synthetic set (still synthetic)
+rng = np.random.default_rng(1)
+n, dim = 20000, 384
+# skewed spectrum + common offset + clusters, randomly rotated (like a non-MRL real embedding)
+scales = (np.arange(1, dim + 1) ** -0.5)
+centers = rng.normal(size=(200, dim)) * scales
+Z = centers[rng.integers(0, 200, n)] + 0.6 * rng.normal(size=(n, dim)) * scales
+R, _ = np.linalg.qr(rng.normal(size=(dim, dim)))
+mu = rng.normal(size=dim); mu = 1.5*mu / np.linalg.norm(mu) * np.linalg.norm(Z, axis=1).mean()
+X = Z @ R.T + mu
+X /= np.linalg.norm(X, axis=1, keepdims=True); X = X.astype(np.float32)
+Q = X[rng.choice(n, 100, replace=False)] + 0.02 * rng.normal(size=(100, dim)).astype(np.float32)
+Q /= np.linalg.norm(Q, axis=1, keepdims=True)
+truth = np.argsort(-(Q @ X.T), axis=1)[:, :10]
+def recall(a): return np.mean([len(set(x) & set(t)) / 10 for x, t in zip(a, truth)])
+def topk(Qm, Xm, k=10): return np.argsort(-(Qm @ Xm.T), axis=1)[:, :k]
+def nrm(A): return A / np.linalg.norm(A, axis=1, keepdims=True)
+print("mean cosine", float((X[:500] @ X[:500].T).mean()))
+for k in (64, 128):
+    print("trunc", k, recall(topk(nrm(Q[:, :k]), nrm(X[:, :k]))))
+m = X.mean(0); U = np.linalg.svd(X - m, full_matrices=False)[2]
+for k in (64, 128):
+    P = U[:k].T
+    print("pca", k, recall(topk(nrm((Q - m) @ P), nrm((X - m) @ P))))
+def ham(Qb, Xb, k):
+    return np.array([np.argsort(np.unpackbits(np.bitwise_xor(Xb, q), axis=1).sum(1), kind="stable")[:k] for q in Qb])
+for name, c in (("raw", 0), ("centred", m)):
+    Xb = np.packbits((X - c) > 0, axis=1); Qb = np.packbits((Q - c) > 0, axis=1)
+    b = ham(Qb, Xb, 10); cand = ham(Qb, Xb, 100)
+    rs = np.array([cc[np.argsort(-(X[cc] @ q))[:10]] for cc, q in zip(cand, Q)])
+    print("binary", name, recall(b), "rescore100", recall(rs))
