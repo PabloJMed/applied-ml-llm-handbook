@@ -80,3 +80,38 @@ def monthly_cost(calls, static_tokens, dynamic_tokens, output_tokens,
 no_cache = monthly_cost(3_000_000, 3000, 500, 150, 3.0, 15.0)
 cached = monthly_cost(3_000_000, 3000, 500, 150, 3.0, 15.0, cache_read_factor=0.1, cache_hit_rate=0.9)
 print(round(no_cache), round(cached))
+
+# ---- additions ----
+import math
+from scipy.stats import binomtest
+
+# 22.2 contextual calibration
+cf = np.array([0.7, 0.3]); x = np.array([0.6, 0.4])
+cal = (x / cf) / (x / cf).sum()
+print("contextual calibration:", cal.round(2).tolist())
+
+# 22.3 reasoning budget
+print("thinking 5k tokens at $15/M: $%.3f per call, x%.0f a 150-token answer, $%.0f per 1M calls, %d s at 100 tok/s"
+      % (5000 * 15 / 1e6, 5000 / 150, 5000 * 15, 5000 / 100))
+
+# 22.8 attack success rate intervals
+for k in (6, 0):
+    ci = binomtest(k, 30).proportion_ci(method="wilson")
+    print(f"ASR {k}/30: 95% Wilson [{ci.low:.3f}, {ci.high:.3f}]")
+
+# 22.10 test-set sizes
+print("n for 5 points at d=0.10: %.0f; detectable gain on 200 dev: %.1f points; 95%% half-width at 85%% on 300: %.1f; at 80%% on 100: %.1f"
+      % ((1.96 + 0.84) ** 2 * 0.10 / 0.05 ** 2, 100 * 2.8 * math.sqrt(0.10 / 200),
+         196 * math.sqrt(0.85 * 0.15 / 300), 196 * math.sqrt(0.8 * 0.2 / 100)))
+print("eval run cost, 500 tickets: $%.2f" % (500 * (3500 * 3 + 150 * 15) / 1e6))
+
+# 22.11 agent context: 40 turns, 10k static prefix, 2k tokens added per turn
+S, add, T = 10_000, 2_000, 40
+ctx = [S + add * (t - 1) for t in range(1, T + 1)]
+uncached = sum(ctx) * 3 / 1e6
+cached = ctx[0] * 3 / 1e6 + sum(ctx[t - 1] * 0.3 / 1e6 + add * 3 / 1e6 for t in range(1, T))
+print(f"agent: last context {ctx[-1]:,} tokens, total {sum(ctx):,}; ${uncached:.2f} uncached vs ${cached:.2f} cached (x{uncached/cached:.1f})")
+
+# Interview Q7 and Q11
+print("long context vs RAG: $%.2f vs $%.3f (x%.0f); cached long context $%.2f" % (200e3 * 3 / 1e6, 5e3 * 3 / 1e6, 200 / 5, 200e3 * 0.3 / 1e6))
+print("SE at 88%% on 500 items: %.1f points" % (100 * math.sqrt(0.88 * 0.12 / 500)))
