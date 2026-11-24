@@ -46,3 +46,18 @@ sft = 6 * N * 100_000 * 1000 * 3; dpo = (6 + 2) * N * 50_000 * 2 * 1000
 rl_tok = 1000 * 512 * 8 * 2000; rl = (2 + 6) * N * rl_tok
 for k, v in [("pre-training", pre), ("SFT", sft), ("DPO", dpo), ("RLVR", rl)]:
     print(f"{k}: {v:.2e} FLOPs = {v / pre:.4%} of pre-training")
+
+# ---- additions (review pass) ----
+import math
+print("single DPO pair, chosen +1 nat, rejected -1 nat, beta 0.1: %.3f" % -F.logsigmoid(torch.tensor(0.2)).item())
+print("loss 2.0 nats/token: perplexity %.1f, bits per byte at 4 bytes/token %.2f" % (math.exp(2.0), 2.0 / math.log(2) / 4))
+print("KL penalty, 0.1 nat/token over 500 tokens at beta 0.05: %.1f" % (500 * 0.1 * 0.05))
+print("P(zero-signal group), pass rate 2%%, G=8: %.3f" % (0.98 ** 8 + 0.02 ** 8))
+print("SE of precision 0.95 on 400 audited items: %.3f; SE of a 20%% flip rate on 500 questions: %.4f"
+      % (math.sqrt(0.95 * 0.05 / 400), math.sqrt(0.2 * 0.8 / 500)))
+print("labelling 200k items: $%.0f input + $%.0f output; whole 50M via API: $%.0f"
+      % (200e3 * 300 * 3 / 1e6, 200e3 * 20 * 15 / 1e6, 50e6 * 300 * 3 / 1e6 + 50e6 * 20 * 15 / 1e6))
+print("PPO memory, 7B: trained policy+value %.0f GB, frozen ref+RM %.0f GB; DPO %.0f + %.0f GB"
+      % (2 * 7e9 * 16 / 1e9, 2 * 7e9 * 2 / 1e9, 7e9 * 16 / 1e9, 7e9 * 2 / 1e9))
+print(f"RLVR split: generation {2 * N * rl_tok:.2e}, training {6 * N * rl_tok:.2e}; reference + old-policy forwards "
+      f"{4 * N * rl_tok:.2e}; total with them {12 * N * rl_tok:.2e} = {12 * N * rl_tok / pre:.2%} of pre-training")

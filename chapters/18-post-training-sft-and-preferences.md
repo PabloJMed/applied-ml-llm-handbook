@@ -12,6 +12,8 @@ The chapter follows the post-training stack in order (18.1). Supervised fine-tun
 
 The unifying idea is a single objective: maximise a reward while staying close to a reference model, measured by KL divergence (Chapter 1.6). PPO optimises it by sampling, DPO in closed form, and the KL term is what keeps both from exploiting a reward that is only a proxy for what people want.
 
+Interviews for post-training roles test this chapter at two depths. The first is derivation: the policy gradient and why a baseline does not bias it, GAE, the clipped objective, and DPO from the KL-regularised objective, each of which you should be able to write on a whiteboard in a few minutes. The second is judgement: why a DPO run's chosen log-probability falls, when PPO is worth its cost, why Llama 3 chose rejection sampling and DPO, how to collect preference data that does not teach "longer is better". The worked numbers in each section (0.556, [0.547, 0.470, 0.390, 0.200], [0.451, 0.332, 0.183, 0.033], 0.621) are there so you can check your own derivations.
+
 ## Key concepts
 
 - **Supervised fine-tuning (SFT)** on instruction–response data. [LIMA](https://arxiv.org/abs/2305.11206), [Tülu 3](https://arxiv.org/abs/2411.15124).
@@ -19,7 +21,8 @@ The unifying idea is a single objective: maximise a reward while staying close t
 - **Policy-gradient foundations**: the log-derivative trick, REINFORCE, baselines, actor–critic, importance sampling and trust regions. [Sutton and Barto, *Reinforcement Learning* (2nd ed.)](http://incompleteideas.net/book/the-book-2nd.html), [OpenAI Spinning Up](https://spinningup.openai.com/), [TRPO](https://arxiv.org/abs/1502.05477), [RLOO for LLMs](https://arxiv.org/abs/2402.14740).
 - **PPO for language models**: policy gradient with a value function, generalised advantage estimation and clipping. [PPO](https://arxiv.org/abs/1707.06347), [GAE](https://arxiv.org/abs/1506.02438), [The N+ implementation details of RLHF with PPO](https://arxiv.org/abs/2403.17031).
 - **Reward over-optimisation**: optimising a learned reward past the point where true quality improves. [Gao et al.](https://arxiv.org/abs/2210.10760).
-- **Direct preference optimisation and variants**: DPO, IPO, KTO, ORPO, SimPO. [DPO](https://arxiv.org/abs/2305.18290), [IPO](https://arxiv.org/abs/2310.12036), [SimPO](https://arxiv.org/abs/2405.14734).
+- **Direct preference optimisation and variants**: DPO, IPO, KTO, ORPO, SimPO. [DPO](https://arxiv.org/abs/2305.18290), [IPO](https://arxiv.org/abs/2310.12036), [KTO](https://arxiv.org/abs/2402.01306), [ORPO](https://arxiv.org/abs/2403.07691), [SimPO](https://arxiv.org/abs/2405.14734).
+- **Rejection-sampling fine-tuning and iterative preference rounds**: [Llama 2](https://arxiv.org/abs/2307.09288), [Llama 3](https://arxiv.org/abs/2407.21783).
 - **AI feedback**: preference labels or critiques from models. [Constitutional AI](https://arxiv.org/abs/2212.08073).
 - **Reference text**: [Nathan Lambert's RLHF Book](https://rlhfbook.com/).
 
@@ -101,6 +104,22 @@ On synthetic preferences generated from a hidden linear reward with realistic la
 - **Margins**: asking annotators how strongly they prefer one response allows margin terms or filtering of near-ties.
 - **Coverage**: if every chosen response is longer than its rejected partner, the reward model learns "longer is better". Balance or control for length.
 
+### Collecting preference data
+
+The data choices above assume someone has already decided what "better" means. In practice that decision is most of the work, and it is where reward models are won or lost.
+
+**Guidelines.** Annotators need a written rubric with an order of priority, for example: harmlessness first, then correctness, then helpfulness, then concision and style. Without the order, two careful annotators resolve conflicts differently ("this answer is more helpful but slightly unsafe") and the disagreement becomes label noise. Good guidelines include worked examples of hard cases, explicitly including the cases where refusing is the wrong answer.
+
+**Strength and ties.** Asking for a preference *strength* (Llama 2 used a four-level scale from "significantly better" to "negligibly better or unsure") lets you drop near-ties or weight pairs by margin. Ties carry information too. One option is to drop them; another is to keep them with a soft label of 0.5 on each side, −½ log σ(d) − ½ log σ(−d) for reward difference d, which is smallest (0.693) at d = 0 and grows to 0.813 at d = 1, so it pulls the two rewards together.
+
+**Agreement and calibration.** Have a share of pairs (5–10%) labelled by two or more people and measure agreement per category. If annotators agree only 65% of the time on chat helpfulness, a reward model scoring 65% against single labels is at the ceiling of that data, and further "improvements" fit noise. Seed the queue with gold items whose answers are known, track each annotator's accuracy on them over time, and retrain or remove those who drift. Rater pools change, and so does what they prefer.
+
+**Cost.** Budget from annotator time, not price lists: at four minutes per careful comparison, 100,000 pairs take about 6,700 annotator-hours, before quality control. That figure is the main reason AI feedback (18.7) took over most of the volume, with humans kept for the hard, high-stakes and audit slices.
+
+**Several objectives.** Helpfulness and harmlessness pull in opposite directions on borderline prompts. Training one reward model on both mixes two scales and lets one swamp the other. Llama 2 trained separate helpfulness and safety reward models and used the safety score when a prompt was risky or the response scored as unsafe. Whatever the combination rule, evaluate both directions (harmful compliance and over-refusal, 18.8).
+
+### Evaluating reward models
+
 **Evaluating reward models**: held-out preference accuracy, RewardBench-style suites with hard categories (chat, reasoning, safety), and, most important, how well the reward model's ranking predicts the downstream quality of a policy trained against it.
 
 **Generative reward models** ask an LLM to judge (often with a rubric and a written rationale) instead of outputting a scalar. They are more interpretable, can use reasoning, and are now common for open-ended tasks; they inherit LLM-judge biases (Chapter 23).
@@ -171,6 +190,37 @@ In practice the KL penalty is applied per token, and the reward model's score is
 
 With a reward of 1 at the last token, values [0.4, 0.5, 0.6, 0.8] and γ = 1, λ = 0.95, the advantages are [0.547, 0.470, 0.390, 0.200].
 
+### What λ does: a bias–variance dial
+
+Unrolling the recursion shows what GAE averages:
+
+$$
+A_t = \sum_{l=0}^{T-t-1} (\gamma\lambda)^{l}\,\delta_{t+l}
+$$
+
+Each δ is a one-step correction: "the value after this token, minus the value before it". At **λ = 0**, only the first term survives: A_t = δ_t = r_t + γV(s_(t+1)) − V(s_t). It depends on one sampled token, so its variance is low, but it trusts the value model completely: if V is wrong, the advantage is wrong. At **λ = 1** the sum telescopes, because each V(s_(t+l+1)) added by one δ is subtracted by the next, leaving A_t = (sum of rewards from t on) − V(s_t): the Monte Carlo return minus a baseline. That is unbiased whatever V is (V only acts as a baseline), but it carries the noise of every later token and of the final reward. λ between the two weights the real reward by λ^(T−t−1) and fills the rest in from V.
+
+The same trajectory at the three settings:
+
+| λ | Advantages for the four tokens | Reading |
+|---|---|---|
+| 0 | [0.100, 0.100, 0.200, 0.200] | Each token gets credit only for the value change it caused |
+| 0.95 | [0.547, 0.470, 0.390, 0.200] | Mostly the return, partly the value model |
+| 1 | [0.600, 0.500, 0.400, 0.200] | Return (1) minus V(s_t): 1 − 0.4, 1 − 0.5, 1 − 0.6, 1 − 0.8 |
+
+Check λ = 0 by hand: δ₀ = 0 + 0.5 − 0.4 = 0.1, δ₁ = 0.6 − 0.5 = 0.1, δ₂ = 0.8 − 0.6 = 0.2, δ₃ = 1 + 0 − 0.8 = 0.2. The last token's advantage is the same in all three rows, because for it there is no future to estimate.
+
+The check script makes the trade-off measurable. In a 20-token episode, the first token is either good (raising the chance of a correct final answer from 0.5 to 0.65) or bad (lowering it to 0.35), so the true advantage gap between the two is 0.30. The value model is systematically under-confident, V̂(p) = 0.5 + 0.6(p − 0.5). The policy gradient for the first token depends on the gap between the average advantages it receives when good and when bad:
+
+| λ | Gap E[A ∣ good] − E[A ∣ bad] (true 0.30) | Noise: std of A within one action |
+|---|---|---|
+| 0 | 0.180 | 0.000 |
+| 0.9 | 0.198 | 0.139 |
+| 0.95 | 0.227 | 0.234 |
+| 1 | 0.298 | 0.477 |
+
+At λ = 0 the gradient is noise-free but 40% too small, exactly the value model's under-confidence; at λ = 1 it is unbiased and noisy. Note how slowly the bias goes: the real reward reaches the first token with weight λ^19, which is 0.38 at λ = 0.95. For LLM responses of hundreds or thousands of tokens this matters a great deal. At λ = 0.95 a token 100 positions before the end sees the real reward with weight 0.95¹⁰⁰ ≈ 0.006, so it learns almost entirely through the value model, which for long reasoning is the weakest part of the system. That is one reason many LLM PPO setups use λ = 1 (or close to it), why some 2025 reasoning recipes set λ separately for the value and policy losses or adapt it to response length, and why GRPO (Chapter 19) drops the value model altogether.
+
 **One PPO iteration, step by step.** For a batch of 512 prompts:
 
 1. **Roll out**: sample one response per prompt from the current policy (temperature 1), keeping each token's log-probability under the policy (log π_old).
@@ -207,11 +257,11 @@ where ρ is the probability ratio between the new and the sampling policy:
 
 ## 18.5 Over-optimisation and Goodhart's law
 
-A reward model is a learned approximation of human preferences, accurate on the kinds of responses it was trained on and unreliable elsewhere. Optimise against it hard enough and the policy finds those unreliable regions. This is Goodhart's law for language models, and it is the main reason every RLHF objective includes a leash.
+A reward model is a learned approximation of human preferences, accurate on the kinds of responses it was trained on and unreliable elsewhere. Optimise against it hard enough and the policy finds those unreliable regions: what the proxy rewards but people do not, such as length, confident tone, flattery and formatting tricks. This is Goodhart's law for language models, and it is the main reason every RLHF objective includes a leash. Gao et al. (2022) measured this with a large "gold" reward model standing in for people: as optimisation proceeds (measured by KL from the reference), gold reward first rises, then falls, while proxy reward keeps rising.
 
-A reward model is a proxy. Optimise it hard enough and the policy finds what the proxy rewards but people do not: length, confident tone, flattery, formatting tricks. Gao et al. (2022) measured this with a large "gold" reward model standing in for people: as optimisation proceeds (measured by KL from the reference), gold reward first rises, then falls, while proxy reward keeps rising.
+The check script reproduces the shape with best-of-n sampling. Each response has a quality and a length; people (gold) like quality and dislike lengths far from ideal; the proxy reward model likes quality and also rewards length. Best-of-n has a known KL from the base policy, log n − (n − 1)/n.
 
-The check script reproduces the shape with best-of-n sampling. Each response has a quality and a length; people (gold) like quality and dislike lengths far from ideal; the proxy reward model likes quality and also rewards length. Best-of-n has a known KL from the base policy, log n − (n − 1)/n:
+**Where the formula comes from.** Let u = F(y) be a response's rank under the base policy's reward distribution, uniform on [0, 1]. The best of n samples has rank distributed as the maximum of n uniforms, with density n·u^(n−1), so the best-of-n policy reweights each response by exactly that factor and KL = E[log(n·u^(n−1))] = log n + (n − 1)·E[log u]. For the maximum of n uniforms, E[log u] = −1/n, which gives log n − (n − 1)/n. The argument assumes no two responses tie on reward; with ties (a discrete set of responses, many sharing a score) the formula is an upper bound on the true KL, not its exact value. The simulation below uses continuous rewards, so the table's KL column is exact.
 
 | Best-of-n | KL (nats) | Proxy reward | Gold reward |
 |---|---|---|---|
@@ -230,7 +280,29 @@ Gold peaks around n = 8–16 and ends worse than no optimisation at all. Defence
 
 ## 18.6 Direct preference optimisation and its family
 
-**Derivation.** Start from the KL-regularised objective for one prompt: maximise Σ_y π(y) r(y) − β Σ_y π(y) log(π(y)/π_ref(y)). Define the distribution π*(y) = π_ref(y) exp(r(y)/β) / Z with Z = Σ_y π_ref(y) exp(r(y)/β). A line of algebra shows the objective equals −β KL(π ‖ π*) + β log Z. The second term does not depend on π, and a KL divergence is smallest (zero) when the two distributions are equal, so the optimum is π = π*. In words: the best KL-regularised policy reweights the reference by exp(reward/β). A small β trusts the reward and moves far; a large β stays close to the reference.
+RLHF with PPO is expensive and fragile: it trains a reward model, then runs an RL loop with four models in memory, online generation and a dozen sensitive details (18.4). Yet the objective it optimises, reward minus a KL leash, is simple enough to solve exactly on paper. DPO's insight is that once you know the form of the optimal policy, you can rewrite the reward in terms of that policy and fit the policy directly to the preference data, with an ordinary classification-style loss. What is lost is the sampling: DPO learns only from the pairs it is given, which is the source of both its convenience and its failure modes.
+
+**Derivation.** Start from the KL-regularised objective for one prompt, with responses y, reward r(y), reference policy π_ref and leash strength β:
+
+$$
+J(\pi) = \sum_{y}\pi(y)\,r(y) - \beta\sum_{y}\pi(y)\log\dfrac{\pi(y)}{\pi_{\mathrm{ref}}(y)}
+$$
+
+Factor out −β and move the reward inside the logarithm, using r/β = log e^(r/β):
+
+$$
+J(\pi) = -\beta\sum_{y}\pi(y)\log\dfrac{\pi(y)}{\pi_{\mathrm{ref}}(y)\,e^{r(y)/\beta}}
+$$
+
+The denominator is not a distribution: it does not sum to one. Normalise it by Z = Σ_y π_ref(y) exp(r(y)/β) and call the result π*(y) = π_ref(y) exp(r(y)/β) / Z. Substituting π_ref·e^(r/β) = Z·π* splits the logarithm into two terms, and since Σ_y π(y) = 1 the second is a constant:
+
+$$
+J(\pi) = -\beta\sum_{y}\pi(y)\log\dfrac{\pi(y)}{\pi^{*}(y)} + \beta\log Z = -\beta\,\mathrm{KL}(\pi\,\Vert\,\pi^{*}) + \beta\log Z
+$$
+
+That is the "line of algebra". The second term does not depend on π, and a KL divergence is smallest (zero) when the two distributions are equal, so the optimum is π = π*, and the best achievable value is β log Z. In words: the best KL-regularised policy reweights the reference by exp(reward/β). A small β trusts the reward and moves far; a large β stays close to the reference.
+
+**Check the identity by hand.** Take four responses with rewards [1, 0.5, 0, −1], β = 0.5 and π_ref = [0.1, 0.2, 0.3, 0.4]. Then Z = 0.1e² + 0.2e¹ + 0.3e⁰ + 0.4e⁻² = 1.637 and β log Z = 0.246. At π = π_ref the objective is the expected reward, 0.1 + 0.1 + 0 − 0.4 = −0.200, with no KL cost; the right-hand side, −β KL(π_ref ‖ π*) + 0.246, also gives −0.200. At π = π* = [0.451, 0.332, 0.183, 0.033] both sides give 0.246, the maximum. No other policy beats it: the uniform policy, for example, scores 0.064.
 
 The KL-regularised objective in 18.4 therefore has the closed-form optimal policy
 
@@ -244,7 +316,13 @@ $$
 r(x,y) = \beta\log\dfrac{\pi^{*}(y\mid x)}{\pi_{\mathrm{ref}}(y\mid x)} + \beta\log Z(x)
 $$
 
-Substitute into the Bradley–Terry likelihood; Z(x) cancels between the two responses, leaving a loss on the policy alone:
+Plugging the numbers back in recovers the rewards: β log(π*/π_ref) + β log Z = [1.0, 0.5, 0.0, −1.0]. The reward is determined by the optimal policy up to the prompt-dependent constant β log Z(x), which no one can compute (it sums over all possible responses). Bradley–Terry needs only reward *differences* between two responses to the same prompt, so the constant cancels:
+
+$$
+r(x,y_c) - r(x,y_r) = \beta\log\dfrac{\pi^{*}(y_c\mid x)}{\pi_{\mathrm{ref}}(y_c\mid x)} - \beta\log\dfrac{\pi^{*}(y_r\mid x)}{\pi_{\mathrm{ref}}(y_r\mid x)}
+$$
+
+Substitute into the Bradley–Terry likelihood and replace π* by the policy being trained; Z(x) has cancelled between the two responses, leaving a loss on the policy alone:
 
 $$
 \mathcal{L}_{\mathrm{DPO}} = -\log\sigma\!\left(\beta\left[\log\dfrac{\pi(y_c\mid x)}{\pi_{\mathrm{ref}}(y_c\mid x)} - \log\dfrac{\pi(y_r\mid x)}{\pi_{\mathrm{ref}}(y_r\mid x)}\right]\right)
@@ -256,17 +334,70 @@ $$
 
 *Policy probabilities during DPO training on the four-response bandit. Each converges to its closed-form optimum (dotted), within about 100 steps here.*
 
-**What the DPO gradient does.** Differentiating the loss gives, per pair, a weight σ(r̂_rejected − r̂_chosen) times [∇ log π(y_c) − ∇ log π(y_r)], where r̂ = β log(π/π_ref) is the implicit reward. Pairs the model already ranks correctly by a wide margin get almost no weight; pairs it ranks wrongly get nearly full weight. The update raises the chosen response's likelihood and lowers the rejected one's, but nothing in the loss requires the chosen likelihood itself to go up, which is the root of likelihood displacement below.
+**What the DPO gradient does.** Differentiating the loss gives, per pair,
+
+$$
+\nabla_{\theta}\mathcal{L}_{\mathrm{DPO}} = -\beta\,\sigma(\hat{r}_r - \hat{r}_c)\left[\nabla_{\theta}\log\pi(y_c) - \nabla_{\theta}\log\pi(y_r)\right]
+$$
+
+a weight σ(r̂_rejected − r̂_chosen) times [∇ log π(y_c) − ∇ log π(y_r)], where r̂ = β log(π/π_ref) is the implicit reward. For the pair used in the variants table below (margin h = 1.5, β = 0.1), the loss is 0.621 and the weight is σ(−0.15) = 0.463: still nearly half of full strength, because a margin of 0.15 in implicit reward is small. Pairs the model already ranks correctly by a wide margin get almost no weight; pairs it ranks wrongly get nearly full weight. The update raises the chosen response's likelihood and lowers the rejected one's, but nothing in the loss requires the chosen likelihood itself to go up, which is the root of likelihood displacement below.
 
 **In practice they differ.** DPO trains on a fixed dataset; RLHF samples from the current policy. Offline DPO cannot discover responses that are not in the data, and it is sensitive to the gap between the data distribution and the policy. Remedies: **on-policy or iterative DPO** (sample pairs from the current model, score them with a reward model or judge, train, repeat), which closes much of the gap to PPO.
 
+### Rejection sampling and the online-versus-offline question
+
+**Rejection-sampling fine-tuning** (also called best-of-n fine-tuning) is the simplest way to use a reward model without RL: for each prompt, sample n responses from the current model, score them with the reward model or a verifier, and run SFT on the best one. It is best-of-n (18.5) distilled into the weights. Llama 2 used it in several rounds before PPO; Llama 3's post-training replaced PPO altogether with rounds of reward modelling, rejection-sampled SFT data and DPO on fresh preference pairs from the latest model. The Llama 3 report gave the reasons as compute and stability: DPO needed far less compute at 405B scale and performed better in their setting, especially on instruction following. Because each round samples new pairs from the current model, the pipeline is close to on-policy at the level of rounds, which recovers much of what PPO's online sampling offers.
+
+The evidence on online versus offline methods points one way when the comparison is careful. Xu et al. (2024, "Is DPO Superior to PPO for LLM Alignment?") found that a well-tuned PPO beat DPO across dialogue and code benchmarks, with the largest gap on competitive programming, and traced DPO's weakness to distribution shift between the preference data and the policy. Tajwar et al. (2024) found that methods that sample on-policy, and that push probability down on bad responses ("negative gradients"), learn faster when the good responses lie in low-probability regions of the reference. The practical reading: offline DPO is the cheap, robust baseline; iterative DPO with on-policy pairs recovers most of the gap; full online RL is worth its cost when the reward is reliable (a verifier, Chapter 19) and the target behaviour is far from what the reference already produces.
+
 **Known failure modes of DPO:**
 
-- **Likelihood displacement**: the log-probabilities of both chosen and rejected responses often fall during training; only their difference rises. Probability mass moves to responses outside the data, sometimes worse ones. Monitor both.
+- **Likelihood displacement**: the log-probabilities of both chosen and rejected responses often fall during training; only their difference rises. Probability mass moves to responses outside the data, sometimes worse ones. It is a property of the margin objective, not only of offline data: the gradient above lowers the rejected response's log-probability, and when the chosen and rejected responses are similar (sharing most tokens, or close in the model's representation), pushing one down drags the other with it. Monitor both log-probabilities, filter near-identical pairs, and add an SFT term on the chosen response if quality falls.
 - **Over-fitting to near-deterministic preferences**: if a pair is always preferred one way, the DPO optimum pushes the log-ratio to infinity, ignoring β.
 - **Length exploitation**: summed log-probabilities favour longer chosen responses.
 
 **Variants** (with the margin h = log-ratio of chosen minus log-ratio of rejected; for h = 1.5 the DPO loss with β = 0.1 is 0.621):
+
+Each variant changes one thing in the DPO loss, and it is worth being able to write each one. Write h = log(π(y_c)/π_ref(y_c)) − log(π(y_r)/π_ref(y_r)) for the log-ratio margin, so that DPO is −log σ(βh).
+
+**IPO** replaces the log-sigmoid by a squared loss with a finite target margin, set by a regularisation strength τ:
+
+$$
+\mathcal{L}_{\mathrm{IPO}} = \left(h - \dfrac{1}{2\tau}\right)^{2}
+$$
+
+DPO's loss keeps decreasing as h grows, so on a pair that is always preferred one way it pushes h to infinity; IPO stops at h = 1/(2τ).
+
+**SimPO** drops the reference model, normalises by response length and adds a target margin γ:
+
+$$
+\mathcal{L}_{\mathrm{SimPO}} = -\log\sigma\!\left(\dfrac{\beta}{|y_c|}\log\pi(y_c) - \dfrac{\beta}{|y_r|}\log\pi(y_r) - \gamma\right)
+$$
+
+where |y| is the number of tokens. The implicit reward is the average log-probability per token, which is also what generation favours, so the training reward and the decoding behaviour agree and long responses gain nothing from length alone.
+
+**KTO** needs no pairs. Each response is labelled desirable or undesirable, its implied reward ρ = log(π(y)/π_ref(y)) is compared with a reference point z₀ (a batch estimate of KL(π ‖ π_ref), treated as a constant), and the loss for a desirable response is
+
+$$
+\mathcal{L}_{\mathrm{KTO}} = \lambda_D\left(1 - \sigma\!\left(\beta\,(\rho - z_0)\right)\right)
+$$
+
+and λ_U(1 − σ(β(z₀ − ρ))) for an undesirable one. The weights λ_D and λ_U let you rebalance when one kind of label is far more common, and the bounded, saturating shape (from prospect theory) limits how much any one example can move the model.
+
+**ORPO** has no reference model and no separate stage: it adds an odds-ratio term to the SFT loss on the chosen response, L_SFT − λ log σ(log odds(y_c) − log odds(y_r)), where odds(y) = P(y)/(1 − P(y)) and P(y) is the length-normalised likelihood exp(mean token log-probability). **cDPO** keeps DPO but assumes each label is flipped with probability ε: (1 − ε)·(−log σ(βh)) + ε·(−log σ(−βh)).
+
+**All of them on one pair.** Chosen response: log π = −20 over 40 tokens, log π_ref = −21. Rejected: log π = −22 over 60 tokens, log π_ref = −21.5. So h = 1.0 − (−0.5) = 1.5.
+
+| Loss | Setting | Value | What it says about this pair |
+|---|---|---|---|
+| DPO | β = 0.1 | 0.621 | Ranked correctly, small margin: keep pushing (gradient weight 0.463) |
+| cDPO | β = 0.1, ε = 0.1 | 0.636 | Slightly higher: 10% of the weight argues for the opposite label |
+| IPO | τ = 0.1 | 12.25 | Target margin is 5, current 1.5: a long way to go |
+| SimPO | β = 2, γ = 0.5 | 1.148 | Per token, the chosen response is *less* likely (−0.500 against −0.367): mis-ranked |
+| KTO | β = 0.1, z₀ = 0.2 | 0.480 (chosen as desirable), 0.483 (rejected as undesirable) | Each judged against the reference point, not against each other |
+| ORPO | odds-ratio term | 0.902 | Length-normalised likelihoods 0.607 against 0.693: mis-ranked, as for SimPO |
+
+The SimPO and ORPO rows show the point of length normalisation: the chosen response looked better to DPO only because it is shorter, so its summed log-probability is larger. Which reading is right depends on whether length differences in your data are signal or artefact.
 
 | Method | Change | Why |
 |---|---|---|
@@ -280,11 +411,13 @@ None dominates. Published comparisons depend heavily on hyperparameters (β, lea
 
 ## 18.7 AI feedback
 
-Preference data from people is the bottleneck of RLHF. A strong model, given a clear rubric, can produce preference labels far faster and more consistently. The quality of those labels depends almost entirely on the rubric and on known biases of AI judges.
+Preference data from people is the bottleneck of RLHF: slow, expensive (18.3) and inconsistent. A strong model, given a clear rubric, can produce preference labels far faster and more consistently, and most current pipelines use **AI feedback** for a large share of labels: an LLM judge compares responses (often with a rubric or a written constitution), or writes critiques that are used for revision. The quality of those labels depends almost entirely on the rubric and on known biases of AI judges.
 
 A rubric used by an AI judge for preference labels might read: "Prefer the response that (1) answers the question that was asked, (2) is factually correct, and says so when unsure, (3) is no longer than needed, (4) refuses only if the request is harmful, explaining briefly. If both are equal, answer TIE." Rubrics like this make judgements reproducible and auditable; their weakness is that the judge applies them through its own biases, so the rubric should be tested on cases with known answers before use.
 
-Human preference labels are slow and expensive. Most current pipelines use **AI feedback** for a large share of labels: an LLM judge compares responses (often with a rubric or a written constitution), or writes critiques that are used for revision. Constitutional AI (Bai et al., 2022) used a list of principles to generate critiques, revisions and preference labels for harmlessness. The risks are those of LLM judges in general (Chapter 23): self-preference, position and length bias, and blind spots shared between judge and policy. Keep a human-labelled audit set, rotate or ensemble judges, and measure agreement with humans per category.
+**Constitutional AI** (Bai et al., 2022) is the reference design, in two phases. In the supervised phase, the model answers harmful prompts, critiques its own answer against a principle drawn from a written list (the constitution) and revises it; SFT on the revisions gives a less harmful starting policy. In the RL phase, a model compares pairs of responses against the principles, those AI preference labels train a reward model, and RL proceeds as in 18.4 (**RLAIF**: RL from AI feedback). The constitution makes the target behaviour explicit and editable, which is its main advantage over thousands of implicit human judgements. Chapter 27 covers its descendants in alignment practice.
+
+The risks are those of LLM judges in general (Chapter 23): self-preference, position and length bias, and blind spots shared between judge and policy. Keep a human-labelled audit set, rotate or ensemble judges, and measure agreement with humans per category.
 
 ## 18.8 Evaluating post-training
 
@@ -304,48 +437,110 @@ Post-training changes many behaviours at once, some intended and some not. A mod
 - Optimising against a reward model without tracking KL and a gold or human evaluation.
 - Comparing DPO variants each at a single, default β and learning rate.
 - Watching only the DPO margin, not the chosen and rejected log-probabilities.
+- Running PPO with λ = 0.95 on responses of thousands of tokens and expecting early tokens to learn from the reward rather than from the value model.
+- Quoting log n − (n − 1)/n as the exact KL of best-of-n when responses can tie.
+- Collecting preference labels without a priority order in the guidelines, an agreement measurement or gold items.
 - Reporting chat-benchmark gains without length control or capability regressions.
 
 ## Interview questions
 
-**1. What makes a good SFT dataset?** Diverse prompts covering target skills and formats, high-quality verified responses, both refusals and non-refusals done right, multi-turn data, deduplicated and decontaminated. Quality beats volume for format; skills need volume.
+**1. What makes a good SFT dataset?** Diverse prompts covering target skills and formats, high-quality verified responses, both refusals and non-refusals done right, multi-turn data, deduplicated and decontaminated. Quality beats volume for format; skills need volume. LIMA's 1,000 examples are enough to teach the assistant format to a strong base model, but maths, code and tool use need hundreds of thousands of verified, mostly synthetic examples. The trade-off to name is breadth against forgetting: a narrow mixture teaches its skill and erodes others, so keep general data in the mix and run a capability-regression suite after every SFT run. Follow-up: "how do you verify synthetic responses?" Execute code, check maths answers against references, and use a judge only where nothing checkable exists.
 
-**2. Write the Bradley–Terry reward-model loss and explain its assumptions.** −log σ(r_c − r_r). Assumes preferences come from a single scalar reward per response plus logistic noise; ignores ties, intransitive and context-dependent preferences.
+**2. Write the Bradley–Terry reward-model loss and explain its assumptions.** −log σ(r_c − r_r). Assumes preferences come from a single scalar reward per response plus logistic noise; ignores ties, intransitive and context-dependent preferences. The logistic is exact if each rater's perceived quality is the true reward plus Gumbel noise, and only differences are identified, so rewards are normalised before RL. A pair scored (1.2, 0.2) costs 0.313 and a mis-ranked pair (0.3, 0.5) costs 0.799, so the gradient concentrates on mistakes. Its weak spot is that one scalar must serve every annotator and every criterion, which is why teams train separate helpfulness and safety models or move to generative, rubric-based reward models.
 
-**3. Walk through PPO for LLMs.** Sample responses; score them with the reward model; add a per-token KL penalty to the reference; compute advantages with a value model and GAE; update with the clipped ratio objective for a few epochs; repeat.
+**3. Walk through PPO for LLMs.** Sample responses; score them with the reward model; add a per-token KL penalty to the reference; compute advantages with a value model and GAE; update with the clipped ratio objective for a few epochs; repeat. In memory there are four models: policy, value (often initialised from the reward model), frozen reference and frozen reward model; the last two can be offloaded or share a base with adapters. Typical settings are ε = 0.2, 1–4 epochs per batch, a KL coefficient around 0.01–0.1, γ = 1 and λ close to 1. Monitor the KL to the reference, value loss, policy entropy, clip fraction, and the correlation of reward with response length, which is the first sign of hacking. Follow-up: "why is it slow?" Generation and three forward passes per batch dominate, so RLHF systems put an inference engine in the loop.
 
-**4. Why clip the probability ratio?** The data was sampled by the old policy; large policy changes make the advantage estimates invalid. Clipping removes the incentive to move the ratio beyond 1 ± ε.
+**4. Why clip the probability ratio?** The data was sampled by the old policy; large policy changes make the advantage estimates invalid. Clipping removes the incentive to move the ratio beyond 1 ± ε. Concretely, with ε = 0.2 and A = +1, a ratio of 1.5 earns only 1.2: the objective is flat beyond the clip, so there is no gradient pushing further. The clip is one-sided in the useful sense: moves in the wrong direction (ratio 1.5 on a negative advantage) are penalised in full. It is a cheap first-order stand-in for TRPO's KL trust region. Follow-up: "does clipping bound the KL?" Not strictly; many epochs on the same batch can still drift, so implementations also monitor approximate KL and stop early.
 
-**5. Derive DPO in a few lines.** The KL-regularised optimum is π_ref·exp(r/β)/Z. Solve for r, substitute into Bradley–Terry; Z cancels; the loss depends only on log-ratios of policy to reference.
+**5. Derive DPO in a few lines.** The KL-regularised optimum is π_ref·exp(r/β)/Z. Solve for r, substitute into Bradley–Terry; Z cancels; the loss depends only on log-ratios of policy to reference. The step people skip is the first: write J(π) = Σπr − βΣπ log(π/π_ref) = −βΣπ log(π/(π_ref e^(r/β))) = −β KL(π ‖ π*) + β log Z with π* = π_ref e^(r/β)/Z, so the optimum is π* because the KL is zero only there. Then r = β log(π*/π_ref) + β log Z, and the difference r_c − r_r loses the intractable Z. Check: on the four-response bandit the DPO solution matches [0.451, 0.332, 0.183, 0.033] exactly. Follow-up: "what assumption breaks in practice?" The derivation assumes the optimum over all policies with full data coverage; finite offline data and a parametric policy break it.
 
-**6. If DPO and RLHF share an optimum, why do they behave differently?** DPO fits a fixed offline dataset; PPO samples on-policy and can explore. Distribution shift, finite data and likelihood displacement make offline DPO weaker; iterative on-policy DPO narrows the gap.
+**6. If DPO and RLHF share an optimum, why do they behave differently?** DPO fits a fixed offline dataset; PPO samples on-policy and can explore. Distribution shift, finite data and likelihood displacement make offline DPO weaker; iterative on-policy DPO narrows the gap. The shared optimum holds only with infinite data covering every response; with finite pairs, DPO's loss says nothing about responses outside the data, and the policy can put mass there. Careful comparisons (Xu et al., 2024) found tuned PPO ahead, most clearly on code, while Llama 3 chose DPO with fresh pairs each round for compute and stability at 405B. My default: iterative DPO as the baseline, online RL where a reliable reward exists. Follow-up: "how do you tell distribution shift is the problem?" Measure the policy's log-likelihood of the preference data; if it is far below that of its own samples, the pairs are off-policy.
 
-**7. What is reward over-optimisation and how do you detect and limit it?** Proxy reward keeps rising while true quality falls. Detect with a gold judge or humans on checkpoints at increasing KL; limit with KL penalties, early stopping, better or ensembled reward models, length control.
+**7. What is reward over-optimisation and how do you detect and limit it?** Proxy reward keeps rising while true quality falls. Detect with a gold judge or humans on checkpoints at increasing KL; limit with KL penalties, early stopping, better or ensembled reward models, length control. In the chapter's best-of-n simulation the gold reward peaks around n = 8–16 (KL ≈ 1.2–1.8 nats) and is below the starting point by n = 1,024, while the proxy keeps climbing. The KL budget is the most transferable control: Gao et al. found gold reward follows a predictable curve in √KL, and larger reward models push the peak further out. Follow-up: "what does it look like in samples?" Longer, more confident, more flattering answers; read them.
 
-**8. Your DPO run increases the margin but the chosen log-probability falls. Is that a problem?** It is likelihood displacement: mass moves to other responses. Check generation quality; add an SFT term on chosen responses, lower the learning rate, or use on-policy pairs.
+**8. Your DPO run increases the margin but the chosen log-probability falls. Is that a problem?** It is likelihood displacement: mass moves to other responses. Check generation quality; add an SFT term on chosen responses, lower the learning rate, or use on-policy pairs. It is not automatically a problem: if held-out win rates improve, the mass may have moved to better responses outside the data. It becomes one when quality or format degrades, which is likelier when chosen and rejected responses are near-identical, because the push down on the rejected response drags the shared tokens with it. So filter near-duplicate pairs too, and compare the chosen log-probability with that of the model's own greedy outputs. Follow-up: "why doesn't the loss prevent it?" It depends only on the difference of log-ratios, which can rise while both fall.
 
-**9. When would you choose KTO over DPO?** When feedback is binary per response (thumbs up/down, accept/reject) and pairs are not available.
+**9. When would you choose KTO over DPO?** When feedback is binary per response (thumbs up/down, accept/reject) and pairs are not available. KTO scores each response's implied reward log(π/π_ref) against a reference point z₀ (a batch KL estimate) with a saturating loss, λ_D(1 − σ(β(ρ − z₀))) for desirable responses and λ_U(1 − σ(β(z₀ − ρ))) for undesirable ones, and the two weights correct for imbalance. When not to: if real pairs exist, DPO or IPO uses the comparison directly and is usually more sample-efficient, and with extreme imbalance (99% thumbs-up) the weights must be tuned carefully or the rare class is ignored. Product logs are also biased towards what users chose to rate.
 
-**10. What are the risks of AI feedback?** Judge biases (self-preference, length, position), shared blind spots, and reward hacking against the judge. Audit against human labels, rotate judges, control for length.
+**10. What are the risks of AI feedback?** Judge biases (self-preference, length, position), shared blind spots, and reward hacking against the judge. Audit against human labels, rotate judges, control for length. Concretely: swap the order of the two responses and keep only consistent verdicts, cap or normalise length in the comparison, use a judge from a different model family than the policy, and keep a human-labelled audit set of a few hundred pairs per category to measure judge–human agreement over time. The deeper risk is invisible: errors the judge and the policy share are never caught by agreement checks between them. Follow-up: "why does it work at all?" Comparing is easier than generating, and a written rubric makes the judgement explicit.
 
-**11. How would you evaluate a new post-trained checkpoint before release?** Instruction-following, length-controlled chat quality, capability regression suite, safety and over-refusal, calibration, plus a human evaluation sample; compare with the previous checkpoint with confidence intervals.
+**11. How would you evaluate a new post-trained checkpoint before release?** Instruction-following, length-controlled chat quality, capability regression suite, safety and over-refusal, calibration, plus a human evaluation sample; compare with the previous checkpoint with confidence intervals. A number to have ready: a win rate measured on 500 prompts has a standard error of about 2.2 points near 50%, so differences under about 4–5 points need a bigger sample or a paired design. The ship decision is a set of gates, not one score: no regression beyond its interval on any capability, over-refusal not worse, and human preference not worse. Follow-up: "which regression is most often missed?" Maths, code and multilingual ability after preference tuning on chat data.
 
-**12. Derive the policy gradient.** J = E_(y∼π)[R(y)]; ∇J = Σ_y ∇π(y) R(y) = Σ_y π(y) ∇log π(y) R(y) = E[R(y) ∇log π(y)]. For a sequence, ∇log π(y) is the sum of per-token log-probability gradients. No gradient of the reward is needed.
+**12. Derive the policy gradient.** J = E_(y∼π)[R(y)]; ∇J = Σ_y ∇π(y) R(y) = Σ_y π(y) ∇log π(y) R(y) = E[R(y) ∇log π(y)]. For a sequence, ∇log π(y) is the sum of per-token log-probability gradients. No gradient of the reward is needed. The key step is ∇π = π ∇log π, which turns a sum weighted by π into an expectation you can sample. In the chapter's four-response bandit, batches of 8 samples estimate the gradient without bias but with a total standard deviation of 0.174, which rises to 3.15 when every reward is shifted by 10, and that is the motivation for baselines. Follow-up: "why can the reward be a unit-test runner?" Because only log π is differentiated.
 
-**13. Why does a baseline not bias the gradient, and which baseline is best?** E[b ∇log π(y)] = b ∇Σ_y π(y) = 0 for any b that does not depend on the sampled y. Variance is lowest near the expected reward: a learned value (PPO), a group mean (GRPO) or a leave-one-out mean (RLOO, exactly unbiased; the plain group mean shrinks the gradient by (N − 1)/N).
+**13. Why does a baseline not bias the gradient, and which baseline is best?** E[b ∇log π(y)] = b ∇Σ_y π(y) = 0 for any b that does not depend on the sampled y. Variance is lowest near the expected reward: a learned value (PPO), a group mean (GRPO) or a leave-one-out mean (RLOO, exactly unbiased; the plain group mean shrinks the gradient by (N − 1)/N). In the check script, rewards shifted by +10 give a gradient standard deviation of 3.15 without a baseline, 0.093 with the group mean and 0.106 leave-one-out; the group mean's estimate is 0.875 of the true gradient at N = 8, a scale the learning rate absorbs. Follow-up: "can the baseline depend on the prompt?" Yes; it must not depend on the sampled response.
 
-**14. On-policy versus off-policy: why can't PPO reuse old rollouts indefinitely?** Off-policy reuse needs importance weights; for a sequence they are products of per-token ratios whose variance grows exponentially with length. PPO uses per-token ratios, clips them, and runs only a few epochs per batch so the data stays nearly on-policy.
+**14. On-policy versus off-policy: why can't PPO reuse old rollouts indefinitely?** Off-policy reuse needs importance weights; for a sequence they are products of per-token ratios whose variance grows exponentially with length. PPO uses per-token ratios, clips them, and runs only a few epochs per batch so the data stays nearly on-policy. With a per-token log-ratio standard deviation of only 0.03, the sequence ratio's variance is exp(T·0.03²) − 1: 0.09 at 100 tokens, 1.46 at 1,000 and 35.6 at 4,000, where the effective sample size is 3% of the batch. Follow-up: "so is PPO biased?" Yes: per-token ratios with a sequence-level advantage are an approximation, which GSPO and CISPO revisit (Chapter 19).
 
-**15. Why do LLMs use policy-gradient methods rather than Q-learning?** Huge action space (the vocabulary) at every step, a strong pretrained policy to start from, and a sparse terminal reward. Policy gradients improve the existing policy directly; Q-learning would need to learn values for 100k+ actions per state from scratch.
+**15. Why do LLMs use policy-gradient methods rather than Q-learning?** Huge action space (the vocabulary) at every step, a strong pretrained policy to start from, and a sparse terminal reward. Policy gradients improve the existing policy directly; Q-learning would need to learn values for 100k+ actions per state from scratch. The nuance a sharp interviewer may raise: the logits of a language model can be read as soft Q-values for a KL-regularised (maximum-entropy) problem, which is how Rafailov et al. (2024, "From r to Q*") reinterpret DPO as token-level credit assignment. So "from scratch" is the practical problem, not a theoretical one: the pretrained policy is a good initial Q-function only in that soft sense, and greedy max-Q acting would discard the sampling diversity RL needs.
+
+**16. Derive DPO's loss from the RLHF objective on the whiteboard, including the step everyone skips.** Start from J(π) = Σ_y π(y)r(y) − βΣ_y π(y) log(π(y)/π_ref(y)). Factor out −β and put the reward in the logarithm: J = −βΣπ log(π/(π_ref e^(r/β))). Normalise the denominator with Z = Σπ_ref e^(r/β), defining π* = π_ref e^(r/β)/Z; since Σπ = 1, J = −β KL(π ‖ π*) + β log Z. The maximum is π = π*, with value β log Z: for rewards [1, 0.5, 0, −1], β = 0.5 and π_ref = [0.1, 0.2, 0.3, 0.4], Z = 1.637 and the maximum is 0.246, against −0.200 at π_ref. Invert to r = β log(π*/π_ref) + β log Z; in the Bradley–Terry difference Z cancels; replace π* by π_θ to get −log σ(β[log-ratio(y_c) − log-ratio(y_r)]). Follow-up: "where did the KL direction matter?" It is the reverse KL KL(π ‖ π_ref), which is what makes the optimum a reweighting of π_ref.
+
+**17. Write the IPO, SimPO and KTO losses and say when you would use each.** With h the log-ratio margin: IPO is (h − 1/(2τ))², a squared loss with a finite target margin, for noisy or near-deterministic preferences where DPO's margin would run away (at h = 1.5 and τ = 0.1, the loss is 12.25, pulling towards h = 5). SimPO is −log σ((β/|y_c|) log π(y_c) − (β/|y_r|) log π(y_r) − γ): no reference model and length-normalised, for when length bias is the main problem and memory is tight. KTO is λ_D(1 − σ(β(ρ − z₀))) for good and λ_U(1 − σ(β(z₀ − ρ))) for bad responses, for unpaired thumbs-up/down data. On the chapter's example pair, DPO sees a correct ranking (0.621) while SimPO sees a mis-ranked pair (1.148) because the chosen response is shorter, a reminder to check what your margin is really measuring.
+
+**18. What does λ in GAE control? Give numbers.** λ interpolates between one-step TD (λ = 0: A_t = δ_t, low variance, biased by the value model) and the Monte Carlo return minus a baseline (λ = 1: unbiased, noisy). On the chapter's trajectory (values [0.4, 0.5, 0.6, 0.8], reward 1 at the end) the advantages are [0.1, 0.1, 0.2, 0.2] at λ = 0, [0.547, 0.470, 0.390, 0.200] at 0.95 and [0.6, 0.5, 0.4, 0.2] at 1. With an under-confident value model, λ = 0 delivered 60% of the true advantage gap with no noise, λ = 1 all of it with a standard deviation of 0.48. The LLM-specific point: the real reward reaches a token k positions from the end with weight λ^k, 0.006 at k = 100 for λ = 0.95, so long responses push you to λ ≈ 1 or to dropping the value model (GRPO).
+
+**19. Why did Llama 3 drop PPO for rejection sampling and DPO? Would you?** Its report cites compute and stability: at 405B parameters, PPO's four models and online generation are expensive, and DPO with fresh on-policy pairs each round performed better in their setting, especially on instruction following. Rejection-sampling SFT (sample n, keep the reward model's best, fine-tune) captures much of best-of-n's gain without RL, and running several rounds makes the whole pipeline close to on-policy. I would make the same choice for general chat and preference alignment, where the reward is a learned model that over-optimisation would exploit anyway. I would not for maths, code or agent tasks with verifiers: there online RL (Chapter 19) is clearly stronger. Follow-up: "what does rejection sampling cost?" n samples per prompt plus scoring: at n = 8 it is eight times the generation of plain SFT data.
+
+**20. How would you collect 100,000 human preference pairs, and what would go wrong?** Write guidelines with a priority order (harmlessness, correctness, helpfulness, style) and hard worked examples, including over-refusal cases; ask for preference strength to filter near-ties; double-label 5–10% to measure agreement per category; seed gold items to track each annotator; sample responses from the current policy so the reward model learns about what it will judge. Budget: at four minutes a pair, about 6,700 annotator-hours. What goes wrong: length bias (chosen responses longer), drift in raters and guidelines, agreement of only 60–70% on chat that sets the reward model's ceiling, and helpfulness–harmlessness conflicts that one scalar cannot represent. Follow-up: "how do you treat ties?" Drop them, or keep them with a 0.5 soft label that pulls the rewards together.
 
 ## Practice
 
 1. Fine-tune a 0.5–1B model with SFT on a small instruction set using TRL; implement packing with correct masks and check that loss on user tokens is zero.
+
+<details><summary>Hint and expected result</summary>
+
+Build the labels with −100 on every non-assistant token and assert that the number of positions contributing to the loss equals the number of assistant tokens plus end-of-turn tokens. With packing, print the position ids of one row (they should restart at 0 at each example, as in 18.2) and check that a token's attention row is zero outside its own example. If the loss starts suspiciously low, check whether prompt tokens leaked into it: prompts are easier to predict than responses when they repeat across examples.
+
+</details>
+
 2. Train a reward model on a public preference dataset; report held-out accuracy and the correlation between reward and response length.
+
+<details><summary>Hint and expected result</summary>
+
+Expect held-out pairwise accuracy in the 65–75% range on general chat preferences, near the annotator-agreement ceiling. A Spearman correlation between reward and length above about 0.3 on responses of matched quality is a warning that the model learned length; check it within pairs too (does the longer response win far more often than the labels say?).
+
+</details>
+
 3. Run DPO and SimPO from the same SFT checkpoint with a small sweep of β and learning rate; plot chosen and rejected log-probabilities during training.
+
+<details><summary>Hint and expected result</summary>
+
+Under DPO, expect the margin to rise steadily while both chosen and rejected log-probabilities fall, often by several nats over an epoch (likelihood displacement); higher learning rates make the fall larger. SimPO's average log-probabilities should move less in absolute terms and its outputs should not get longer. Verify your loss implementations first on the pair in 18.6: DPO 0.621, SimPO 1.148, IPO 12.25.
+
+</details>
+
 4. **Research exercise.** Reproduce the over-optimisation curve with a real reward model: best-of-n sampling for n = 1 to 256 from a small policy, scored by a small (proxy) and a larger (gold) reward model. Plot both against log n − (n−1)/n, with bootstrap confidence intervals.
+
+<details><summary>Hint and expected result</summary>
+
+Draw 256 samples per prompt once and compute every best-of-n by subsampling, which is much cheaper than resampling for each n. Expected outcome: proxy reward rises roughly linearly in √KL; gold reward rises, peaks somewhere between n = 4 and n = 64, then flattens or falls. Bootstrap over prompts, not over samples. If gold never turns down, the gold and proxy models are too similar (same family, same data) to show the effect.
+
+</details>
+
 5. Re-derive the GAE recursion and implement it for a batch of variable-length responses.
+
+<details><summary>Hint and expected result</summary>
+
+Work right to left with a mask so that padding positions get zero advantage and the recursion does not run across the end of a response (the value after the last real token is 0). Test on the chapter's trajectory: [0.547, 0.470, 0.390, 0.200] at λ = 0.95, [0.1, 0.1, 0.2, 0.2] at λ = 0 and [0.6, 0.5, 0.4, 0.2] at λ = 1; a second response of different length in the same batch must give the same values as when run alone.
+
+</details>
+
 6. Implement REINFORCE on a small bandit with no baseline, a group-mean baseline and a leave-one-out baseline. Shift all rewards by +10 and measure the variance of each gradient estimate against the exact gradient (the check script's experiment), then repeat with N = 2, 8 and 32 samples.
+
+<details><summary>Hint and expected result</summary>
+
+The exact gradient of a softmax bandit is π ⊙ (r − π·r). With N = 8, expect total standard deviations near 0.17 (no shift, no baseline), 3.1 (shift, no baseline), 0.09 (group mean) and 0.11 (leave-one-out), and a mean-to-exact ratio of 0.875 for the group mean. As N grows, the group-mean shrinkage (N − 1)/N disappears (0.5 at N = 2, 0.97 at N = 32).
+
+</details>
+
+7. Check the DPO identity numerically: for the four-response bandit, evaluate J(π) and −β KL(π ‖ π*) + β log Z for π_ref, the uniform policy and π*.
+
+<details><summary>Hint and expected result</summary>
+
+Both sides should agree for every π: −0.200 at π_ref, 0.064 for the uniform policy and 0.246 (= β log Z, the maximum) at π*. Then recover the rewards from π* as β log(π*/π_ref) + β log Z: [1, 0.5, 0, −1].
+
+</details>
 
 ## Read next
 
@@ -353,16 +548,26 @@ Post-training changes many behaviours at once, some intended and some not. A mod
 - Schulman et al., "Proximal Policy Optimization Algorithms" (2017) and "High-Dimensional Continuous Control Using Generalized Advantage Estimation" (2015).
 - Huang et al., "The N+ Implementation Details of RLHF with PPO: A Case Study on TL;DR Summarization" (2024).
 - Gao, Schulman and Hilton, "Scaling Laws for Reward Model Overoptimization" (2022).
-- Rafailov et al., "Direct Preference Optimization" (2023); Azar et al., "A General Theoretical Paradigm to Understand Learning from Human Preferences" (IPO, 2023); Meng et al., "SimPO" (2024).
+- Rafailov et al., "Direct Preference Optimization" (2023); Azar et al., "A General Theoretical Paradigm to Understand Learning from Human Preferences" (IPO, 2023); Meng et al., "SimPO" (2024); Ethayarajh et al., "KTO: Model Alignment as Prospect Theoretic Optimization" (2024); Hong et al., "ORPO" (2024).
+- Xu et al., "Is DPO Superior to PPO for LLM Alignment? A Comprehensive Study" (2024); Tajwar et al., "Preference Fine-Tuning of LLMs Should Leverage Suboptimal, On-Policy Data" (2024).
+- Touvron et al., "Llama 2" (2023) and Llama Team, "The Llama 3 Herd of Models" (2024), post-training sections.
+- Bai et al., "Constitutional AI: Harmlessness from AI Feedback" (2022).
 - Lambert et al., "Tülu 3: Pushing Frontiers in Open Language Model Post-Training" (2024).
 - Nathan Lambert, "RLHF Book" (online).
 - Links to these papers are in the Key concepts section at the top of this chapter.
 
 ## Done when
 
-You can derive the policy gradient, show why a baseline leaves it unbiased, and explain why importance weights fail on long sequences. You can design an SFT mixture, implement masking and packing correctly and explain what SFT cannot teach. You can train and evaluate a Bradley–Terry reward model and explain its limits. You can walk through PPO for LLMs, compute GAE advantages and the clipped objective, and compare KL estimators.
-
-You can explain reward over-optimisation with the best-of-n example and list defences. You can derive DPO, explain why it matches RLHF in theory but not in practice, and compare IPO, KTO, ORPO and SimPO. You can plan an evaluation of a post-trained model.
+- Without notes, derive the policy gradient and show in one line why a baseline adds no bias; state the group-mean shrinkage (N − 1)/N and compute it for N = 8 (0.875).
+- Compute the Bradley–Terry loss for the pairs (1.2, 0.2) and (0.3, 0.5): mean 0.556.
+- Compute GAE for values [0.4, 0.5, 0.6, 0.8] and a final reward of 1 at λ = 0, 0.95 and 1, by hand, in 3 minutes: [0.1, 0.1, 0.2, 0.2], [0.547, 0.470, 0.390, 0.200], [0.6, 0.5, 0.4, 0.2]; explain what each λ trusts.
+- Fill in the clipped-objective table (ratios 1.5 and 0.5, advantages ±1) and explain each cell.
+- Compute the sequence importance-ratio variance at 1,000 tokens with per-token log-ratio std 0.03 (1.46) and say what it implies for off-policy reuse.
+- Derive best-of-n's KL, log n − (n − 1)/n, and say when it is only an upper bound.
+- Without notes, derive DPO from the KL-regularised objective in 5 minutes, including J = −β KL(π ‖ π*) + β log Z; verify β log Z = 0.246 for the bandit.
+- Write the IPO, SimPO, KTO and ORPO losses and compute DPO (0.621), IPO (12.25) and SimPO (1.148) for the chapter's pair.
+- Design a preference-labelling project for 100k pairs: guidelines, agreement, gold items, ties, cost in annotator-hours.
+- Plan the evaluation of a post-trained checkpoint, with the standard error of a 500-prompt win rate (about 2.2 points).
 
 ---
 

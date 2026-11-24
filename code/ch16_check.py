@@ -111,3 +111,62 @@ for run in (2e12 / 1e9, 15e12 / 1e9):
     print(f"{run:,.0f}B run:", {k: (round(float(run * pi)), round(float(run * pi / ni), 2)) for k, ni, pi in zip(tokens, n, p)})
 eff = lambda U, E: U + U * 15.4 * (1 - np.exp(-(E - 1) / 15.4))
 print("maths 100B seen 7.5 times: %.0fB effective of 750B" % eff(100, 7.5))
+
+# ---------------------------------------------------------------------------
+# Additions (review pass)
+# ---------------------------------------------------------------------------
+
+# 16.1 storage with modern vocabularies (128k-256k entries need 17-18 bits per id)
+for bits in (16, 17, 18, 32):
+    print(f"15T tokens at {bits} bits per id: {15e12 * bits / 8 / 1e12:.1f} TB")
+
+# 16.5 MinHash: P(min-hashes agree) = Jaccard; standard error of the estimate with n hashes
+se = np.sqrt(true_j * (1 - true_j) / 128)
+print(f"MinHash SE at J={true_j:.3f}, n=128: {se:.4f}; estimate {(sa == sb).mean():.3f} is "
+      f"{((sa == sb).mean() - true_j) / se:.1f} SE from the truth")
+# empirical check of P(agree) = J with random permutations on two small sets
+universe = 200
+A_set, B_set = set(range(0, 120)), set(range(40, 160))
+J_ab = len(A_set & B_set) / len(A_set | B_set)
+agree = 0
+for _ in range(20000):
+    perm = rng.permutation(universe)
+    agree += min(perm[list(A_set)]) == min(perm[list(B_set)])
+print(f"random permutations: P(min agree) = {agree / 20000:.3f} vs Jaccard {J_ab:.3f}")
+# LSH: threshold rule (1/b)^(1/r) and the exact 50% point of 1-(1-s^r)^b
+for b_, r_ in ((16, 8), (20, 5), (14, 8)):
+    s50 = (1 - 0.5 ** (1 / b_)) ** (1 / r_)
+    print(f"{b_} bands x {r_} rows: (1/b)^(1/r) = {(1 / b_) ** (1 / r_):.3f}; 50% point {s50:.3f}")
+
+# 16.7 DoReMi-style multiplicative weight update on excess loss (proxy loss - reference loss)
+w = np.ones(3) / 3
+excess = np.array([0.30, 0.10, 0.02])
+for step in range(3):
+    w = w * np.exp(1.0 * excess); w = w / w.sum()
+    print(f"DoReMi step {step + 1}: weights {np.round(w, 3).tolist()}")
+
+# 16.7 RegMix / mixing-law idea: fit loss(mixture) on small runs, then optimise the mixture by prediction
+def true_loss(m):                                   # held-out target loss of a proxy trained on mixture m (toy)
+    return 2.0 + 0.02 * m[..., 0] ** -0.5 + 0.05 * m[..., 1] ** -0.5 + 0.10 * m[..., 2] ** -0.5
+mixes = rng.dirichlet(np.ones(3), 30)
+obs_l = true_loss(mixes) + rng.normal(0, 0.005, 30)
+X = np.c_[np.ones(30), np.log(mixes)]
+coef, *_ = np.linalg.lstsq(X, obs_l, rcond=None)
+cands = rng.dirichlet(np.ones(3), 100_000)
+pred = np.c_[np.ones(len(cands)), np.log(cands)] @ coef
+best_pred = cands[np.argmin(pred)]
+best_true = cands[np.argmin(true_loss(cands))]
+print(f"RegMix toy: predicted-best mixture {np.round(best_pred, 3).tolist()} (true loss {true_loss(best_pred):.4f}); "
+      f"true-best {np.round(best_true, 3).tolist()} ({true_loss(best_true):.4f}); uniform {true_loss(np.ones(3) / 3):.4f}; "
+      f"best of the 30 runs {true_loss(mixes).min():.4f}")
+
+# 16.10 noise floor for a data ablation
+for n_q, p_ in ((14042, 0.35), (1000, 0.25)):
+    print(f"sampling SE, {n_q} questions at {p_:.0%}: {100 * np.sqrt(p_ * (1 - p_) / n_q):.2f} points")
+sigma_seed = 0.5
+for k in (1, 2, 3, 5):
+    se_d = sigma_seed * np.sqrt(2 / k)
+    print(f"seed std 0.5 points, {k} seed(s) per arm: SE of difference {se_d:.2f}, gap needed at 95% {1.96 * se_d:.2f}")
+
+# 16.4 FineWeb-Edu yield
+print("FineWeb-Edu share of FineWeb: %.1f%%" % (100 * 1.3 / 15))
