@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 torch.manual_seed(0)
+torch.set_num_threads(1)
 
 # 14.2 ViT patchify: an image becomes a sequence of patch tokens
 def patchify(img, p=16):                       # img: (C, H, W)
@@ -93,3 +94,72 @@ print("x_t std per sample:", [round(v, 2) for v in xt.flatten(1).std(1).tolist()
 # 14.7 video token budget
 fps, minutes, per_frame = 2, 10, 256
 print(f"{minutes} min video at {fps} fps, {per_frame} tokens/frame: {fps*60*minutes*per_frame:,} tokens")
+
+# ---------------------------------------------------------------------------
+# Additions (review pass)
+# ---------------------------------------------------------------------------
+
+# 14.5 a complete VQ objective: the codebook needs its own loss, or it never moves
+codebook = nn.Parameter(torch.randn(512, 64))
+z = torch.randn(10, 64, requires_grad=True)
+idx = torch.cdist(z, codebook).argmin(-1)
+zq = codebook[idx]
+z_st = z + (zq - z).detach()
+recon = (z_st ** 2).mean()                                 # stand-in for the decoder's reconstruction loss
+codebook_loss = F.mse_loss(zq, z.detach())                 # moves the chosen codes towards the encoder outputs
+commit = F.mse_loss(z, zq.detach())                        # keeps the encoder close to its codes
+(recon + codebook_loss + 0.25 * commit).backward()
+print("VQ with codebook loss: codes that receive a gradient:", int((codebook.grad.abs().sum(1) > 0).sum()),
+      "(distinct codes used:", len(set(idx.tolist())), ")")
+
+# 14.6 DDPM: the sampling step, its link to the true posterior mean, and the score
+t = 500
+a_t, ab_t, ab_prev, b_t = 1 - betas[t], alpha_bar[t], alpha_bar[t - 1], betas[t]
+x0_, eps_ = torch.tensor(1.0), torch.tensor(0.5)
+xt_ = ab_t.sqrt() * x0_ + (1 - ab_t).sqrt() * eps_
+mean_ddpm = (xt_ - b_t / (1 - ab_t).sqrt() * eps_) / a_t.sqrt()           # update with the true noise as prediction
+mean_post = (ab_prev.sqrt() * b_t / (1 - ab_t)) * x0_ + (a_t.sqrt() * (1 - ab_prev) / (1 - ab_t)) * xt_
+print(f"t=500: beta={b_t:.5f} alpha_bar={ab_t:.4f} x_t={xt_:.3f}; DDPM mean {mean_ddpm:.4f} = posterior mean {mean_post:.4f}; "
+      f"x0 recovered {(xt_ - (1 - ab_t).sqrt() * eps_) / ab_t.sqrt():.3f}; score -eps/sqrt(1-ab) = {-eps_ / (1 - ab_t).sqrt():.3f}")
+
+# 14.6 flow matching on 1-D data with two modes at -2 and +2; sample with Euler steps from noise (t=1) to data (t=0)
+torch.manual_seed(0)
+net = nn.Sequential(nn.Linear(2, 64), nn.SiLU(), nn.Linear(64, 64), nn.SiLU(), nn.Linear(64, 1))
+opt = torch.optim.Adam(net.parameters(), lr=3e-3)
+for step in range(3000):
+    x0b = torch.where(torch.rand(512, 1) < 0.5, -2.0, 2.0) + 0.3 * torch.randn(512, 1)
+    epsb = torch.randn(512, 1)
+    tb = torch.rand(512, 1)
+    xtb = (1 - tb) * x0b + tb * epsb                          # straight path from data (t=0) to noise (t=1)
+    loss_fm = ((net(torch.cat([xtb, tb], 1)) - (epsb - x0b)) ** 2).mean()   # target velocity dx/dt = eps - x0
+    opt.zero_grad(); loss_fm.backward(); opt.step()
+with torch.no_grad():
+    for n_steps in (1, 4, 32):
+        x = torch.randn(4000, 1)
+        for i in range(n_steps):
+            tt = torch.full_like(x, 1 - i / n_steps)
+            x = x - (1 / n_steps) * net(torch.cat([x, tt], 1))   # Euler step towards t=0
+        near = ((x - 2).abs() < 0.6) | ((x + 2).abs() < 0.6)
+        print(f"flow matching, {n_steps:>2} Euler steps: fraction within 0.6 of a mode {near.float().mean():.2f}, "
+              f"mean |x| {x.abs().mean():.2f} (data: 2.0)")
+
+# 14.9 worked budget: vision encoder and attention compute, and time to first token
+pages, side = 20, 896
+pre_merge = (side // 14) ** 2                          # 4,096 patches per page before 2x2 merging
+llm_tokens = pages * pre_merge // 4                    # 20,480
+vit_params, vit_layers, vit_d = 0.4e9, 27, 1152        # a SigLIP-So400m-class encoder
+vit_linear = 2 * vit_params * pre_merge * pages
+vit_attn = 4 * vit_layers * vit_d * pre_merge ** 2 * pages      # bidirectional QK^T and AV
+llm_linear = 2 * 8e9 * llm_tokens
+llm_attn = 2 * 32 * 4096 * llm_tokens ** 2                       # causal: sum over positions of 4*d*t per layer
+total = vit_linear + vit_attn + llm_linear + llm_attn
+print(f"20-page PDF at 896 px: ViT {vit_linear:.2e} + {vit_attn:.2e}, LLM {llm_linear:.2e} + attention {llm_attn:.2e}; "
+      f"total {total:.2e} FLOPs -> {total / (0.4 * 989e12):.2f} s at 40% of 989 TFLOP/s")
+kv_per_token = 32 * 8 * 128 * 2 * 2
+print(f"KV cache: {kv_per_token} B/token; 20,480 tokens {20480 * kv_per_token / 1e9:.2f} GB; "
+      f"46,080 tokens {46080 * kv_per_token / 1e9:.2f} GB; one 1,024-token image {1024 * kv_per_token / 1e6:.0f} MB")
+print("GUI: 1920x1080 at 14 px = %d patches, %d tokens after 2x2 merging, %d over 30 steps"
+      % ((1920 / 14) * (1080 / 14), (1920 / 14) * (1080 / 14) / 4, 30 * (1920 / 14) * (1080 / 14) / 4))
+print("paired SE, 1,000 questions, 30%% discordant, 5-point gap: %.2f points" % (100 * math.sqrt(0.30 - 0.05**2) / math.sqrt(1000)))
+print("SE at 70%% on 1,000 questions: %.2f points; unpaired difference: %.2f" % (100 * math.sqrt(0.21 / 1000), 100 * math.sqrt(2 * 0.21 / 1000)))
+print("one 1,024-token image: prefill %.2e FLOPs on an 8B model" % (2 * 8e9 * 1024))

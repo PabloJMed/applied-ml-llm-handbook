@@ -81,3 +81,97 @@ def pass_at_k(n, c, k):
 for p in (0.05, 0.3):
     print(f"p={p}: pass@1 {p:.2f}  pass@8 {1-(1-p)**8:.2f}  pass@64 {1-(1-p)**64:.2f}")
 print("unbiased pass@10 from 200 samples with 13 correct: %.3f" % pass_at_k(200, 13, 10))
+
+# ---------------------------------------------------------------------------
+# Additions (review pass)
+# ---------------------------------------------------------------------------
+
+# 13.1 why power laws: Zipf-distributed "skills" (Michaud et al.). Skill k has frequency p_k ~ k^-(a+1);
+# a model that has learned the n most frequent skills still pays for the tail, which shrinks as n^-a.
+a_skill = 0.5
+p_k = np.arange(1, 10**6 + 1, dtype=float) ** (-(a_skill + 1)); p_k /= p_k.sum()
+tail = np.cumsum(p_k[::-1])[::-1]
+print("quantised skills, a=0.5: unexplained mass after n skills:",
+      {n: round(float(tail[n]), 4) for n in (10, 100, 1000, 10000)}, "(ratio per 10x ~ 10^0.5 = 3.16)")
+
+# 13.3 what 6ND leaves out: causal attention adds ~6 * n_layers * T * d FLOPs per trained token
+for T_ctx in (2048, 8192, 32768):
+    print(f"attention share of training FLOPs, 8B model (32 layers, d=4096) at T={T_ctx}: "
+          f"{6 * 32 * T_ctx * 4096 / (6 * 8e9):.1%}")
+
+# 13.3 the Besiroglu et al. (2024) refit of approach 3, and the 20-tokens-per-parameter rule
+E2, A2, B2, al2, be2 = 1.82, 482.01, 2085.43, 0.3478, 0.3658
+L2 = lambda N, D: E2 + A2 / N**al2 + B2 / D**be2
+def compute_optimal2(C):
+    G = (al2 * A2 / (be2 * B2)) ** (1 / (al2 + be2))
+    N = G * (C / 6) ** (be2 / (al2 + be2))
+    return N, C / (6 * N)
+for C in (1e21, 1e23, 1e25):
+    N, D = compute_optimal2(C)
+    print(f"Besiroglu refit C={C:.0e}: N_opt={N/1e9:6.1f}B  D_opt={D/1e9:6.0f}B  D/N={D/N:4.1f}  loss={L2(N, D):.3f}")
+print("20 tokens/param at 1e23: N = sqrt(C/120) = %.1fB, D = %.0fB" % (np.sqrt(1e23 / 120) / 1e9, 20 * np.sqrt(1e23 / 120) / 1e9))
+
+# 13.3 / 13.10 converting a loss gain into a compute multiplier along the frontier L(C) = E + K C^-gamma
+for name, (e_, a_, b_, al_, be_), co in (("approach 3", (E, A, B, alpha, beta), compute_optimal),
+                                         ("Besiroglu", (E2, A2, B2, al2, be2), compute_optimal2)):
+    gamma = al_ * be_ / (al_ + be_)
+    Lt = e_ + a_ / co(1e23)[0] ** al_ + b_ / co(1e23)[1] ** be_
+    mult = {dl: round(((Lt - e_) / (Lt - e_ - dl)) ** (1 / gamma), 2) for dl in (0.01, 0.02, 0.05)}
+    print(f"{name}: gamma={gamma:.3f}, loss at 1e23 {Lt:.3f}; compute multiplier for a loss gain of {mult}")
+
+# 13.5 inference-aware sizing with the Besiroglu constants (target = loss of the compute-optimal 1e23 model)
+target2 = L2(*compute_optimal2(1e23))
+for inf_tokens in (0, 1e12, 1e13, 1e14):
+    Ns = np.logspace(9, 11.5, 4000)
+    best2 = None
+    for N in Ns:
+        r = target2 - E2 - A2 / N**al2
+        if r <= 0:
+            continue
+        D_needed = (B2 / r) ** (1 / be2)
+        cost = 6 * N * D_needed + 2 * N * inf_tokens
+        if best2 is None or cost < best2[0]:
+            best2 = (cost, N, D_needed)
+    cost, N, D_needed = best2
+    print(f"Besiroglu, lifetime inference {inf_tokens:.0e}: N={N/1e9:5.1f}B D={D_needed/1e12:5.2f}T "
+          f"D/N={D_needed/N:5.0f} training {6*N*D_needed:.2e} total {cost:.2e} FLOPs")
+
+# 13.4 bootstrap interval on N_opt(1e23) from the IsoFLOP method (resample the runs at each budget)
+Ns_by_budget = []
+for C in budgets:
+    Ns = np.logspace(np.log10(compute_optimal(C)[0]) - 0.8, np.log10(compute_optimal(C)[0]) + 0.8, 9)
+    Ns_by_budget.append((C, Ns, np.array([L(N, C / (6 * N)) for N in Ns]) * np.exp(rng.normal(0, 0.003, len(Ns)))))
+pt = []
+for C, Ns, ls in Ns_by_budget:
+    a2_, a1_, _ = np.polyfit(np.log(Ns), ls, 2)
+    pt.append(np.exp(-a1_ / (2 * a2_)))
+s_, i_ = np.polyfit(np.log(budgets), np.log(pt), 1)
+point = np.exp(i_) * 1e23**s_ / 1e9
+boot = []
+for _ in range(300):
+    mins_b = []
+    for C, Ns, ls in Ns_by_budget:
+        idx = rng.integers(0, len(Ns), len(Ns))
+        a2_, a1_, _ = np.polyfit(np.log(Ns[idx]), ls[idx], 2)
+        mins_b.append(np.exp(-a1_ / (2 * a2_)))
+    s_, i_ = np.polyfit(np.log(budgets), np.log(mins_b), 1)
+    boot.append(np.exp(i_) * 1e23**s_ / 1e9)
+lo, hi = np.percentile(boot, [5, 95])
+print(f"new noisy draw: point estimate {point:.1f}B; bootstrap 90% interval {lo:.1f}B to {hi:.1f}B "
+      f"(true {compute_optimal(1e23)[0]/1e9:.1f}B)")
+
+# 13.8 two-step forecast: accuracy as a sigmoid of loss, loss from the compute law
+chance, L_mid, width = 0.25, 2.10, 0.05
+acc = lambda loss: chance + (1 - chance) / (1 + np.exp((loss - L_mid) / width))
+for loss in (2.30, 2.20, 2.10, 2.035, 2.015):
+    print(f"loss {loss:.3f} -> predicted 4-choice accuracy {acc(loss):.3f}")
+
+# 13.10 ladder cost and range
+ladder = [150e6, 400e6, 1e9, 2.5e9]
+flops = [6 * N * 20 * N * m for N in ladder for m in (0.5, 1, 2)]
+print(f"ladder: {sum(flops):.2e} FLOPs per mixture; smallest run {min(flops):.2e}, largest {max(flops):.2e}; "
+      f"N range {np.log10(ladder[-1]/ladder[0]):.2f} orders, compute range {np.log10(max(flops)/min(flops)):.2f} orders; "
+      f"extrapolation to 1e23: {1e23/max(flops):.0f}x")
+print("2.5B on 50B tokens: %.2e FLOPs = %.0f GPU-hours at 40%% of 989 TFLOP/s" % (7.5e20, 7.5e20 / (0.4 * 989e12) / 3600))
+N_co = compute_optimal2(1e23)[0]
+print("compute-optimal %.1fB model serving 1e14 tokens: total %.2e FLOPs" % (N_co / 1e9, 1e23 + 2 * N_co * 1e14))

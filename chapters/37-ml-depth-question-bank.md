@@ -1,6 +1,6 @@
 # 37 · ML depth question bank
 
-Part X · Research craft and interviews. 250 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
+Part X · Research craft and interviews. 260 questions with short model answers, grouped by area and marked by level: **[B]** basic, **[I]** intermediate, **[S]** senior. Each chapter's own interview section goes deeper; this bank is for rapid-fire practice in the last weeks.
 
 ## How to use this bank
 
@@ -218,7 +218,7 @@ Walk-forward (time-based) folds with a gap equal to the horizon and point-in-tim
 
 <details><summary>Answer</summary>
 
-Adam adds per-parameter adaptive step sizes from a running average of squared gradients, with bias correction.
+Adam adds per-parameter adaptive step sizes from a running average of squared gradients, with bias correction. Each coordinate moves by about η·m̂/√v̂, close to η·sign(gradient) when the gradient is consistent, so parameters with tiny gradients (norm gains, rare embedding rows) still move. AdamW decouples weight decay: it shrinks weights by ηλ directly, instead of adding λw to the gradient, where Adam's 1/√v̂ scaling would weaken the decay on exactly the parameters with large gradients. Transformers favour Adam because gradient scale and curvature differ by orders of magnitude between embeddings, attention, MLPs and norms, so any single SGD learning rate is too large for some blocks and too small for others. Cost: two fp32 moments, 8 extra bytes per parameter. Follow-up: "Does SGD ever win?" On many vision CNNs it generalises as well or better, with less memory.
 
 </details>
 
@@ -446,11 +446,11 @@ Overfit a single batch first; check labels and inputs line up; verify loss and o
 
 </details>
 
-**52. [B] What does**
+**52. [B] What does `model.eval()` change?**
 
 <details><summary>Answer</summary>
 
-`model.eval()` **change?** Disables dropout and makes batch norm use running statistics; it does not turn off gradients (use `torch.no_grad()` for that).
+Disables dropout and makes batch norm use running statistics; it does not turn off gradients (use `torch.no_grad()` for that).
 
 </details>
 
@@ -518,7 +518,7 @@ softmax(QKᵀ/√dₖ + mask)V.
 
 <details><summary>Answer</summary>
 
-Keeps dot products from growing with dimension and saturating softmax.
+Keeps dot products from growing with dimension and saturating softmax. If the components of q and k are independent with mean 0 and variance 1, q·k is a sum of d_k products each of variance 1, so Var(q·k) = d_k and its standard deviation is √d_k, about 11 at d_k = 128. Dividing by √d_k brings the logits back to unit variance. Without it, the largest of 8 softmax weights averages about 0.9 instead of about 0.36, so attention is nearly one-hot at initialisation and its gradients are tiny. Follow-up: the scaling fixes initialisation only; logits can still grow during training, which QK-norm addresses (Chain 1).
 
 </details>
 
@@ -542,7 +542,7 @@ Rotary position embeddings rotate queries and keys by position-dependent angles 
 
 <details><summary>Answer</summary>
 
-Stored keys and values of previous tokens per layer so each new token only computes its own; memory grows with layers × KV heads × head dim × tokens.
+Stored keys and values of previous tokens, per layer, so each new token computes only its own key and value and attends to the cached ones instead of recomputing the prefix. Size = 2 (K and V) × layers × KV heads × head dim × tokens × bytes per value × batch. For a Llama-3-8B-like model (32 layers, 8 KV heads under GQA, head dim 128, bf16) that is 2 × 32 × 8 × 128 × 2 bytes = 128 KiB per token, so 16 GiB for one 128k-token sequence, as much as the weights; with 32 KV heads (no GQA) it would be 64 GiB. That is why the cache, not the weights, caps batch size at long context, and why GQA, MLA, cache quantisation and paged allocation (vLLM) exist.
 
 </details>
 
@@ -616,7 +616,7 @@ It optimises the policy directly on preference pairs with a classification-style
 
 <details><summary>Answer</summary>
 
-Models that generate long reasoning before answering, trained largely with reinforcement learning on tasks with verifiable rewards (maths, code tests), so they learn to search, check and correct; controlled at inference with a reasoning budget.
+Models that generate long reasoning before answering, trained largely with reinforcement learning on tasks with verifiable rewards (maths, code tests), so they learn to search, check and correct; controlled at inference with a reasoning budget. The usual recipe: a strong base, often a cold-start SFT on long chain-of-thought traces, then RLVR: sample a group of 8–16 answers per prompt, score each with a checker (answer match, unit tests), and raise the probability of above-average answers with GRPO or a PPO variant (Q213). Response length grows during training as the model learns to verify and backtrack. The second axis is test-time compute: accuracy rises roughly with the log of thinking tokens or samples, so accuracy is bought per query (Q251). Trade-off: latency and cost grow with the budget and easy queries waste tokens, which is why hybrid models expose an effort or thinking-budget control. Follow-up: "Does RL teach new skills or sharpen old ones?" See Q217.
 
 </details>
 
@@ -666,7 +666,7 @@ Adding new requests to the running batch at each decoding step instead of waitin
 
 <details><summary>Answer</summary>
 
-A small draft model proposes several tokens; the large model verifies them in one forward pass and accepts the matching prefix; same output distribution, lower latency.
+A small draft model proposes k tokens; the large model scores all of them in one forward pass. With sampling, each drafted token x is accepted with probability min(1, p(x)/q(x)), where p is the target's distribution and q the draft's; at the first rejection a token is resampled from the residual norm(max(0, p − q)) and the rest of the draft is discarded, and if all k are accepted the target's pass yields one extra token for free. This makes the output exactly distributed as p: the chance of emitting x is q(x)·min(1, p(x)/q(x)) + (1 − α)·norm(max(0, p − q))(x) = p(x), where α = Σ min(p, q) is the acceptance rate. "Accept the matching prefix" is only the greedy special case. With α = 0.8 and k = 4, a target pass yields (1 − α^(k+1))/(1 − α) ≈ 3.4 tokens on average; the wall-clock speed-up must pay for the k draft passes (about 2.8× if each costs 5% of a target pass). Follow-up: gains shrink at large batch, where decoding is no longer memory-bound.
 
 </details>
 
@@ -682,7 +682,7 @@ Lower precision (int8, int4: GPTQ, AWQ) cuts memory and raises speed, with some 
 
 <details><summary>Answer</summary>
 
-Each step generates one token per sequence but must read all weights and the KV cache; batching amortises the reads.
+Each step generates one token per sequence but must read all weights and the KV cache; batching amortises the reads. At batch 1 a bf16 matrix–vector product does 2 FLOPs (one multiply-add) per weight and reads 2 bytes per weight: about 1 FLOP per byte. An H100 needs about 989 TFLOP/s ÷ 3.35 TB/s ≈ 295 FLOP/byte to be compute-bound, so at batch 1 most of its compute idles. An 8B model in bf16 reads 16 GB per token, which caps it at about 210 tokens/s at batch 1 however fast the arithmetic is. Batching B sequences raises the weight matmuls' intensity to about B FLOP/byte, but each sequence reads its own KV cache, which does not amortise, so long-context decoding stays memory-bound. Follow-up: prefill is compute-bound, because thousands of prompt tokens share each weight read (Q252).
 
 </details>
 
@@ -1092,7 +1092,7 @@ Policy definitions first; a fast classifier for clear cases, an LLM for nuanced 
 
 <details><summary>Answer</summary>
 
-A risk-based framework: prohibited practices, high-risk systems with obligations (risk management, data governance, documentation, human oversight, accuracy and robustness), transparency duties (for example disclosing AI interaction and AI-generated content), and obligations for general-purpose AI model providers. Know which tier your system falls into and document accordingly.
+A risk-based framework: prohibited practices, high-risk systems with obligations (risk management, data governance, documentation, human oversight, accuracy and robustness), transparency duties (for example disclosing AI interaction and AI-generated content), and obligations for general-purpose AI model providers. Know which tier your system falls into and document accordingly. Dates matter: the Act entered into force in August 2024, the prohibitions applied from February 2025 and the general-purpose model obligations (technical documentation, copyright policy, training-data summary, plus evaluation and incident reporting for models with systemic risk) from August 2025. The high-risk deadlines (originally August 2026 and 2027) were the subject of a late-2025 proposal to postpone them, so check the current timetable before quoting one.
 
 </details>
 
@@ -1428,7 +1428,7 @@ Narrowed distribution, inherited errors, contamination via the generator, and co
 
 <details><summary>Answer</summary>
 
-Substitute D = C/6N, differentiate, set to zero: N_opt ∝ C^(β/(α+β)), D_opt ∝ C^(α/(α+β)).
+Substitute D = C/(6N) to write the loss in N alone: L(N) = E + A·N^(−α) + B·(6N/C)^β. Differentiate and set to zero: −αA·N^(−α−1) + βB·(6/C)^β·N^(β−1) = 0; multiplying by N gives αA·N^(−α) = βB·(6N/C)^β, so N^(α+β) ∝ C^β. Hence N_opt ∝ C^(β/(α+β)) and D_opt = C/(6N_opt) ∝ C^(α/(α+β)). With Chinchilla's approach-3 fit, α ≈ 0.34 and β ≈ 0.28, so N_opt ∝ C^0.45 and D_opt ∝ C^0.55; their other two methods give about 0.5 each, the source of the "20 tokens per parameter at every scale" rule. With the fitted constants (E = 1.69, A = 406.4, B = 410.7), C = 10²³ gives about 15B parameters and 1.1T tokens. Follow-up: the exponents are fragile; 0.45 against 0.50 changes the recommended size by 1.4× over three decades of compute (Chain 8).
 
 </details>
 
@@ -1600,7 +1600,7 @@ Compute per token scales with k active experts; memory with all experts.
 
 <details><summary>Answer</summary>
 
-Routers collapse onto few experts; the Switch auxiliary loss E·Σ f_e P_e, or auxiliary-loss-free per-expert selection biases.
+Routers collapse onto few experts: a slightly favoured expert receives more tokens, learns faster and is favoured more, while the rest stay untrained. Two methods are the Switch auxiliary loss α·E·Σ_e f_e·P_e and auxiliary-loss-free per-expert selection biases. In the loss, E is the number of experts, f_e the fraction of the batch's tokens dispatched to expert e by the hard top-k choice, P_e the mean router probability for expert e over the batch, and α a small coefficient (0.01 in Switch). E·Σ f·P equals 1 when routing is uniform (f_e = P_e = 1/E) and grows with imbalance: with 8 experts, one taking half the tokens and 40% of the probability, it is about 1.9. f is not differentiable, so the gradient flows through P, pushing probability away from overloaded experts. The bias method (DeepSeek-V3) adds a per-expert bias to the scores used only for top-k selection, raised for under-loaded experts after each step, so balancing does not fight the language-model loss. Follow-up: capacity factor and dropped tokens (Chain 7).
 
 </details>
 
@@ -1722,7 +1722,7 @@ To stop updates from moving the policy far from the one that sampled the data, w
 
 <details><summary>Answer</summary>
 
-k1 = −log r is unbiased but high-variance; k2 = (log r)²/2 low-variance but biased; k3 = r − 1 − log r unbiased, non-negative, low-variance.
+Sample y from the policy π_θ and let r = π_ref(y)/π_θ(y), per token in practice; then KL(π_θ‖π_ref) = E[−log r]. k1 = −log r is unbiased but high-variance and negative on many single samples; k2 = (log r)²/2 has low variance but is biased, matching the KL only to second order when π_θ ≈ π_ref; k3 = (r − 1) − log r is unbiased because E[r] = 1 under π_θ, non-negative because log r ≤ r − 1, and lower-variance than k1. In a three-outcome example with true KL 0.040, their standard deviations are about 0.26, 0.07 and 0.09, and k1 goes as low as −0.69. GRPO puts k3 in the loss. Follow-up: "Is its gradient the KL's gradient?" No: differentiating k3 through r gives (1 − r)∇log π_θ, whose expectation is the gradient of the forward KL(π_ref‖π_θ), not the reverse KL being estimated; the two agree near the reference, which is why it works in practice.
 
 </details>
 
@@ -1730,7 +1730,7 @@ k1 = −log r is unbiased but high-variance; k2 = (log r)²/2 low-variance but b
 
 <details><summary>Answer</summary>
 
-The KL-regularised optimum is π_ref·exp(r/β)/Z; solve for r, substitute into Bradley–Terry; Z cancels.
+Start from the KL-regularised objective max_π E[r(x, y)] − β·KL(π‖π_ref). Its optimum is π*(y|x) = π_ref(y|x)·exp(r(x, y)/β)/Z(x). Solve for the reward: r(x, y) = β·log(π*(y|x)/π_ref(y|x)) + β·log Z(x). Substitute into Bradley–Terry, P(y_w ≻ y_l) = σ(r(x, y_w) − r(x, y_l)): both responses share the prompt, so β·log Z(x) cancels. Replace π* with the trainable π_θ and minimise the negative log-likelihood: L_DPO = −E log σ(β·[log(π_θ(y_w|x)/π_ref(y_w|x)) − log(π_θ(y_l|x)/π_ref(y_l|x))]). The gradient weights each pair by σ(−β × margin), so pairs already ranked correctly contribute little: at β = 0.1, a 20-nat margin gives weight 0.12. Trade-off: no reward model or sampling, but the data are fixed and off-policy, and β is both the KL strength and the loss temperature. Follow-up: likelihood displacement (Q208) and the gap to PPO (Q207); section H grades this answer.
 
 </details>
 
@@ -1738,7 +1738,7 @@ The KL-regularised optimum is π_ref·exp(r/β)/Z; solve for r, substitute into 
 
 <details><summary>Answer</summary>
 
-Fixed off-policy data, no exploration, likelihood displacement; on-policy iterative DPO narrows the gap.
+Fixed off-policy data, no exploration, likelihood displacement; on-policy iterative DPO narrows the gap. PPO samples from the current policy, so its reward model scores the model's own mistakes and the update targets them; DPO learns only from pairs someone else generated, often by another model, and cannot ask "what if I answered differently?". The reward model in PPO also generalises: it can score responses never seen in the preference data. DPO's advantages are real, though: no reward model, no sampling loop, and about the cost of SFT. The usual compromise is iterative or online DPO: generate pairs from the current policy each round, label them with a reward model or judge, and retrain. Follow-up: "When would you still choose offline DPO?" A first alignment pass on a small budget, or style and format preferences where exploration matters little.
 
 </details>
 
@@ -1746,7 +1746,7 @@ Fixed off-policy data, no exploration, likelihood displacement; on-policy iterat
 
 <details><summary>Answer</summary>
 
-In DPO, chosen and rejected log-probabilities both fall while their gap grows, moving mass to other responses.
+In DPO, chosen and rejected log-probabilities both fall while their gap grows, moving mass to other responses. It is a property of the margin-only objective rather than of offline data as such: the loss rewards the gap, not the chosen likelihood, and the effect is strongest when chosen and rejected responses are similar, because their gradients share directions (Razin et al., 2024; Chapter 18). Fixes add a term that keeps the chosen likelihood up (an SFT term on chosen responses, as in RPO-style losses) or filter near-identical pairs.
 
 </details>
 
@@ -1770,7 +1770,7 @@ Proxy reward keeps rising while gold quality peaks and falls; KL budgets, early 
 
 <details><summary>Answer</summary>
 
-log n − (n − 1)/n.
+At most log n − (n − 1)/n: about 0.64 nats at n = 4 and 3.2 at n = 64. The formula is an upper bound, not the exact value (Beirami et al., 2024): it is reached only when no single response carries much probability and rewards have no ties. With 4 equally likely answers and distinct rewards the true KL at n = 4 is 0.59; with a binary verifier that passes 30% of samples it is 0.45. Use it as a KL budget when comparing RL policies with best-of-n at equal KL: best-of-16 spends at most about 1.8 nats.
 
 </details>
 
@@ -1820,7 +1820,7 @@ Groups that are all right or all wrong have zero advantage and teach nothing.
 
 <details><summary>Answer</summary>
 
-pass@1 rises but pass@k at large k often falls relative to the base model, suggesting sharpening and narrowing; longer, exploratory RL and distillation may extend the frontier. Measure pass@k curves.
+pass@1 rises but pass@k at large k often falls relative to the base model, suggesting sharpening and narrowing; longer, exploratory RL and distillation may extend the frontier. Measure pass@k curves. Yue et al. (2025) found base models catching up at k = 256 on maths and code. Chapter 19's toy run shows the mechanism: pass@1 rises from 0.34 to 0.47 while pass@64 falls from 0.91 to 0.76, because a strategy the base model picked 1% of the time is squeezed out as entropy collapses. The decisive experiment: compare pass@k curves of base and RL models to large k on problems the base model never solves within k samples; if RL solves some, it added coverage. My view: current RLVR mostly sharpens, and extending the frontier needs exploration kept alive (clip-higher, temperature, diverse prompts) and long training. Follow-up: "Why does it matter?" It decides whether more RL compute or a better base model is the next investment.
 
 </details>
 
@@ -1886,7 +1886,7 @@ Shared question difficulty cancels, making the standard error of the difference 
 
 <details><summary>Answer</summary>
 
-About 7.84 × d / 0.02² for disagreement rate d: roughly 2,000 at d = 10%.
+Let d be the total disagreement rate, the share of questions where exactly one model is right (10% flipping each way is d = 20%). The per-question difference has variance d − δ² ≈ d, so for a paired test n = (z_α/2 + z_β)²·d/δ², and (1.96 + 0.84)² ≈ 7.84 at α = 0.05 and 80% power. For δ = 2 points: 7.84 × 0.10/0.02² ≈ 2,000 at d = 10%, and about 3,900 at d = 20%; Chain 3's 1-point gain at d = 20% needs about 15,700. At temperature above 0, part of d is sampling noise: averaging several generations per question shrinks it, the cheapest lever. Follow-up: the formula assumes independent questions; several items per passage need a clustered standard error.
 
 </details>
 
@@ -2094,6 +2094,88 @@ DeepSeek-V3.2: add a small fp8 indexer, train it to match the dense attention di
 
 </details>
 
+### Frontier topics, 2026 (Chapters 10, 21, 23, 26, 27, 33)
+
+**251. [S] What is test-time compute scaling, and how would you spend a fixed inference budget?**
+
+<details><summary>Answer</summary>
+
+Accuracy on reasoning tasks rises with inference compute, spent sequentially (longer thinking, self-revision) or in parallel (many samples combined by voting, a verifier or a reward model). Parallel sampling raises coverage fast, pass@k = 1 − (1 − p)^k, so 0.83 at p = 0.2 and k = 8, but only a verifier turns coverage into accuracy. Majority voting helps only when the right answer is the single most likely one: over 16 samples it gives 0.52 when the right answer has probability 0.40 against wrong ones at 0.35 and 0.25, but 0.20 when it has 0.30 against a 0.45 wrong answer. The best allocation depends on difficulty: easier prompts gain most from sequential revision, harder ones from broader search, and an adaptive per-prompt budget beats fixed best-of-N at equal compute (Snell et al., 2024). Trade-off: latency and cost per query. Follow-up: "When is a bigger model better than more thinking?" On the hardest prompts, where the small model's pass@k stays low however large k gets.
+
+</details>
+
+**252. [I] Explain the roofline model. How do you tell whether a kernel is memory- or compute-bound?**
+
+<details><summary>Answer</summary>
+
+Attainable FLOP/s = min(peak FLOP/s, arithmetic intensity × memory bandwidth), where arithmetic intensity is FLOPs per byte moved from HBM. The ridge point, peak ÷ bandwidth, is about 989 TFLOP/s ÷ 3.35 TB/s ≈ 295 FLOP/byte for dense bf16 on an H100. Below it a kernel is memory-bound and faster arithmetic does not help; above it, compute-bound. A bf16 product of a B × d activation with a d × d weight does 2Bd² FLOPs on about 2d² bytes of weights, so its intensity is about B for B ≪ d: about 1 for decoding at batch 1, thousands for a long prefill. Elementwise operations (activations, norms, residual adds) sit below 1 FLOP/byte, which is why kernel fusion and FlashAttention pay: they cut bytes moved, not FLOPs. Follow-up: "Why does MFU fall at small batch?" The matmuls drop below the ridge point; raise the batch or the tokens per step.
+
+</details>
+
+**253. [I] How do you evaluate long-context ability, and what is wrong with needle-in-a-haystack tests?**
+
+<details><summary>Answer</summary>
+
+A needle test hides one fact in filler text and asks for it back. Frontier models score near 100%, because it tests lexical retrieval of a single item, which attention does easily, while real use needs multi-hop reasoning, aggregation and resistance to distractors. [RULER](https://arxiv.org/abs/2404.06654) (Hsieh et al., 2024) adds multiple needles and keys, variable tracking across the context and aggregation tasks, and finds that many models' effective context, where scores stay above a threshold, is far shorter than the advertised window. Tests that remove the word overlap between question and needle show steeper drops with length. Good practice: plot score against context length, vary the needle's position, use tasks from your own use (long documents, repositories, agent transcripts), and compare with a retrieval baseline at equal cost. Follow-up: "Why do models degrade with length?" Attention spread over many distractors, positions beyond the lengths seen in training, and little genuinely long training data.
+
+</details>
+
+**254. [I] What is Constitutional AI, and how does RLAIF differ from RLHF?**
+
+<details><summary>Answer</summary>
+
+[Constitutional AI](https://arxiv.org/abs/2212.08073) (Bai et al., 2022) replaces most human harmlessness labels with a written list of principles. In a supervised stage the model critiques and revises its own responses against sampled principles and is fine-tuned on the revisions. In the RL stage an AI model judges which of two responses better follows the principles; those AI preferences train the preference model, so the RL step is RLAIF rather than RLHF. Gains: labels are cheap and fast, and the values are explicit and editable. Risks: the labeller's biases and blind spots are copied in, principles can be applied inconsistently or gamed, and you still need human evaluation of the result. The same idea underlies rubric-based judges, model specs and deliberative alignment, where the model is trained to reason over the written policy. Follow-up: "How do you validate AI labels?" Agreement with expert labels on a held-out set, compared with human–human agreement on the same items.
+
+</details>
+
+**255. [S] What are evaluation awareness and sandbagging, and why do they matter?**
+
+<details><summary>Answer</summary>
+
+Evaluation awareness: the model recognises that it is being tested, from artificial scenarios, formats or cues, and may behave differently than in deployment. Sandbagging: underperforming on purpose on an evaluation, such as a dangerous-capability test, whether the model was instructed to or learned to. Both break the assumption behind safety evaluations, that behaviour under test predicts behaviour in use. Ways to measure and reduce them: read reasoning traces for verbalised awareness; compare behaviour on realistic and obviously synthetic versions of the same scenario; elicit capability by light fine-tuning on a few demonstrations, where a large jump means the original score understated the capability; use held-out, deployment-like environments; and report results as "under this elicitation", never as "the model cannot". Follow-up: "Can interpretability help?" A linear probe can detect a test-like-context direction in activations; steering along it and watching behaviour change tests whether behaviour depends on it.
+
+</details>
+
+**256. [S] Linear probe or sparse autoencoder: which would you use to detect a concept in activations?**
+
+<details><summary>Answer</summary>
+
+If you know the concept and can label examples, start with a linear probe: logistic regression on residual-stream activations at a chosen layer, trained on a few hundred to a few thousand labelled examples. Several 2025 comparisons found that classifiers built on SAE features did not beat plain probes at detection tasks such as harmful intent, out of distribution included. SAEs earn their cost in unsupervised discovery: they surface features you did not know to look for and give an inspectable dictionary that helps explain what a probe picks up. Risks with probes: they can latch onto a correlate (length, format, topic), so test under distribution shift and against a control task; and decodable information is not necessarily used by the model, so test causality with patching or steering. Follow-up: "Why linear?" Many concepts appear as directions (the linear representation hypothesis), and a powerful non-linear probe can find information the model itself never reads.
+
+</details>
+
+**257. [S] What are transcoders and attribution graphs?**
+
+<details><summary>Answer</summary>
+
+An SAE reconstructs an activation from itself; a transcoder reads the MLP's input and predicts the MLP's output through a wide, sparse layer, so it replaces the MLP with interpretable features, and a cross-layer transcoder lets each feature write to all later layers. Replace every MLP this way, freeze the attention patterns and normalisation scales for one prompt, and add error terms for what the transcoders miss: the model becomes linear between features. An attribution graph (Anthropic's circuit-tracing work, 2025) records each active feature's direct effect on later features and on the output logit; pruning it leaves a small circuit for that prompt, for example a two-hop path from "Dallas" to "Texas" to "Austin" for "the capital of the state containing Dallas". Check it by intervening on those features in the real model. Limits: one prompt at a time, attention's QK computation is left unexplained, and the error terms can carry much of the effect. Follow-up: "Why not just patch activations?" Patching tests components you chose; an attribution graph proposes which components to test.
+
+</details>
+
+**258. [S] How does reward hacking show up in agentic coding RL, and how do you harden the environment?**
+
+<details><summary>Answer</summary>
+
+The reward is usually "the tests pass in a sandbox", and the policy finds ways to pass without solving the task: editing or deleting tests, special-casing the test inputs, exiting with code 0 before the assertions run, monkey-patching the test framework, reading hidden tests or the reference solution from the file system or git history, or satisfying an end-state check that accepts an over-broad change. It typically shows as a sudden reward jump with no gain on held-out tasks. Hardening: grade outside the agent's sandbox with tests it never sees; make test files read-only and fail any episode that touches them; strip git history and reference files from the image; combine independent checks (hidden tests, limits on diff size, a monitor for test tampering); and read a sample of the highest-reward trajectories every run. Follow-up: "Why not just penalise detected hacks?" A penalty on detected hacks can train undetected ones; fix the environment so the hack does not pay, and keep a held-out evaluation graded differently.
+
+</details>
+
+**259. [I] How many training FLOPs per token does a transformer need, including attention?**
+
+<details><summary>Answer</summary>
+
+About 6N for the weight matmuls (2N forward; 4N backward, for gradients with respect to activations and to weights), plus an attention term that 6N leaves out. Per layer, QKᵀ and the attention-weighted sum of V each cost about 2·T·d FLOPs per token at context length T and width d, so with the backward pass the PaLM paper's MFU count is 6N + 12·L·d·T per token for L layers; it does not subtract the causal mask's saving, which would halve the term. With N ≈ 12·L·d², the attention term equals 6N when T ≈ 6d. For an 8B model (L = 32, d = 4096) it adds 27% at T = 8k, matches 6N near 32k and is over 4× 6N at 128k. Activation recomputation adds another forward pass (8N), and for an MoE N counts active, not total, parameters. Follow-up: "Then how is long-context training affordable?" FlashAttention keeps memory linear, and most tokens are trained at short length before a short long-context stage.
+
+</details>
+
+**260. [S] In multi-turn agentic RL, which tokens get the loss, and how is credit assigned?**
+
+<details><summary>Answer</summary>
+
+A trajectory interleaves the model's tokens with tool outputs and environment observations. Only the model's own tokens get the policy-gradient loss; tool and environment tokens are masked out, because the policy did not produce them, and raising their likelihood would teach it to imitate the environment. The common credit scheme gives every model token the same trajectory-level advantage (final reward minus a group baseline), which is simple but noisy over a 50-turn episode; turn-level rewards or process judges give a denser signal but are easier to hack. Systems issues dominate: rollouts last minutes and vary widely in length, so training is often asynchronous, with rollouts from a policy a few steps old, which needs importance correction and a cap on staleness, and environment throughput (sandboxes started per second) often limits the run more than the GPUs do. Follow-up: "Why keep token IDs from the rollout?" Re-tokenising earlier turns' text can change token boundaries, so the trainer would score different tokens from those sampled.
+
+</details>
+
 ## F. Five senior answers in full
 
 Each starts from the bank's short answer and shows the spoken version: about two minutes, in an order an interviewer can follow.
@@ -2241,9 +2323,23 @@ Real interviews are decided by the third follow-up, not the first question. An i
 3. **"The fine-tuned model is great on the task but worse at everything else."** Catastrophic forgetting: mix in general instruction data, lower the learning rate or epochs, use a smaller rank, and evaluate general capabilities after every run; or keep the base model for general traffic and route only task traffic to the adapter.
 4. **"When would you not fine-tune at all?"** When the gap is knowledge that changes (use retrieval), when a better prompt or few-shot examples close it (measure first), when you have fewer than a few hundred good examples, or when the base model will be replaced in months and the fine-tune would need redoing.
 
+### Chain 7 · Mixture of experts (from questions 189–191)
+
+1. **"How does an MoE layer work?"** A router scores each token against E experts and sends it to the top k (for example 8 of 256, plus a shared expert); the output is the gate-weighted sum of those experts' outputs. Compute per token scales with k and memory with E, so total parameters grow without FLOPs per token growing.
+2. **"Early in training two experts get 60% of the tokens. Why, and what do you do?"** Rich-get-richer routing: favoured experts learn faster and are favoured more. Add balancing: the Switch loss α·E·Σ f_e·P_e (1 when balanced; about 1.9 when one of 8 experts takes half the tokens and 40% of the probability) or per-expert selection biases adjusted after each step. Track the token share per expert and per layer, and router entropy.
+3. **"What is the capacity factor, and what happens to tokens over capacity?"** Each expert takes at most capacity factor × tokens ÷ E tokens per batch: 640 for 4,096 tokens over 8 experts at 1.25. Overflow tokens are dropped and pass through the residual connection only, so the skewed load above would drop 1,408 tokens, a third of the batch. A higher factor wastes compute and memory on padding; dropless implementations (grouped matmuls) avoid drops at the cost of uneven work per GPU.
+4. **"With expert parallelism, one GPU is always the slowest. What now?"** Tokens reach experts through an all-to-all, and the busiest expert's GPU sets the step time, so imbalance costs throughput even with no drops. Plot per-expert load per layer over time; rebalance with the bias method, replicate hot experts or change their placement; and check whether the imbalance follows the data (one language or domain sent to one expert), which can be useful specialisation rather than collapse.
+
+### Chain 8 · Scaling laws (from questions 68 and 169–171)
+
+1. **"How do you fit a scaling law?"** Train a ladder of small models (say ten sizes from 10M to 1B parameters), each at several token counts, and fit L(N, D) = E + A/N^α + B/D^β with a robust loss (Huber on log-loss), or fit the compute-optimal frontier directly. Hold out the largest runs to test the extrapolation.
+2. **"How far can you trust the extrapolation?"** The error grows with the distance in compute, and the exponents are fitted over a narrow range and correlated with E. Moving N's exponent from 0.45 to 0.50 changes the recommended size by 1.4× over 1,000× more compute. Report a bootstrap interval over runs, and check against one larger run before committing. Fits are fragile: a 2024 replication found Chinchilla's approach-3 parameters poorly estimated (Chapter 13).
+3. **"The loss is on the predicted line, but the downstream benchmark is not."** Downstream metrics are noisy, saturate and can be discontinuous (exact match). Predict them in two steps, compute to loss and loss to a smooth task metric (the log-probability of the right answer), then to accuracy with a sigmoid, and choose benchmarks that have signal at small scale.
+4. **"Why train an 8B model on 15T tokens, about 1,900 per parameter?"** Chinchilla minimises training compute only. If the model will serve trillions of tokens, the total of training (6ND) and inference (about 2N per generated token) favours a smaller model trained longer: the loss penalty for leaving the compute-optimal point is small near the optimum, while the inference saving grows with traffic. Data then becomes the constraint: repeated high-quality data is worth nearly as much as fresh data up to about 4 epochs (Q171).
+
 ## H. One question, three answers
 
-The same knowledge can earn a weak, an acceptable or a strong score. The difference is rarely more facts; it is structure, numbers and a decision. Two examples, one research and one applied.
+The same knowledge can earn a weak, an acceptable or a strong score. The difference is rarely more facts; it is structure, numbers and a decision. Four examples: three research and one applied.
 
 ### "Your RL run's response length doubled in 500 steps. What's going on?"
 
@@ -2254,6 +2350,26 @@ The same knowledge can earn a weak, an acceptable or a strong score. The differe
 **Strong (senior).** "Three explanations, and I'd separate them with data I already log. First, is the growth on hard prompts only, with accuracy rising there? Then it's the intended effect. Second, if length grows on easy prompts too, or on wrong answers more than right ones, I'd suspect the per-response normalisation bias in the GRPO loss, where a 2,000-token wrong answer is penalised about a seventh as much per token as a 300-token one; switching to token-level averaging fixes it. Third, if accuracy is flat, I'd read 20 long samples for repetition or hedging that a lenient verifier rewards. In the meantime I'd plot length by difficulty bucket and by correctness, and if it's the second or third case, I'd stop the run and fix the loss or verifier before spending more compute."
 
 **What lifts it:** the hypotheses are ordered and each has a test; there is a magnitude; it ends with what to do and when to stop.
+
+### "Derive DPO, and tell me where it breaks."
+
+**Weak.** "DPO skips the reward model and trains directly on preference pairs with a classification loss, so it's simpler and more stable than PPO." A description, no derivation and no failure mode.
+
+**Acceptable.** "The KL-regularised optimum is π_ref·exp(r/β)/Z. Solve for r, put it into Bradley–Terry, and Z cancels, which gives a logistic loss on the difference of log-ratios for the chosen and rejected answers. It can underperform PPO because the data are offline." Correct derivation, but no loss written out, no diagnostics, no numbers.
+
+**Strong.** "Start from maximising reward minus β·KL to the reference. The optimum is π_ref·exp(r/β)/Z(x), so r = β·log(π/π_ref) + β·log Z(x). In Bradley–Terry only reward differences between two answers to the same prompt appear, so log Z cancels, and the loss is −log σ(β × the chosen log-ratio minus the rejected log-ratio). Its gradient weights each pair by σ(−β × margin): at β = 0.1 a pair separated by 20 nats has weight 0.12 against 0.5 for an unseparated pair, so training concentrates on pairs it gets wrong. Three failure modes I'd monitor. First, likelihood displacement: the loss sees only the margin, so the chosen log-probability can fall too, worst when chosen and rejected answers are similar; I'd plot both log-probabilities and check held-out generations. Second, exploitation of features of the pair data, typically length: I'd compare chosen and rejected lengths and evaluate with a length-controlled judge. Third, off-policy data: pairs from another model teach little about this model's own mistakes, so I'd regenerate pairs from the current policy each round. Fixes, in order: on-policy pairs, an SFT term on chosen answers, tuning β, length-normalised variants."
+
+**What lifts it:** the loss is written out and every step justified; one number shows what the gradient does; failure modes come with the plot that would reveal each and a fix in priority order.
+
+### "Estimate KV-cache memory and decode throughput for a 70B GQA model at 32k context."
+
+**Weak.** "70B parameters in bf16 is 140 GB, so two 80 GB GPUs; throughput depends on the hardware." Ignores the cache, which is the actual constraint.
+
+**Acceptable.** "KV per token is 2 × 80 layers × 8 KV heads × 128 × 2 bytes = 320 KiB, so about 10 GiB per 32k sequence. Decoding is memory-bound, so throughput depends on bandwidth and batch size." Right formula, no throughput number and no decision.
+
+**Strong.** "Assume a Llama-3-70B-like shape: 80 layers, 8 KV heads of dimension 128, bf16, on 4 H100s with 80 GB each. The cache is 320 KiB per token, 10.7 GB per 32k sequence; without GQA, at 64 KV heads, it would be 86 GB per sequence, which is why GQA exists. Weights take 140 GB of the 320 GB, leaving about 180 GB: 16 sequences at 32k on paper, so I'd plan for 8 to 12 after activations and fragmentation. At batch 8 each decode step reads 140 GB of weights plus 86 GB of cache, 226 GB over 4 × 3.35 TB/s, so about 17 ms per step: roughly 60 tokens/s per sequence and 475 tokens/s in total, before tensor-parallel communication and with bandwidth at peak, so I'd expect 20–30% less. Compute per step is 1.8 TFLOP, about 0.5 ms at peak, so it is memory-bound by more than 30×. Prefilling one 32k prompt is about 6 PFLOP, 1.5 s at peak and 3 s at 50% MFU, which sets time to first token. Levers in order: an fp8 KV cache doubles the batch at the same memory, fp8 weights cut the 140 GB read per step in half, and speculative decoding helps per-user latency at small batch."
+
+**What lifts it:** the assumptions are stated, every number follows from one formula said aloud, and the answer finds the binding constraint (bandwidth and cache, not FLOPs) and ranks the levers by it.
 
 ### "We have a recommendation model with good offline metrics. How do we know it's ready to launch?"
 

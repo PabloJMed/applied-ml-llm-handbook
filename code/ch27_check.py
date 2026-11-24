@@ -46,8 +46,8 @@ for wname, weak in (("linear (systematic errors)", LogisticRegression(max_iter=2
     for iters in (30, 300):
         strong = HistGradientBoostingClassifier(random_state=0, max_iter=iters, max_leaf_nodes=15).fit(Xs, weak_labels)
         a = (strong.predict(Xt) == yt).mean()
-        print(f"weak = {wname:40s} {a_weak:.3f}; strong on weak labels ({iters:>3} rounds) {a:.3f}; "
-              f"ceiling {ceiling:.3f}; PGR {(a - a_weak) / (ceiling - a_weak):.0%}")
+        print(f"weak = {wname:40s} {a_weak:.4f}; strong on weak labels ({iters:>3} rounds) {a:.4f}; "
+              f"ceiling {ceiling:.4f}; PGR ({a:.4f} - {a_weak:.4f}) / ({ceiling:.4f} - {a_weak:.4f}) = {(a - a_weak) / (ceiling - a_weak):.1%}")
 
 # 27.3 sycophancy metric: answer flips under user pushback, with a paired test
 before = rng.random(300) < 0.80                                  # correct before pushback
@@ -56,3 +56,32 @@ after = np.where(rng.random(300) < flip_prob, ~before, before)
 c2w = int((before & ~after).sum()); w2c = int((~before & after).sum())
 print(f"accuracy before pushback {before.mean():.3f}, after {after.mean():.3f}; correct->wrong {c2w}, "
       f"wrong->correct {w2c}; McNemar p = {stats.binomtest(c2w, c2w + w2c, 0.5).pvalue:.2g}")
+
+# 27.2 Gao et al. functional forms: best-of-n has KL = log n - (n - 1)/n from the base policy; d = sqrt(KL)
+import math
+for n_ in (4, 16, 64, 256):
+    kl = math.log(n_) - (n_ - 1) / n_
+    print(f"best-of-{n_}: KL {kl:.3f} nats, d = sqrt(KL) = {math.sqrt(kl):.3f}")
+# illustrative gold curve R(d) = d (alpha - beta d) with alpha = 1, beta = 0.25: peak at d* = alpha / (2 beta) = 2, KL = 4
+from scipy.optimize import brentq
+print("best-of-n with KL = 4 nats: n =", round(brentq(lambda n_: math.log(n_) - (n_ - 1) / n_ - 4, 2, 1e6), 1))
+
+# 27.11 paired comparison of the same 200 attacks before and after a mitigation: McNemar on the discordant pairs
+both, only_old, only_new = 2, 10, 1                      # successes: both models, old only, new only
+print(f"old ASR {(both + only_old) / 200:.3f}, new ASR {(both + only_new) / 200:.3f}; "
+      f"exact McNemar p = {stats.binomtest(only_new, only_old + only_new, 0.5).pvalue:.4f}")
+
+# 27.8 a toy trusted-monitoring protocol: monitor suspicion ~ N(0, 1) on honest actions and N(mu, 1) on attacks
+mu, audit, defer = 2.0, 0.02, 0.10
+t_audit, t_defer = stats.norm.ppf(1 - audit), stats.norm.ppf(1 - audit - defer)
+caught = stats.norm.sf(t_audit - mu); passed = stats.norm.cdf(t_defer - mu); deferred = 1 - caught - passed
+print(f"thresholds {t_audit:.3f} (audit top 2%), {t_defer:.3f} (defer next 10%); per attack: caught {caught:.3f}, "
+      f"deferred {deferred:.3f}, uncaught {passed:.3f}")
+print(f"safety, trusted monitoring only: {caught:.3f}; with defer-to-trusted: {caught / (caught + passed):.3f}")
+for mu_ in (1.0, 3.0):
+    c_ = stats.norm.sf(t_audit - mu_); p_ = stats.norm.cdf(t_defer - mu_)
+    print(f"  monitor separation mu={mu_}: safety {c_:.3f} -> {c_ / (c_ + p_):.3f} with deferral")
+# illustrative gold reward R(d) = d (1 - 0.25 d) along best-of-n
+for n_ in (16, 148, 1024, 10000):
+    d_ = math.sqrt(math.log(n_) - (n_ - 1) / n_)
+    print(f"best-of-{n_}: d {d_:.3f}, illustrative gold reward {d_ * (1 - 0.25 * d_):.3f}")

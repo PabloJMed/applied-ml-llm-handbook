@@ -306,8 +306,10 @@ def ch02():
         se = np.sqrt((p1_ * (1 - p1_) + p2_ * (1 - p2_)) / n)
         power = stats.norm.cdf((p2_ - p1_) / se - za)
         ax.plot(n, power, color=c, ls=ls)
-        k = np.searchsorted(power, 0.8)
-        ax.annotate(f"+{mde:.0%} lift: {n[k]/1000:,.0f}k", (n[k], 0.8), xytext=(-5, 5), ha="right",
+        # users per arm for 80% power, from the closed form (not read off the grid)
+        n80 = (za + stats.norm.ppf(0.8)) ** 2 * (p1_ * (1 - p1_) + p2_ * (1 - p2_)) / (p2_ - p1_) ** 2
+        print(f"+{mde:.0%} lift: {n80:,.0f} users per arm for 80% power")
+        ax.annotate(f"+{mde:.0%} lift: {n80/1000:,.0f}k", (n80, 0.8), xytext=(-5, 5), ha="right",
                     textcoords="offset points", color=INK2, fontsize=7.5)
     ax.axhline(0.8, color=MUTED, lw=0.7, ls=":")
     ax.set_xscale("log"); ax.set_xlim(1000, 2.5e6); ax.set_xlabel("users per arm (labels: users needed for 80% power)"); ax.set_ylabel("power")
@@ -912,11 +914,11 @@ def ch24():
     t = np.linspace(0, 1, 50)
     fig, ax = plt.subplots(figsize=(W, 2.4))
     ax.plot(t, t, color=MUTED, ls=DASH[2], lw=1, label="perfect judge")
-    for tpr, tnr, c, ls in ((0.95, 0.90, S3, DASH[1]), (0.93, 0.67, S2, DASH[0])):
+    for tpr, tnr, c, ls in ((0.95, 0.90, S3, DASH[1]), (0.93, 0.66, S2, DASH[0])):
         o = tpr * t + (1 - tnr) * (1 - t); ax.plot(t, o, color=c, ls=ls, label=f"judge with TPR {tpr:.2f}, TNR {tnr:.2f}")
     ax.legend(fontsize=7.5, loc="lower right")
     for x in (0.70, 0.85):
-        o = 0.93 * x + 0.33 * (1 - x); ax.plot([x], [o], "o", color=S2, ms=3.5)
+        o = 0.93 * x + 0.34 * (1 - x); ax.plot([x], [o], "o", color=S2, ms=3.5)
         ax.annotate(f"true {x:.0%} → judged {o:.0%}", (x, o), xytext=(-8, 9), textcoords="offset points", ha="right", color=INK2, fontsize=7.5)
     ax.set_xlim(0, 1.02); ax.set_xticks(np.linspace(0, 1, 6)); ax.set_xlabel("true pass rate"); ax.set_ylabel("pass rate reported by the judge")
     ax.set_title("A lenient judge inflates low scores and compresses differences")
@@ -1235,8 +1237,8 @@ def ch41():
     ax.plot(vol, vol * 30 * per_call, color=S2, ls=DASH[1], label="LLM API, real time")
     ax.plot(vol, vol * 30 * per_call / 2, color=S3, ls=DASH[2], label="LLM batch API (half price)")
     ax.plot(vol, np.full_like(vol, 730.0), color=S1, label="distilled encoder on one GPU ($1/hour)")
-    for v in (vol[np.argmin(np.abs(vol * 30 * per_call - 730))], vol[np.argmin(np.abs(vol * 30 * per_call / 2 - 730))]):
-        print(f"break-even near {v:,.0f} calls/day")
+    for v in (730 / (30 * per_call), 730 / (30 * per_call / 2)):              # exact, not read off the grid
+        print(f"break-even at {v:,.0f} calls/day")
     ax.set_xscale("log"); ax.set_yscale("log"); ax.legend(fontsize=7.5, loc="upper left")
     ax.set_xticks([1e4, 1e5, 1e6, 1e7]); ax.set_xticklabels(["10k", "100k", "1M", "10M"])
     ax.set_xlabel("predictions per day"); ax.set_ylabel("monthly cost ($)"); ax.set_title("Above a few hundred thousand calls a day, a distilled model is cheaper")

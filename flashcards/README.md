@@ -1,10 +1,10 @@
 # Flashcards
 
-`handbook-flashcards.txt` holds 695 question–answer cards generated from the handbook:
+`handbook-flashcards.txt` holds 987 question–answer cards generated from the handbook:
 
-- the 250 questions of the depth bank (Chapter 37), tagged by level (`level::basic`, `level::intermediate`, `level::senior`) and chapter;
-- 405 interview questions with model answers from the chapters, tagged `ch::<chapter>`;
-- the 40 diagnostic questions of Appendix F with their answer key, tagged `diagnostic`.
+- the 260 questions of the depth bank (Chapter 37), tagged by level (`level::basic`, `level::intermediate`, `level::senior`) and chapter;
+- 679 interview questions with model answers from the chapters, tagged `ch::<chapter>`;
+- the 48 diagnostic questions of Appendix F with their answer key, tagged `diagnostic`.
 
 **Anki:** File › Import, choose the file. The header lines set the tab separator, the Basic note type, a deck called "AI and LLM Scientist Handbook" and the tags column, so no settings are needed. Use tags to study one area or level at a time.
 

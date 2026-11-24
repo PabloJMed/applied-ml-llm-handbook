@@ -1,6 +1,6 @@
 # Code
 
-One script per chapter (a few chapters have none). Each runs the chapter's code examples end to end and prints the numbers quoted in the text. Run any of them with `python code/<script>.py` after `pip install -r code/requirements.txt`. All run on a laptop CPU; most take seconds, the longest a few minutes.
+One script per chapter, plus one for the worked designs in Appendix E. Each runs the chapter's code examples end to end and prints the numbers quoted in the text. Run any of them with `python code/<script>.py` after `pip install -r code/requirements.txt`. All run on a laptop CPU; most take seconds; the longest (chapters 10, 14, 26 and 35, which train small models) take several minutes. `python tools/run_code.py` runs them all.
 
 | Script | Chapter | Covers |
 |---|---|---|
@@ -39,6 +39,10 @@ One script per chapter (a few chapters have none). Each runs the chapter's code 
 | [`ch33_check.py`](ch33_check.py) | [33 · Agents and tool use](../chapters/33-agents-and-tool-use.md) | Agents and tool use |
 | [`ch34_check.py`](ch34_check.py) | [34 · Research craft](../chapters/34-research-craft.md) | Research craft |
 | [`ch35_check.py`](ch35_check.py) | [35 · The ML coding interview](../chapters/35-the-ml-coding-interview.md) | The ML coding interview |
+| [`ch36_check.py`](ch36_check.py) | [36 · Research interviews](../chapters/36-research-interviews.md) | Research interviews: budgets, the DPO loss at initialisation |
+| [`ch37_check.py`](ch37_check.py) | [37 · ML depth question bank](../chapters/37-ml-depth-question-bank.md) | Numbers quoted in the question bank answers |
+| [`ch38_check.py`](ch38_check.py) | [38 · Behavioural interviews](../chapters/38-behavioural-interviews.md) | The seed-noise numbers in the research story |
+| [`ch39_check.py`](ch39_check.py) | [39 · Thinking like a senior](../chapters/39-thinking-like-a-senior.md) | Scoping and triage arithmetic |
 | [`ch40_check.py`](ch40_check.py) | [40 · Classic models](../chapters/40-classic-models.md) | Classic models |
 | [`ch40_svm_check.py`](ch40_svm_check.py) | [40 · Classic models](../chapters/40-classic-models.md) | SVM from scratch vs scikit-learn |
 | [`ch41_check.py`](ch41_check.py) | [41 · NLP tasks with modern tools](../chapters/41-nlp-tasks-with-modern-tools.md) | NLP tasks with modern tools |
@@ -46,7 +50,9 @@ One script per chapter (a few chapters have none). Each runs the chapter's code 
 | [`ch43_check.py`](ch43_check.py) | [43 · Recommender systems](../chapters/43-recommender-systems.md) | Recommender systems |
 | [`ch44_check.py`](ch44_check.py) | [44 · Search ranking and learning to rank](../chapters/44-search-and-learning-to-rank.md) | Search ranking and learning to rank |
 | [`ch45_check.py`](ch45_check.py) | [45 · Marketplace and logistics ML](../chapters/45-marketplace-and-logistics-ml.md) | Marketplace and logistics ML |
+| [`ch46_check.py`](ch46_check.py) | [46 · ML system design](../chapters/46-ml-system-design.md) | Training-run and LLM-serving design arithmetic |
 | [`ch47_check.py`](ch47_check.py) | [47 · MLOps and LLMOps](../chapters/47-mlops-and-llmops.md) | MLOps and LLMOps |
 | [`ch48_check.py`](ch48_check.py) | [48 · Data for ML](../chapters/48-data-for-ml.md) | Data for ML |
+| [`appE_check.py`](appE_check.py) | [E · Worked system designs](../chapters/E-worked-designs.md) | Numbers in the worked designs |
 
 **macOS notes.** LightGBM (used by `ch43_check.py` and `ch45_check.py`) needs the OpenMP runtime: `brew install libomp`. `ch30_check.py` imports both PyTorch and faiss, which bundle different OpenMP runtimes; run it as `OMP_NUM_THREADS=1 KMP_DUPLICATE_LIB_OK=TRUE python code/ch30_check.py`.

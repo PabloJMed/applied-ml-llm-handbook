@@ -9,7 +9,9 @@ Checks:
 - every chapter file is listed in the README contents and in tools/build_pdf.py;
 - every $$ display-equation block is opened and closed on lines of its own, with a blank line
   before and after it (otherwise it merges into the paragraph and is not typeset);
-- every <details> block is closed (collapsible answers render on GitHub and are flattened in the PDF).
+- every <details> block is closed (collapsible answers render on GitHub and are flattened in the PDF);
+- every numbered chapter (except the question bank) has interview questions that all have a model
+  answer in the "**N. Question** answer" format, and a research exercise in Practice.
 
 Exits non-zero and lists the problems if any check fails.
 """
@@ -46,6 +48,44 @@ def anchors(path: Path) -> set[str]:
             seen[s] = n + 1
             out.add(s if n == 0 else f"{s}-{n}")
     return out
+
+
+def section(text: str, heading: str) -> str | None:
+    """The body of a '## heading' section, up to the next '## ' heading (None if absent)."""
+    if f"\n## {heading}\n" not in text:
+        return None
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def chapter_template_problems() -> list[str]:
+    """The chapter template the README promises: interview questions that all have model answers
+    (one paragraph on the question's line, the format tools/export_flashcards.py reads) and a
+    research exercise in Practice. The question bank (37) has its own format."""
+    problems = []
+    for path in sorted(CHAPTERS.glob("[0-9][0-9]-*.md")):
+        key = path.name[:2]
+        if key in ("00", "37"):
+            continue
+        rel = path.relative_to(ROOT)
+        text = path.read_text(encoding="utf-8")
+        iq = section(text, "Interview questions")
+        if iq is None:
+            problems.append(f"{rel}: no '## Interview questions' section")
+        else:
+            questions = re.findall(r"^\*\*(\d+)\. .+?\*\*(.*)$", iq, flags=re.M)
+            if not questions:
+                problems.append(f"{rel}: interview questions are not in the '**N. Question** answer' format")
+            for n, answer in questions:
+                if len(answer.split()) < 15:
+                    problems.append(f"{rel}: interview question {n} has no model answer on its line")
+            if re.search(r"^\d+\. ", iq, flags=re.M) or "Short answers" in iq:
+                problems.append(f"{rel}: interview questions use a bare numbered list or 'Short answers'")
+        practice = section(text, "Practice")
+        if practice is None:
+            problems.append(f"{rel}: no '## Practice' section")
+        elif "research exercise" not in practice.lower():
+            problems.append(f"{rel}: Practice has no research exercise")
+    return problems
 
 
 def main() -> int:
@@ -105,6 +145,8 @@ def main() -> int:
             problems.append(f"README.md: chapter {path.name} is not in the contents")
         if key != "00" and f'"{key}"' not in build:
             problems.append(f"tools/build_pdf.py: chapter key {key} is not in PARTS")
+
+    problems += chapter_template_problems()
 
     for p in problems:
         print(p)

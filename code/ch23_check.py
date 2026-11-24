@@ -104,3 +104,44 @@ print("paired SE %.4f, 95%% CI [%.1f, %.1f] points; clustered (5 per passage, ic
          100 * (delta - 1.96 * se * math.sqrt(deff)), 100 * (delta + 1.96 * se * math.sqrt(deff))))
 print("questions needed for 80%% power at this gain: %.0f (x%.1f with clustering)" % (2.8 ** 2 * d / delta ** 2, deff))
 print("Elo: +50 -> %.3f, +100 -> %.3f" % (1 / (1 + 10 ** (-50 / 400)), 1 / (1 + 10 ** (-100 / 400))))
+
+# ---- additions: derivations, within-question variance, IRT information, BT inflation, ablation SNR ----
+print("SE at 67%%, 500 questions: %.2f points, 95%% half-width %.2f" % (100 * math.sqrt(0.67 * 0.33 / 500), 196 * math.sqrt(0.67 * 0.33 / 500)))
+print("paired SE d=0.15, delta=0.015, n=1000: %.2f points; unpaired at 70%%: %.2f" % (100 * math.sqrt((0.15 - 0.015 ** 2) / 1000), 100 * math.sqrt(2 * 0.21 / 1000)))
+ratio = se_clustered / se_naive
+print("design effect from the simulation: %.2f, implied icc with m=5: %.2f; m=20, icc=0.1: deff %.1f, 1,000 -> %.0f"
+      % (ratio ** 2, (ratio ** 2 - 1) / 4, 1 + 19 * 0.1, 1000 / 2.9))
+print("Q1: n for 80%% power at d=0.15, delta=1.5 points: %.0f" % (7.84 * 0.15 / 0.015 ** 2))
+
+# within-question variance: Var(s_i) = Var(p_i) + E[p_i(1-p_i)]/K
+for n in (500, 30):
+    print(f"n={n}:", {K: round(100 * math.sqrt((0.16 + 0.08 / K) / n), 2) for K in (1, 4, 16)},
+          "floor", round(100 * math.sqrt(0.16 / n), 2))
+print("paired, similar models: K=1 var 0.17, K=16 var %.2f, SE ratio %.2f" % (0.01 + 0.16 / 16, math.sqrt(0.17 / 0.02)))
+# simulate and recover the decomposition from K samples per question
+a_, b_ = 0.6 * 0.5, 0.4 * 0.5                    # Beta(0.3, 0.2): mean 0.6, Var(p) = 0.24/(1+0.5) = 0.16
+p_i = rng.beta(a_, b_, 2000); K = 16
+s_i = rng.binomial(K, p_i) / K
+within = np.mean(s_i * (1 - s_i) * K / (K - 1)); between = s_i.var(ddof=1) - within / K
+print(f"simulated: Var(p) true {p_i.var():.3f}, estimated {between:.3f}; E[p(1-p)] true {np.mean(p_i*(1-p_i)):.3f}, estimated {within:.3f}")
+
+# IRT item information a^2 p (1-p)
+sig = lambda z: 1 / (1 + math.exp(-z))
+print("item information:", {f"a={a},dtheta={t}": round(a * a * sig(a * t) * (1 - sig(a * t)), 3) for a, t in ((2, 0), (2, 1), (2, 2), (0.5, 0))})
+
+# Bradley-Terry: Elo factor and best-of-ten inflation
+emax10 = np.max(rng.normal(0, 1, (200_000, 10)), 1).mean(); emax20 = np.max(rng.normal(0, 1, (200_000, 20)), 1).mean()
+sigma = (hi[0] - lo[0]) / 3.92
+print(f"400/ln10 = {400/math.log(10):.1f}; E[max of 10 N(0,1)] = {emax10:.3f}, of 20 = {emax20:.2f}; sigma {sigma:.1f} -> inflation {emax10*sigma:.0f}")
+print("20-point gap win rate %.3f" % (1 / (1 + 10 ** (-20 / 400))))
+
+# judge position bias: tie-as-half versus consistent-only
+p1, p2 = true_pref_b - first_bias, true_pref_b + first_bias
+both_b, both_a = p1 * p2, (1 - p1) * (1 - p2); incons = 1 - both_b - both_a
+print(f"both orders B {both_b:.3f}, both A {both_a:.3f}, inconsistent {incons:.3f}; "
+      f"tie-as-half {both_b + 0.5*incons:.3f}; consistent-only {both_b/(both_b+both_a):.3f}")
+
+# 23.12 ablation SNR (illustrative table)
+for name, a, b, noise in (("MC letters", 25.4, 25.9, 0.8), ("cloze", 31.2, 33.0, 0.6), ("bpb", 0.912, 0.904, 0.001)):
+    print(f"SNR {name}: {abs(b - a) / noise:.2f}")
+print("pass^8 at 0.6: %.4f" % 0.6 ** 8)

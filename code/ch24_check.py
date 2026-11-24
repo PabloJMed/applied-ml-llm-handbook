@@ -102,3 +102,48 @@ def wilson(k, n, z=1.96):
 po = (tp + tn) / 200; pe = (150 / 200) * ((tp + fp) / 200) + (50 / 200) * ((tn + fn) / 200)
 print(f"agreement {po:.3f}, kappa {(po - pe) / (1 - pe):.3f}, TPR {tpr:.3f} {wilson(tp, tp + fn)}, TNR {tnr:.3f} {wilson(tn, tn + fp)}")
 print("observed 80%% -> corrected %.3f; true gap 15 points looks like %.1f" % ((0.80 + tnr - 1) / (tpr + tnr - 1), 15 * (tpr + tnr - 1)))
+
+# ---------------------------------------------------------------------------
+# 24.7 Rogan-Gladen derivation check and propagation of judge uncertainty (parametric bootstrap
+# over the calibration counts and the production sample)
+tpr_hat, tnr_hat = 140 / 150, 33 / 50
+J = tpr_hat + tnr_hat - 1
+print(f"Youden J = {J:.3f}; variance inflation 1/J^2 = {1 / J**2:.2f}")
+print("corrected at TNR interval ends:", [round(corrected_pass_rate(0.80, tpr_hat, t), 3) for t in (0.522, 0.776)])
+
+def corrected_interval(k_prod, n_prod, tp, n_pos, tn, n_neg, B=20000, seed=0):
+    rng = np.random.default_rng(seed)
+    obs = rng.binomial(n_prod, k_prod / n_prod, B) / n_prod
+    tpr_b = rng.binomial(n_pos, tp / n_pos, B) / n_pos
+    tnr_b = rng.binomial(n_neg, tn / n_neg, B) / n_neg
+    est = np.clip((obs + tnr_b - 1) / (tpr_b + tnr_b - 1), 0, 1)
+    return np.percentile(est, [2.5, 97.5])
+lo, hi = corrected_interval(800, 1000, 140, 150, 33, 50)
+print(f"corrected pass rate 0.775, 95% bootstrap interval [{lo:.3f}, {hi:.3f}] "
+      f"(production sample alone: +/- {1.96 * math.sqrt(0.8 * 0.2 / 1000):.3f})")
+lo2, hi2 = corrected_interval(800, 1000, 140, 150, 330, 500)
+print(f"same judge calibrated on 500 failures instead of 50: [{lo2:.3f}, {hi2:.3f}]")
+
+# 24.8 sample-size formulas
+za, zb = stats.norm.ppf(0.975), stats.norm.ppf(0.8)
+print(f"(za+zb)^2 = {(za + zb)**2:.2f}; unpaired 80->85: {(za + zb)**2 * (0.8 * 0.2 + 0.85 * 0.15) / 0.05**2:.0f} per arm; "
+      f"paired with 10% discordant: {(za + zb)**2 * 0.10 / 0.05**2:.0f} cases")
+
+# 24.8 several samples per case: Var = (sigma_q^2 + sigma_w^2 / K) / n with per-case p ~ Beta(1.4, 0.6)
+a_, b_ = 1.4, 0.6
+mean_p = a_ / (a_ + b_); var_q = a_ * b_ / ((a_ + b_) ** 2 * (a_ + b_ + 1)); var_w = mean_p * (1 - mean_p) - var_q
+print(f"mean {mean_p:.2f}, between-case variance {var_q:.3f}, within-case variance {var_w:.3f}")
+for K in (1, 2, 4, 8, 10**9):
+    print(f"  n=200, K={K}: SE {math.sqrt((var_q + var_w / K) / 200):.4f}")
+p_sim = rng.beta(a_, b_, 200)                         # simulate to confirm the formula
+for K in (1, 4):
+    means = [rng.binomial(K, p_sim).mean() / K for _ in range(4000)]
+    print(f"  simulated (fixed 200 cases, sampling noise only) K={K}: SD {np.std(means):.4f}")
+# flaky-test gate: pass if >= 3 of 4 samples pass
+for p in (0.95, 0.9, 0.5):
+    print(f"  case with p={p}: single-run pass {p:.2f}, P(>=3 of 4) {stats.binom.sf(2, 4, p):.3f}")
+lo3, hi3 = corrected_interval(800, 1000, 1400, 1500, 330, 500)
+q_good = 0.9333 * 0.775 + 0.10 * 0.225                     # same true rate, judge with TNR 0.90
+lo4, hi4 = corrected_interval(round(q_good * 1000), 1000, 140, 150, 45, 50)
+print(f"tenfold calibration set: [{lo3:.3f}, {hi3:.3f}]; TNR 0.90 judge, 200 labels: [{lo4:.3f}, {hi4:.3f}]")
+print(f"P(2% failure mode unseen in 100 traces) = {0.98 ** 100:.3f}")
