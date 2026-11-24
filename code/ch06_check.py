@@ -74,3 +74,70 @@ print("accum ok")
 with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
     out = model(torch.randn(4, 10))
 print(out.dtype)
+
+# ---- review additions ---------------------------------------------------------------------
+# 6.1 autograd details: in-place error, leaf vs non-leaf, retain_graph, custom Function, hooks
+a = torch.randn(3, requires_grad=True)
+b = a.sigmoid()                 # sigmoid saves its output for backward
+b.mul_(2)                       # in-place change of a saved tensor
+try:
+    b.sum().backward(); print("in-place: no error (unexpected)")
+except RuntimeError as e:
+    print("in-place error:", "modified by an inplace operation" in str(e))
+
+x = torch.tensor([1.0, 2.0], requires_grad=True)
+h = x * 3; h.retain_grad()
+out = (h ** 2).sum(); out.backward(retain_graph=True)
+print("leaf", x.is_leaf, "non-leaf", h.is_leaf, "h.grad", h.grad.tolist(), "x.grad", x.grad.tolist())
+out.backward()                  # second backward works only because of retain_graph=True
+print("x.grad after second backward (accumulated):", x.grad.tolist())
+
+class ClampGrad(torch.autograd.Function):
+    """Identity in the forward pass; clips the gradient to [-1, 1] in the backward pass."""
+    @staticmethod
+    def forward(ctx, inp):
+        return inp.view_as(inp)
+    @staticmethod
+    def backward(ctx, grad_out):
+        return grad_out.clamp(-1, 1)
+z = torch.tensor([1.0, -2.0], requires_grad=True)
+(ClampGrad.apply(z) * torch.tensor([5.0, 0.3])).sum().backward()
+print("custom Function grad:", z.grad.tolist())
+
+net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 1))
+grad_norms = {}
+for name, p in net.named_parameters():
+    p.register_hook(lambda g, name=name: grad_norms.__setitem__(name, round(g.norm().item(), 4)))
+acts = {}
+net[1].register_forward_hook(lambda mod, inp, outp: acts.__setitem__("relu_frac_zero", (outp == 0).float().mean().item()))
+torch.manual_seed(0); net(torch.randn(16, 4)).pow(2).mean().backward()
+print("hooks logged", sorted(grad_norms), "relu zero fraction", round(acts["relu_frac_zero"], 3))
+
+# 6.5 memory arithmetic: bf16 weights 2 + bf16 grads 2 + fp32 master 4 + Adam m 4 + Adam v 4
+bytes_per_param = 2 + 2 + 4 + 4 + 4
+print("bytes/param", bytes_per_param, " 7B model:", 7e9 * bytes_per_param / 1e9, "GB before activations")
+
+# 6.6 resuming RNG state reproduces the next random draws exactly
+state = {"torch": torch.get_rng_state(), "numpy": np.random.get_state(), "python": random.getstate()}
+draw1 = (torch.rand(2).tolist(), np.random.rand(), random.random())
+torch.set_rng_state(state["torch"]); np.random.set_state(state["numpy"]); random.setstate(state["python"])
+draw2 = (torch.rand(2).tolist(), np.random.rand(), random.random())
+print("RNG restore reproduces draws:", draw1 == draw2)
+
+# 6.8 accumulation with variable token counts: mean-of-means vs sum / total tokens
+torch.manual_seed(0)
+lin = nn.Linear(4, 3)
+xs = [torch.randn(10, 4), torch.randn(90, 4)]          # micro-batch A: 10 tokens, B: 90 tokens
+ys = [torch.randint(0, 3, (10,)), torch.randint(0, 3, (90,))]
+def grad_of(fn):
+    lin.zero_grad(); fn(); return lin.weight.grad.clone()
+g_full = grad_of(lambda: F.cross_entropy(lin(torch.cat(xs)), torch.cat(ys)).backward())
+g_naive = grad_of(lambda: [(F.cross_entropy(lin(x), y) / 2).backward() for x, y in zip(xs, ys)])
+n_tok = sum(len(y) for y in ys)
+g_fixed = grad_of(lambda: [(F.cross_entropy(lin(x), y, reduction="sum") / n_tok).backward() for x, y in zip(xs, ys)])
+print("accumulation: naive matches full batch", torch.allclose(g_naive, g_full, atol=1e-6),
+      " sum/total-tokens matches", torch.allclose(g_fixed, g_full, atol=1e-6))
+print("toy numbers: mean of means", (2.0 + 1.0) / 2, " true per-token mean", (10 * 2.0 + 90 * 1.0) / 100)
+
+# 6.10 MFU: 6 * N * tokens/s / peak. 1B params, 50k tokens/s, H100 SXM dense bf16 peak ~989 TFLOP/s
+print("MFU example:", round(6 * 1e9 * 5e4 / 989e12, 3))

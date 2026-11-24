@@ -126,3 +126,61 @@ params = [torch.zeros(3, requires_grad=True), torch.zeros(4, requires_grad=True)
 params[0].grad = torch.tensor([3.0, 0.0, 0.0]); params[1].grad = torch.tensor([0.0, 4.0, 0.0, 0.0])
 norm = torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
 print("grad norm before clip:", norm.item(), " after:", round(torch.cat([p.grad for p in params]).norm().item(), 4))
+
+# ---- review additions ---------------------------------------------------------------------
+# 7.1 the first step is ~lr, not exactly lr, when eps is comparable to |g|
+print("first-step update for g=1e-4 (unrounded):", round((p0 - p1)[0].item(), 7))
+# AdamW timescale and rotational equilibrium for eta=3e-4, lambda=0.1
+eta, lam = 3e-4, 0.1
+print(f"weight-decay timescale 1/(eta*lambda) = {1 / (eta * lam):.0f} steps; equilibrium angular update sqrt(2*eta*lambda) = {math.sqrt(2 * eta * lam):.4f} rad")
+# simulate: scale-invariant weight vector, unit-RMS updates orthogonal to w, decoupled decay
+torch.manual_seed(0)
+wv = torch.randn(4096) * 0.02
+for _ in range(60000):
+    u = torch.randn(4096); u -= (u @ wv) / (wv @ wv) * wv; u /= u.pow(2).mean().sqrt()
+    wv = wv * (1 - eta * lam) - eta * u
+print(f"simulated weight RMS {wv.pow(2).mean().sqrt().item():.4f} vs predicted sqrt(eta/(2*lambda)) = {math.sqrt(eta / (2 * lam)):.4f}")
+
+# 7.3 steps-data trade-off: S/S_min = 1 + B_noise/B, E/E_min = 1 + B/B_noise
+for r in (0.25, 1, 4):
+    print(f"B = {r} x B_noise: steps {1 + 1 / r:.2f} x S_min, examples {1 + r:.2f} x E_min")
+# check the 1/(1 + B_noise/B) law on a noisy quadratic: L = 0.5*h*w^2, per-example grad = h*w + noise
+h, sigma, w0 = 1.0, 3.0, 1.0
+g_true = h * w0; b_noise = sigma ** 2 / g_true ** 2
+for B in (1, 9, 81):
+    eps_opt = g_true ** 2 / (h * (g_true ** 2 + sigma ** 2 / B))
+    gains = []
+    for _ in range(20000):
+        gB = g_true + sigma * torch.randn(1).item() / math.sqrt(B)
+        w1 = w0 - eps_opt * gB
+        gains.append(0.5 * h * w0 ** 2 - 0.5 * h * w1 ** 2)
+    print(f"B={B}: mean loss decrease {sum(gains) / len(gains):.3f}, predicted 0.5/(1+{b_noise:.0f}/{B}) = {0.5 / (1 + b_noise / B):.3f}")
+
+# 7.4 Newton-Schulz acts on each singular value through p(s) = a s + b s^3 + c s^5
+a_, b_, c_ = 3.4445, -4.7750, 2.0315
+s_norm = s_before / s_before.norm()            # singular values after dividing by the Frobenius norm
+print(f"normalised singular values: max {s_norm.max().item():.3f}, min {s_norm.min().item():.2e}")
+def p_iter(s, k=5):
+    for _ in range(k): s = a_ * s + b_ * s ** 3 + c_ * s ** 5
+    return s
+for s0 in (1e-4, 1e-3, 1e-2, 0.1, 0.5, 1.0):
+    print(f"  s0 = {s0:g} -> after 5 steps {p_iter(s0):.3f}")
+print("small singular values grow by a per step: a^5 =", round(a_ ** 5, 1))
+# RMS of an orthogonal m x n update, and Moonlight's 0.2*sqrt(max(m, n)) scale
+O = newton_schulz(torch.randn(64, 32))
+U, S, Vh = torch.linalg.svd(torch.randn(64, 32), full_matrices=False); Oexact = U @ Vh
+print(f"RMS of exact UV^T (64x32): {Oexact.pow(2).mean().sqrt().item():.4f} = 1/sqrt(64) = {1 / 8:.4f};"
+      f" scaled by 0.2*sqrt(64): {(0.2 * 8 * Oexact).pow(2).mean().sqrt().item():.3f}")
+
+# 7.7 a single large gradient after a quiet period: Adam's update ratio m/sqrt(v), first step and cumulative
+for b2 in (0.95, 0.999):
+    first = 0.1 / math.sqrt(1 - b2)
+    total = sum(0.1 * 0.9 ** k / math.sqrt((1 - b2) * b2 ** k) for k in range(5000))
+    print(f"beta2={b2}: first update {first:.3f} x lr, cumulative over the following steps {total:.1f} x lr")
+# shift invariance of softmax: the CE gradient w.r.t. logits sums to zero, so the mean logit gets no gradient
+zl = torch.tensor([3.0, 1.0, 0.5], requires_grad=True)
+F_ = torch.nn.functional
+F_.cross_entropy(zl[None], torch.tensor([0])).backward()
+print("CE gradient on logits", [round(x, 4) for x in zl.grad.tolist()], " sum", round(zl.grad.sum().item(), 6))
+print("bf16 spacing near 300:", (torch.tensor(300.0).bfloat16() + torch.tensor(0.9).bfloat16()).item(),
+      " 300 and 301 in bf16:", torch.tensor([300.0, 301.0]).bfloat16().tolist())

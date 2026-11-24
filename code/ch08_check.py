@@ -1,4 +1,5 @@
 import torch, torch.nn as nn, torch.nn.functional as F, random, numpy as np
+torch.set_num_threads(1)   # the packed-LSTM training is much slower with many CPU threads
 torch.manual_seed(0); random.seed(0); np.random.seed(0)
 
 # toy corpus with two topics
@@ -101,3 +102,34 @@ class AdditiveAttention(nn.Module):
 att = AdditiveAttention(64, 128)
 s = torch.randn(3, 64); H = torch.randn(3, 7, 128); mask = torch.ones(3, 7, dtype=torch.bool); mask[0, 5:] = False
 ctx, a = att(s, H, mask); print(ctx.shape, a.shape, a[0, 5:].tolist(), round(a.sum(-1)[0].item(), 4))
+
+# ---- review additions (fast; no training) --------------------------------------------------
+import math
+sig = lambda x: 1 / (1 + math.exp(-x))
+# 8.2 SGNS loss for one positive (dot 2.0) and two negatives (dots 0.5 and -1.0)
+terms = [-math.log(sig(2.0)), -math.log(sig(-0.5)), -math.log(sig(1.0))]
+print("SGNS terms", [round(t, 3) for t in terms], "loss", round(sum(terms), 3))
+print("grad coefficients on v_c: positive", round(-(1 - sig(2.0)), 4), " negatives", round(sig(0.5), 4), round(sig(-1.0), 4))
+print("full softmax vs SGNS cost per pair (V=50k, k=5):", 50000 / 6)
+# check the analytic gradient against autograd
+vc = torch.randn(8, requires_grad=True); uo, u1, u2 = torch.randn(8), torch.randn(8), torch.randn(8)
+L = -(F.logsigmoid(uo @ vc) + F.logsigmoid(-(u1 @ vc)) + F.logsigmoid(-(u2 @ vc))); L.backward()
+g_hand = -(1 - torch.sigmoid(uo @ vc)) * uo + torch.sigmoid(u1 @ vc) * u1 + torch.sigmoid(u2 @ vc) * u2
+print("SGNS hand gradient matches autograd:", torch.allclose(vc.grad, g_hand.detach(), atol=1e-6))
+# weight tying saving for a 128,256 x 2,048 table
+print("tied embedding params (M):", round(128256 * 2048 / 1e6, 1))
+# 1/sqrt(d): variance of a dot product of two random unit-variance vectors
+q, k = torch.randn(100000, 64), torch.randn(100000, 64)
+print("dot-product std at d=64:", round((q * k).sum(-1).std().item(), 2), " after /sqrt(d):", round(((q * k).sum(-1) / 8).std().item(), 3))
+# 8.4 per-step decay implied by the figure's numbers, and forget-gate products over 20 steps
+print("per-step factor RNN", round(4.6e-8 ** (1 / 20), 3), " LSTM", round(1.1e-2 ** (1 / 20), 3), " ratio", round(1.1e-2 / 4.6e-8))
+for f in (0.5, sig(1.0), 0.9):
+    print(f"forget gate {f:.3f}: product over 20 steps {f ** 20:.2e}")
+lstm = nn.LSTM(256, 256); gru = nn.GRU(256, 256)
+print("params LSTM", sum(p.numel() for p in lstm.parameters()), " GRU", sum(p.numel() for p in gru.parameters()),
+      " ratio", round(sum(p.numel() for p in gru.parameters()) / sum(p.numel() for p in lstm.parameters()), 3))
+print("PyTorch default LSTM forget bias is not 1:", float(nn.LSTM(4, 4).bias_ih_l0[4:8].detach().abs().max()) < 1)
+# 8.5 exposure bias: chance of an error-free 100-token output at per-token error 1%
+print("P(no error in 100 tokens at 1%):", round(0.99 ** 100, 3))
+# Q6: standard error of a 10% hit rate on 50,000 held-out sessions
+print("SE of hit rate 0.10 on 50k sessions (points):", round(100 * math.sqrt(0.1 * 0.9 / 50000), 2))

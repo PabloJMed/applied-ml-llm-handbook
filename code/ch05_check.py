@@ -79,3 +79,60 @@ def layernorm_forward(x, gamma, beta, eps=1e-5):
     return gamma * (x - mu) / np.sqrt(var + eps) + beta
 xx = rng.normal(5, 3, (4, 6))
 print(np.round(batchnorm_forward(xx, 1, 0).mean(0), 6)[:3], np.round(layernorm_forward(xx, 1, 0).mean(1), 6)[:3])
+
+# ---- review-improvements worked examples ----------------------------------------------------
+# 5.2 softmax + cross-entropy gradient: analytic p - y vs central differences
+z = np.array([2.0, 1.0, 0.0]); p3 = np.exp(z) / np.exp(z).sum()
+L3 = lambda zz: -np.log(np.exp(zz[0]) / np.exp(zz).sum())
+num = [(L3(z + 1e-6 * np.eye(3)[j]) - L3(z - 1e-6 * np.eye(3)[j])) / 2e-6 for j in range(3)]
+print("softmax-CE p", np.round(p3, 3), "grad", np.round(p3 - np.eye(3)[0], 3), "numerical", np.round(num, 6))
+
+# 5.3 dead ReLUs against learning rate (64-unit MLP, 1,000 full-batch steps, 5 seeds)
+for lr in (0.3, 1, 3, 10, 30):
+    dead, accs = [], []
+    for seed in range(5):
+        mm = MLP(2, 64, 3, seed=seed)
+        for _ in range(1000):
+            mm.forward(X); mm.backward(y); mm.step(lr)
+        mm.forward(X); dead.append((mm.z1 <= 0).all(0).mean()); accs.append((mm.p.argmax(1) == y).mean())
+    print(f"lr {lr}: dead fraction {np.mean(dead):.3f} (per seed {np.round(dead, 2)}), accuracy {np.mean(accs):.3f}")
+
+# 5.4 the init experiment exactly as drawn in tools/figures.py (same generator sequence)
+rf = np.random.default_rng(0)
+for _ in range(3): rf.normal(0, 0.2, 200)                   # the spiral noise drawn first in figures.py
+xin = rf.standard_normal((512, 256))
+for name, sd in (("0.01", lambda d: 0.01), ("1.0", lambda d: 1.0), ("He", lambda d: np.sqrt(2 / d))):
+    hh = xin
+    for _ in range(20): hh = np.maximum(0, hh @ rf.normal(0, sd(256), (256, 256)))
+    print(f"figure run, init {name}: std after 20 layers {hh.std():.2e}")
+print(f"per-layer scale factor, std 0.01 width 256: {np.sqrt(256 * 1e-4 / 2):.3f}; after 20 layers {np.sqrt(256 * 1e-4 / 2) ** 20:.1e}")
+
+# 5.6 number formats
+try:
+    import torch
+    for dt in (torch.float32, torch.float16, torch.bfloat16):
+        fi = torch.finfo(dt); print(dt, "max", fi.max, "eps", fi.eps, "smallest normal", fi.smallest_normal)
+    print("fp16(1e-8) =", torch.tensor(1e-8, dtype=torch.float16).item(), "; fp16(70000) =", torch.tensor(70000.0, dtype=torch.float16).item(),
+          "; bf16(1 + 1/300) =", torch.tensor(1 + 1 / 300, dtype=torch.bfloat16).item())
+except ImportError:
+    print("torch not installed: format limits not checked")
+
+# 5.8 residual connections: gradient ratio input/output through 20 ReLU layers of width 256
+print("scalar: plain 0.5^20 =", 0.5 ** 20, "; residual 1.5^20 =", round(1.5 ** 20), "; (1 + 1/40)^20 =", round((1 + 1 / 40) ** 20, 2))
+def grad_ratio(residual, std_scale, L=20, d=256, seed=0, branch=1.0):
+    rr = np.random.default_rng(seed)
+    x = rr.standard_normal((256, d)); Ws = [rr.normal(0, std_scale * np.sqrt(2 / d), (d, d)) for _ in range(L)]
+    hcur, zs = x, []
+    for W in Ws:
+        zz = hcur @ W; zs.append(zz); f = np.maximum(0, zz) * branch
+        hcur = hcur + f if residual else f
+    g = rr.standard_normal(hcur.shape) / np.sqrt(hcur.size); g_top = np.linalg.norm(g)
+    for W, zz in zip(reversed(Ws), reversed(zs)):
+        gb = (g * branch * (zz > 0)) @ W.T
+        g = g + gb if residual else gb
+    return np.linalg.norm(g) / g_top, hcur.std()
+for label, args in (("plain, He", (False, 1.0)), ("plain, half He", (False, 0.5)),
+                    ("residual, half He", (True, 0.5)), ("residual, He", (True, 1.0))):
+    print(f"{label}: grad ratio {grad_ratio(*args)[0]:.3g}, output std {grad_ratio(*args)[1]:.3g}")
+print(f"residual, He, branches / sqrt(2L): grad ratio {grad_ratio(True, 1.0, branch=1 / np.sqrt(40))[0]:.3g}, "
+      f"output std {grad_ratio(True, 1.0, branch=1 / np.sqrt(40))[1]:.3g}")

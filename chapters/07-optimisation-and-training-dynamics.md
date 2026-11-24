@@ -56,12 +56,31 @@ def adamw_step(p, g, m, v, t, lr=1e-3, b1=0.9, b2=0.95, eps=1e-8, wd=0.1):
     v_hat = v / (1 - b2 ** t)
     return p - lr * m_hat / (v_hat.sqrt() + eps), m, v
 # matches torch.optim.AdamW to 1e-7 over three steps
-# first step, gradients 1e-4 and 1e2: both coordinates move by exactly 0.001
+# first step, gradients 1e-4 and 1e2: both coordinates move by ≈ 0.001
+# (0.0009999 for the 1e-4 gradient, where ε = 1e-8 is no longer negligible)
 ```
 
 The last line is the key property and the key risk. Adam's first step moves every coordinate by the learning rate, whatever its gradient. That is why Adam needs **warm-up**: at step one the second-moment estimate is built from a single gradient, so the normalised update is large and noisy in every direction at once.
 
 Practical settings for LLM pretraining: β₁ = 0.9, β₂ = 0.95 (a shorter memory for v reacts faster to gradient spikes), ε = 1e-8 (some teams use smaller ε for very large models, because ε starts to dominate when gradients become tiny), weight decay 0.1 on matrices but not on norms, biases or often embeddings.
+
+### Weight decay as a timescale, not only a regulariser
+
+Weight decay is usually introduced as L2 regularisation, but in long LLM runs its more important role is to set how long the weights remember. Each AdamW step multiplies every weight by (1 − ηλ), so the contribution of an update made k steps ago has shrunk by (1 − ηλ)ᵏ ≈ exp(−kηλ). The weights are an exponential moving average of past updates with timescale
+
+$$
+\tau_{\mathrm{iter}} = \dfrac{1}{\eta \lambda}
+$$
+
+steps. With η = 3 × 10⁻⁴ and λ = 0.1, τ = 33,333 steps: updates older than a few times that have been forgotten. A useful rule that follows (Wang and Aitchison, 2024) is to keep τ a fixed *fraction* of the run: if you double the number of steps, halve λ (or η); if you raise η, lower λ in proportion. Tuning λ at one run length and reusing it for a run ten times longer silently changes how much of the run the final weights average over.
+
+The same balance fixes the size of the weights. Suppose an update of RMS η·r per coordinate (Adam's normalised update has r of order 1) is roughly orthogonal to the weights, as it is for weights followed by a normalisation layer. Then each step shrinks ‖θ‖² by a factor (1 − ηλ)² ≈ 1 − 2ηλ and adds η²r² per coordinate, and the two balance when
+
+$$
+\mathrm{RMS}(\theta) \approx r\sqrt{\eta / (2\lambda)}
+$$
+
+For η = 3 × 10⁻⁴ and λ = 0.1 that is 0.0387 r; the check script's simulation of 60,000 such steps lands at 0.0383. For a layer followed by a normalisation, the output does not depend on the scale of the weights, only on their direction, so what matters is the angle each update turns them through: η r / RMS(θ) ≈ √(2ηλ) = 0.0077 radians per step at equilibrium. The *effective* learning rate of such layers is therefore set by the product ηλ, not by η alone, which is why changing λ can matter as much as changing η, and why turning weight decay off lets weight norms grow and the effective learning rate fall over the run.
 
 Memory: Adam stores two fp32 states per parameter, 8 bytes, on top of weights and gradients. That is the 16 bytes per parameter of mixed-precision training (Chapter 6) and the reason optimiser-state sharding (ZeRO, Chapter 17) exists.
 
@@ -75,9 +94,9 @@ Three phases appear in nearly every LLM run:
 2. **Stable or decaying phase**: most of the training.
 3. **Final decay**: bring the rate down. The loss drops sharply when the rate falls, because the optimiser stops bouncing around the bottom of the valley.
 
-**Cosine decay** (to about 10% of the peak) was the default for years. Its weakness is that the schedule depends on the total number of steps: you cannot extend a finished run or take a cheap intermediate checkpoint that is as good as a fully decayed one.
+**Cosine decay** (to about 10% of the peak) was the default for years and is still a common baseline, which is why the table below uses it. Its weakness is that the schedule depends on the total number of steps: you cannot extend a finished run or take a cheap intermediate checkpoint that is as good as a fully decayed one. The 10% floor is also no longer the recommended end point: studies from 2024–25 report that decaying to zero or near zero gives a lower final loss than stopping at 10% of the peak, and that a linear decay to zero is at least as good as cosine (for example Bergsma et al., 2025, "Straight to Zero"). The reason follows from the explanation below: the final loss is set by how far the noise has been annealed away at the end, and a 10% floor leaves some of it.
 
-**Warmup-stable-decay (WSD)** keeps the peak rate for most of training and decays over the last 10–20% of steps. The constant phase can be branched: take any checkpoint, run a short decay, and you get a model nearly as good as a full cosine run of that length. That makes scaling-law sweeps (Chapter 13) and data-mixture experiments much cheaper, and is now common in open model reports.
+**Warmup-stable-decay (WSD)** keeps the peak rate for most of training and decays over the last 10–20% of steps. The shape of that cooldown matters a little: Hägele et al. (2024) found a "1 − sqrt" cooldown, η(s) = η_peak (1 − √s) for progress s from 0 to 1, slightly better than a linear one, because it drops the rate quickly at first and then spends longer at small rates. The constant phase can be branched: take any checkpoint, run a short decay, and you get a model nearly as good as a full cosine run of that length. That makes scaling-law sweeps (Chapter 13) and data-mixture experiments much cheaper, and is now common in open model reports.
 
 | Step (of 1,000) | Cosine (peak 3e-4, floor 10%) | WSD (decay over last 20%) |
 |---|---|---|
@@ -109,10 +128,34 @@ $$
 
 (total per-example gradient variance divided by the squared norm of the mean gradient) predicts the **critical batch size**: below it, more batch saves steps almost one for one; above it, returns diminish.
 
+### Why a variance ratio is a batch size
+
+The derivation takes six lines. Near the current weights, write the loss as a quadratic with gradient G and Hessian H. A batch of B examples gives an estimate g_B whose mean is G and whose covariance is Σ/B, where Σ is the per-example gradient covariance. Take a step −ε g_B. The expected decrease in loss is
+
+$$
+\Delta L(\epsilon) = \epsilon \Vert G\Vert^2 - \dfrac{\epsilon^2}{2}\left(G^{\top} H G + \dfrac{\mathrm{tr}(H\Sigma)}{B}\right)
+$$
+
+The first term is the progress along the true gradient; the second is the curvature penalty, which the noise makes larger. Maximising over ε gives the best step size and the best improvement:
+
+$$
+\Delta L_{\max}(B) = \dfrac{\Delta L_{\max}(\infty)}{1 + B_{\mathrm{noise}}/B},\qquad B_{\mathrm{noise}} = \dfrac{\mathrm{tr}(H\Sigma)}{G^{\top} H G}
+$$
+
+So a step with batch B achieves a fraction B / (B + B_noise) of what an infinitely large batch would. When B ≪ B_noise, doubling B nearly doubles the progress per step (perfect scaling); when B ≫ B_noise, a larger batch adds almost nothing. If H is close to a multiple of the identity, H cancels and B_noise becomes B_simple = tr(Σ)/‖G‖², which needs no Hessian and can be measured from per-example gradients. The check script tests the law on a one-dimensional noisy quadratic with B_noise = 9: the measured gain per step is 0.050, 0.252 and 0.450 of the initial loss at B = 1, 9 and 81, against 0.050, 0.250 and 0.450 predicted.
+
+Summed over a whole run, the same model gives McCandlish et al.'s trade-off between the number of optimiser steps S and the number of training examples E = B·S:
+
+$$
+\left(\dfrac{S}{S_{\min}} - 1\right)\left(\dfrac{E}{E_{\min}} - 1\right) = 1
+$$
+
+S_min is the number of steps with an infinite batch and E_min the number of examples with a tiny one; the critical batch size B_crit = E_min / S_min ≈ B_noise is where you pay 2× in both. Below it you save data and spend steps; above it, the reverse. At B = B_crit / 4 a run needs 5 S_min steps but only 1.25 E_min examples; at B = 4 B_crit it needs 1.25 S_min steps but 5 E_min examples. Training at B_crit balances wall-clock time (steps) against compute (examples).
+
 ```python
 G = per_example_grads(w, all_indices)               # (N, D)
 b_simple = G.var(0).sum() / G.mean(0).pow(2).sum()
-# logistic regression, 20 features: 35.6 at initialisation, 145,119 after 300 full-batch steps
+# logistic regression, 20 features: 35.6 at initialisation, 145,118 after 300 full-batch steps
 ```
 
 The noise scale **grows during training**: early on, every example agrees on the direction of improvement; near a minimum, the mean gradient shrinks while per-example disagreement remains. That is why LLM runs use batch-size warm-up (start smaller, grow to millions of tokens) and why the critical batch size grows as the loss falls. It also gives the scaling-law version: larger, better-trained models tolerate larger batches.
@@ -268,37 +311,85 @@ What to log on every run: loss (train and held-out), learning rate, gradient nor
 
 ## Interview questions
 
-**1. Write the AdamW update. Why is weight decay "decoupled"?** See 7.1. With Adam, an L2 term in the gradient is divided by √v, so parameters with large gradients get almost no regularisation; AdamW subtracts lr·wd·p directly, independent of the gradient statistics.
+**1. Write the AdamW update. Why is weight decay "decoupled"?** See 7.1: m and v are exponential averages of g and g², bias-corrected by 1 − βᵗ, and θ ← θ − η(m̂/(√v̂ + ε) + λθ). With Adam, an L2 term in the gradient is divided by √v, so parameters with large gradients get almost no regularisation; AdamW subtracts lr·wd·p directly, independent of the gradient statistics. A number to show you understand the normalisation: on the first step every coordinate moves by ≈ η whatever its gradient (0.001 for both a 1e-4 and a 1e2 gradient at η = 1e-3). Follow-up: "what does bias correction do?" Without it m₁ = 0.1g and v₁ = 0.05g² (β₂ = 0.95), so early updates would be the wrong size; dividing by 1 − βᵗ undoes the zero initialisation.
 
-**2. Why do transformers need warm-up?** Adam's first steps have a poorly estimated second moment, so every coordinate moves by about the full learning rate in a random-looking direction; with large rates this throws the model into a bad region or blows up attention logits. Warm-up keeps the early steps small while the statistics settle.
+**2. Why do transformers need warm-up?** Three reasons, from the most mechanical to the deepest. First, Adam's first steps have a poorly estimated second moment, so every coordinate moves by about the full learning rate in a random-looking direction; with large rates this throws the model into a bad region or blows up attention logits. Second, in post-LN transformers the gradients of the last layers are large at initialisation (Xiong et al., 2020), so a full-size step there diverges. Third, the sharpness view: at initialisation the loss surface is sharp, and a learning rate above about 2/sharpness is unstable (the edge of stability, 7.7); a gradual ramp lets training move into flatter regions where the target rate is stable, so warm-up's real job is to make a high peak rate reachable (Kalra and Barkeshli, 2024). With a few thousand warm-up steps out of hundreds of thousands, the cost is negligible. When it matters less: pre-LN models at small learning rates, and fine-tuning from a trained checkpoint, which already sits in a flat region (a short warm-up is still cheap insurance). Follow-up: "how long?" Long enough that the loss curve has no early spike; typically 0.5–2% of steps, longer when the batch or peak rate is raised.
 
-**3. What is the WSD schedule and why do teams like it?** Warm-up, a long constant phase, then a short decay. Any checkpoint in the constant phase can be decayed into a good model, so you can extend runs, run cheap scaling-law and data experiments from branches, and avoid fixing the total length in advance.
+**3. What is the WSD schedule and why do teams like it?** Warm-up, a long constant phase, then a short decay over the last 10–20% of steps. Any checkpoint in the constant phase can be decayed into a good model, so you can extend runs, run cheap scaling-law and data experiments from branches, and avoid fixing the total length in advance. Number: with five model sizes and four token budgets, cosine needs 20 separate runs; WSD needs five constant-rate runs plus 20 short decays of about 20% each. Trade-off: during the stable phase the loss sits above a cosine run's, so mid-run comparisons are meaningless; compare decayed checkpoints. Follow-up: "what shape should the decay have?" Decay to (near) zero rather than to 10%, and a 1 − sqrt shape was reported slightly better than linear (7.2).
 
-**4. What is the critical batch size?** The batch size beyond which larger batches give diminishing reductions in the number of steps. It is roughly the gradient noise scale tr(Σ)/|G|², grows as the loss falls, and is larger for bigger, better-trained models.
+**4. What is the critical batch size?** The batch size beyond which larger batches give diminishing reductions in the number of steps. It is roughly the gradient noise scale tr(Σ)/|G|², grows as the loss falls, and is larger for bigger, better-trained models. The derivation: with batch B the best step achieves a fraction 1/(1 + B_noise/B) of the noiseless improvement, so steps scale as 1 + B_noise/B and examples as 1 + B/B_noise; at B = B_crit you pay 2× in both, at B = 4 B_crit you need 1.25× the minimum steps but 5× the minimum data. In the chapter's logistic regression the noise scale grows from 35.6 examples at initialisation to about 145,000 near the optimum, which is why LLM runs ramp the batch size up. Follow-up: "how would you measure it in a real run?" Compare gradient norms at two batch sizes (small and large) and solve for tr(Σ) and |G|², as McCandlish et al. do, instead of computing per-example gradients.
 
-**5. How does Muon differ from Adam?** Adam normalises each coordinate separately. Muon orthogonalises the whole momentum matrix of a hidden layer (via Newton–Schulz), equalising the size of the update in all directions. It applies to 2-D hidden matrices only; embeddings and heads stay on AdamW.
+**5. How does Muon differ from Adam?** Adam normalises each coordinate separately. Muon orthogonalises the whole momentum matrix of a hidden layer (via five Newton–Schulz iterations, which map every singular value s through an odd polynomial and push it into a band near 1), equalising the size of the update in all directions; it is steepest descent under the spectral norm. Updates are scaled by 0.2√max(m, n) so their RMS matches AdamW's (an orthogonal 64 × 32 matrix has RMS 1/8). It applies to 2-D hidden matrices only; embeddings, heads and norm parameters stay on AdamW. Memory: one momentum buffer instead of two, so 4 rather than 8 bytes of state per parameter. Trade-off: extra matrix multiplications per step (a few percent of step time at scale) and the need to control attention-logit growth (Kimi K2's QK-Clip). Follow-up: "why not exact SVD?" Too slow and poorly suited to bf16 on GPUs; the approximate polar factor is good enough because the exact singular values do not matter.
 
-**6. What problem does µP solve? State its main rules for Adam.** Hyperparameters, especially the learning rate, stop transferring across widths under the standard parametrisation. µP scales hidden learning rates as 1/width, initialises the output layer with variance 1/width² and scales attention by 1/d, so the per-step change in each layer's output is width-independent and tuned settings transfer from small proxies.
+**6. What problem does µP solve? State its main rules for Adam.** Hyperparameters, especially the learning rate, stop transferring across widths under the standard parametrisation. µP scales hidden learning rates as 1/width, initialises the output layer with variance 1/width² and scales attention by 1/d, so the per-step change in each layer's output is width-independent and tuned settings transfer from small proxies. In the chapter's experiment the output change from one Adam step grows from 0.110 to 5.64 as width goes from 64 to 1,024 under SP (about 50×) and stays at 0.03 under µP. Limits: µP covers width only; depth needs residual-branch scaling (depth-µP, CompleteP), and the best learning rate still moves with batch size and run length. Follow-up: "why does the change grow linearly, not with √width?" Adam's update has the same sign pattern as the gradient, so the n contributions to each output add coherently rather than as a random walk.
 
-**7. Why bf16 rather than fp16 for training? Why keep fp32 master weights?** bf16 has fp32's exponent range, so gradients do not underflow and no loss scaling is needed. Its 8-bit precision cannot represent small updates to weights of order 1 (1 + 1e-3 rounds to 1), so updates are accumulated in an fp32 copy.
+**7. Why bf16 rather than fp16 for training? Why keep fp32 master weights?** bf16 has fp32's exponent range (8 bits, up to 3.4 × 10³⁸), so gradients do not underflow and no loss scaling is needed; fp16 tops out at 65,504 and flushes values below about 6 × 10⁻⁸. Its 8-bit precision cannot represent small updates to weights of order 1 (1 + 1e-3 rounds to 1, since bf16's spacing near 1 is 0.0078), so updates are accumulated in an fp32 copy. Cost: 4 extra bytes per parameter of the 16 in mixed-precision training. Follow-up: "could you drop the master copy?" With stochastic rounding, which makes the expected rounded value equal the true one, some recipes do; with round-to-nearest, small updates systematically vanish.
 
-**8. What makes fp8 training hard?** Tiny dynamic range (e4m3 tops out at 448 and flushes values below about 0.002), so tensors need fine-grained scaling factors; some operations and states must stay in higher precision; errors can accumulate silently. Needs a careful recipe and a bf16 baseline.
+**8. What makes fp8 training hard?** Tiny dynamic range: e4m3 tops out at 448 and flushes values below about 0.002 (without scaling, 1e-4 to 5e-4 all become 0), so tensors need fine-grained scaling factors per tile or block. Some operations and states must stay in higher precision (embeddings, output head, norms, softmax, optimiser state, master weights), and matmul accumulation must be in higher precision. Errors can accumulate silently and only show late in a run. The pay-off is roughly 2× matmul throughput over bf16. Follow-up: "which format for gradients?" e5m2 historically (more range); fine-grained scaling has made e4m3 usable for more tensors. Always compare against a bf16 baseline at the same token budget.
 
-**9. Your loss spiked at step 60k and did not recover. Walk through what you do.** Restart from a checkpoint before the spike; inspect the batches at the spike; check logged gradient norms, attention max logits and output log Z for the steps before; skip suspicious data and lower the rate; if logits were growing, add QK-norm or z-loss in future runs. Record it, because spikes recur.
+**9. Your loss spiked at step 60k and did not recover. Walk through what you do.** Triage, then localise, then fix, then record. Restart from a checkpoint well before the spike (a few hundred to a few thousand steps, since the cause usually builds up). Localise with logged signals: the global gradient norm before clipping; per-layer gradient and update norms to find where it started (embeddings, a particular attention block, the output layer); the update-to-weight ratio per layer (a jump from ~1e-3 to 1e-2 is the signature); the max attention logit and output log Z in the steps before. Check the data: replay the same batches after a restart and see whether the spike recurs at the same step (data-driven) or not (numerical, stochastic); inspect those batches for corrupted or extremely repetitive text. Fixes, cheapest first: skip the offending batches, lower the peak rate or β₂, then architectural guards (QK-norm, z-loss) for this or future runs. Decide whether to reset optimiser state: a reset re-creates the stale-moment problem, so keep the state unless it contains NaNs or the spike polluted v. Follow-up: "the spike recurs without the bad data": then it is logit or weight growth, and the per-layer norms will show which.
 
-**10. What are z-loss and QK-norm for?** z-loss penalises log² of the softmax normaliser to stop output logits drifting; QK-norm normalises queries and keys so attention logits stay bounded. Both prevent the logit growth that causes late-training instability.
+**10. What are z-loss and QK-norm for?** z-loss penalises log² of the softmax normaliser to stop output logits drifting; QK-norm normalises queries and keys so attention logits stay bounded. Both prevent the logit growth that causes late-training instability. The underlying reason is that softmax is shift-invariant, so the cross-entropy gradient (p − y) sums to zero and nothing restrains the mean logit; in bf16, logits near 300 are spaced 2 apart, so the differences that carry the probabilities are rounded away. With coefficient 1e-4 and log Z = 12 the z-loss adds only about 0.014 to the loss but provides the missing restoring force. Follow-up: "why can't Kimi K2 use QK-norm?" With MLA the keys are not fully materialised at inference, so they used QK-Clip, rescaling query and key weights after each step instead.
 
-**11. What is the edge of stability?** Full-batch GD increases sharpness until it hovers at 2/η, where classical analysis predicts divergence, while the loss still falls non-monotonically. It shows that the learning rate shapes which minima are reachable.
+**11. What is the edge of stability?** Full-batch GD increases sharpness (the top Hessian eigenvalue) until it hovers at 2/η, where classical analysis of a quadratic predicts divergence, while the loss still falls non-monotonically. It shows that the learning rate shapes which minima are reachable: with η = 0.01, training is confined to regions of sharpness about 200 or less. Adam shows the same on its preconditioned sharpness. Implication: a higher learning rate biases training towards flatter regions, and warm-up is partly a way to reach them gradually. Follow-up: "does it hold with mini-batches?" Roughly, with a lower threshold because noise adds instability; it is a regime, not a precise law.
 
-**12. A paper claims a new optimiser trains 2× faster. What do you check?** That the Adam baseline was tuned as hard (learning rate, β₂, warm-up, weight decay) at the same batch size and schedule; that the comparison is at matched tokens and final decayed loss, across several scales and seeds; and that the gain holds on downstream evaluation, not only on loss.
+**12. A paper claims a new optimiser trains 2× faster. What do you check?** That the Adam baseline was tuned as hard (learning rate, β₂, warm-up, weight decay) at the same batch size and schedule; that the comparison is at matched tokens and final decayed loss, across several scales and seeds; and that the gain holds on downstream evaluation, not only on loss. Also check that "2× faster" means fewer tokens to a target loss and not just lower loss at one point mid-run, that wall-clock overhead per step is counted, and that the gain does not shrink with scale (many do). A quick sanity number: a 1.3× token-efficiency gain at 100M parameters that falls to 1.1× at 1B is a different claim from a constant 2×. Follow-up: "what single experiment would convince you?" A learning-rate sweep for both optimisers at two or three model sizes, reported as the loss of the best rate per size, with seed error bars.
+
+**13. You double the length of a pretraining run. How should the weight decay change, and why?** View AdamW's weights as an exponential average of past updates with timescale τ = 1/(ηλ) steps (7.1). At η = 3e-4 and λ = 0.1 that is 33,333 steps. If the run length doubles and λ stays fixed, τ becomes a smaller fraction of the run, so the final weights average over a relatively shorter window; the rule that has worked in practice (Wang and Aitchison, 2024) is to keep τ a fixed fraction of the total steps, so halve λ (or η) when you double the steps. For layers followed by normalisation the equilibrium angular update is √(2ηλ), so ηλ, not η alone, sets their effective learning rate: raising η and lowering λ by the same factor keeps it constant. Trade-off: very small λ lets weight norms grow and effective learning rates decay; very large λ turns the weights into a short-memory average and raises the loss floor. Follow-up: "and if you change the batch size?" The number of steps changes, so τ as a fraction of the run changes too; recompute it.
+
+**14. Derive why the gradient noise scale B = tr(Σ)/‖G‖² is a batch size.** For a step −εg_B on a locally quadratic loss with gradient G, Hessian H and per-example gradient covariance Σ, the expected decrease is ε‖G‖² − ½ε²(GᵀHG + tr(HΣ)/B). Optimising ε gives a best decrease of ΔL_max(∞)/(1 + B_noise/B) with B_noise = tr(HΣ)/(GᵀHG), which reduces to tr(Σ)/‖G‖² when H is proportional to the identity. So B_noise is exactly the batch at which noise halves the progress per step: below it, doubling the batch nearly doubles progress; above it, gains vanish. Check: on a noisy quadratic with B_noise = 9, measured gains are 0.050, 0.252 and 0.450 at B = 1, 9 and 81 against 0.050, 0.250 and 0.450 predicted. Caveat: the quadratic model and H ∝ I are approximations; in practice B_simple is a guide to the order of magnitude. Follow-up: "why does it grow during training?" ‖G‖ shrinks near a minimum while the per-example disagreement tr(Σ) does not.
 
 ## Practice
 
+These exercises use Chapter 10's mini-GPT (10.10) where they mention a small transformer. If you have not reached Chapter 10 yet, a two-layer MLP on MNIST or the logistic regression in `code/ch07_check.py` is a stand-in for exercises 1, 3 and 5.
+
 1. Implement AdamW, Lion and a Muon step from scratch for a small transformer (Chapter 10's mini-GPT); check AdamW against `torch.optim.AdamW`.
+
+<details><summary>Hint and expected result</summary>
+
+AdamW must match `torch.optim.AdamW` to about 1e-7 after a few steps (the check script's test); the usual bug is applying weight decay after the Adam update instead of before, or forgetting bias correction. Lion: update = sign(β₁m + (1 − β₁)g), then m ← β₂m + (1 − β₂)g; use a learning rate 3–10× smaller than AdamW's. Muon: apply Newton–Schulz only to 2-D hidden matrices and keep AdamW for embeddings, head and norms; check that the singular values of the orthogonalised update lie roughly in 0.5–1.2.
+
+</details>
+
 2. Train the mini-GPT with cosine and WSD schedules for the same number of tokens; decay a WSD branch from the middle of the stable phase and compare its loss with a full cosine run of that length.
+
+<details><summary>Hint and expected result</summary>
+
+Expect the WSD run's loss to sit above the cosine run's during the stable phase and to drop sharply during its decay, ending level with or slightly below cosine. The branch decayed from mid-run should land within a small margin of a cosine run planned for that length; the gap should be smaller than the seed-to-seed spread on a small model.
+
+</details>
+
 3. Measure the gradient noise scale at several points of training and plot it against the loss.
+
+<details><summary>Hint and expected result</summary>
+
+Use per-example gradients for a small model (`torch.func.vmap` over `grad`), or the two-batch-size estimator. The noise scale should rise by orders of magnitude as the loss falls; the logistic regression in the check script goes from 35.6 to about 145,000 examples.
+
+</details>
+
 4. **Research exercise.** Sweep the learning rate (7 values, 3 seeds each) for widths 128, 256 and 512, under the standard parametrisation and under µP. Plot loss against learning rate per width. Does the optimum move under SP and stay under µP? Report seed variance as error bars.
+
+<details><summary>Hint and expected result</summary>
+
+Use a factor-of-2 grid of learning rates and the same token budget for every run. Under SP the best learning rate should fall as width grows (roughly in proportion to 1/width for the hidden layers with Adam), so the U-shaped curves shift left; under µP their minima should line up within one grid step. If the seed error bars are wider than the gap between neighbouring learning rates, add seeds before drawing a conclusion.
+
+</details>
+
 5. Train in bf16 with and without fp32 master weights; plot the gap.
+
+<details><summary>Hint and expected result</summary>
+
+Without master weights, updates smaller than about 0.4% of a weight's magnitude round away (bf16 spacing near 1 is 0.0078), so the loss plateaus early, especially late in a decayed schedule when updates are smallest. Expect the bf16-only run to stall above the master-weight run, with the gap opening during the learning-rate decay.
+
+</details>
+
+6. Reproduce the stale-second-moment numbers of 7.7: feed Adam zero gradients for 1,000 steps and then a single gradient of 1, and plot the cumulative update for β₂ = 0.95 and 0.999.
+
+<details><summary>Hint and expected result</summary>
+
+Cumulative movement should reach about 5.8η for β₂ = 0.95 and about 31.8η for β₂ = 0.999 (ignore bias correction after 1,000 steps). The first-step update is 0.45η and 3.16η.
+
+</details>
 
 ## Read next
 
@@ -313,9 +404,13 @@ What to log on every run: loss (train and held-out), learning rate, gradient nor
 
 ## Done when
 
-You can write AdamW with bias correction from memory and explain each hyperparameter. You can explain warm-up, cosine and WSD schedules, and why WSD makes experiments cheaper. You can define the gradient noise scale and explain why the critical batch size grows during training.
-
-You can explain what Muon, Lion and Adafactor change, and when you would try them. You can state the problem µP solves and its main rules. You can explain bf16, fp16 and fp8, master weights and fp8 scaling. You can diagnose a loss spike from logged signals and list the standard fixes.
+- Without notes, you write AdamW with bias correction in 3 minutes, and your code matches `torch.optim.AdamW` to 1e-7.
+- You compute the weight-decay timescale for η = 3e-4, λ = 0.1 (answer: 33,333 steps) and say how λ should change when the run doubles in length.
+- You derive ΔL_max(B) = ΔL_max(∞)/(1 + B_noise/B) on a whiteboard in 5 minutes, and use the steps–data trade-off to say what B = 4 B_crit costs (answer: 1.25× minimum steps, 5× minimum examples).
+- You write Muon's full update, explain why 0.2√max(m, n) matches AdamW's RMS (an orthogonal 64 × 32 matrix has RMS 0.125), and explain why five Newton–Schulz steps leave singular values in a band rather than at exactly 1.
+- You state µP's three Adam rules and what µP does not transfer (depth, batch size, run length).
+- You compute Adam's response to one large gradient after a quiet period (first update 3.16η at β₂ = 0.999, 0.45η at β₂ = 0.95) and explain why lowering β₂ helps.
+- Given a loss spike, you list the logged signals you would check, in order, and the fixes, cheapest first.
 
 ---
 
