@@ -28,13 +28,19 @@ Use `###` subheadings inside long sections so the structure is visible at a glan
 ## What not to change
 
 - Do not remove content: expand around it. Existing worked numbers, figures, code and cross-references stay.
-- Do not change the end-of-chapter blocks (Pitfalls, Interview questions, Practice, Read next, Done when) beyond fixing references. The question bank in chapter 37 feeds the flashcard export; do not use `$$` blocks there.
+- The end-of-chapter blocks follow a fixed format, because tools read them:
+  - **Interview questions:** one line per question, `**N. Question?** answer`, with the whole answer as one paragraph on that line (the flashcard export reads only that line). A strong answer gives the core point in two or three sentences, one number computed on the spot, a trade-off or when not to, and the follow-up the interviewer will ask with its short answer. `**Mid level**` / `**Senior level**` labels may sit between questions.
+  - **Practice:** every item has an expected result or a hint, in a `<details><summary>Hint and expected result</summary>` block where it is long, and every chapter has a **Research exercise** (reproduce a result, run an ablation, or measure variance).
+  - **Done when:** concrete, testable tasks ("without notes, derive X in 5 minutes"; "compute Y: answer ≈ Z"), not "you can explain X".
+  - The question bank in chapter 37 feeds the flashcard export in its own format; do not use `$$` blocks there.
 - Keep British spelling, the book's tone (direct, concrete, no hype) and section numbering, so cross-references stay valid.
 - Every number in the text must be checked: compute it, do not estimate it.
 
 ## Checks
 
 ```
-python3 tools/check_book.py               # 0 problem(s)
+python3 tools/check_book.py               # 0 problem(s); also checks every question has an answer
+python3 tools/check_equations.py          # every $$ block typesets (no \begin{aligned}, one equation per block)
 python3 tools/export_flashcards.py --check
+python3 tools/run_code.py chNN            # the chapter's script still prints the numbers the text quotes
 ```

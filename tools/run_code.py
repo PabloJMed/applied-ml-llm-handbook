@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main() -> int:
     wanted = sys.argv[1:]
-    scripts = sorted((ROOT / "code").glob("ch*_check.py"))
+    scripts = sorted((ROOT / "code").glob("*_check.py"))
     if wanted:
         scripts = [s for s in scripts if any(s.name.startswith(w) for w in wanted)]
     env = dict(os.environ, OMP_NUM_THREADS="1", KMP_DUPLICATE_LIB_OK="TRUE", PYTHONHASHSEED="0")

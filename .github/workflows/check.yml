@@ -16,6 +16,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: python tools/check_book.py
+      - name: Display equations typeset
+        run: |
+          pip install -r tools/requirements.txt
+          python tools/check_equations.py
       - name: Flashcards are up to date
         run: python tools/export_flashcards.py --check
 
