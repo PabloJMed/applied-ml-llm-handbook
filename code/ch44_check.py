@@ -134,3 +134,97 @@ def mrr(first_relevant_ranks):
     return float(np.mean([1.0 / r if r else 0.0 for r in first_relevant_ranks]))
 
 print(ndcg_at_k([0, 3, 2, 0, 1], k=5), mrr([1, 3, None, 2]))
+
+# --- 44.3 BM25 worked example: "pizza napoli" over three short documents ---
+bm3 = BM25(["napoli pizza pizza", "napoli pasta", "sushi bar"])
+print("BM25 worked example", [round(bm3.score("pizza napoli", i), 3) for i in range(3)])   # 1.669, 0.499, 0
+print("IDF lucene", {t: round(v, 3) for t, v in bm3.idf.items() if t in ("pizza", "napoli")},
+      "classic RSJ napoli", round(math.log((3 - 2 + 0.5) / (2 + 0.5)), 3))
+
+# --- 44.5 ListNet target scale, softmax loss and ListMLE ---
+print("softmax(3,2,0)", F.softmax(torch.tensor([3., 2., 0.]), 0).numpy().round(3),
+      "softmax(1,2/3,0)", F.softmax(torch.tensor([1., 2 / 3, 0.]), 0).numpy().round(3))
+
+def softmax_loss(s, y):
+    w = (2.0 ** y.float() - 1)
+    return -(w * F.log_softmax(s, dim=0)).sum() / w.sum().clamp(min=1e-9)
+
+def listmle_loss(s, y):
+    s_sorted = s[torch.argsort(y, descending=True)]
+    tail_lse = torch.logcumsumexp(s_sorted.flip(0), dim=0).flip(0)
+    return (tail_lse - s_sorted).sum()
+
+# ListMLE equals the brute-force Plackett-Luce NLL on a tiny example
+s_t, y_t = torch.tensor([0.2, 1.5, -0.3]), torch.tensor([1, 2, 0])
+perm = torch.argsort(y_t, descending=True); ss = s_t[perm]
+brute = -sum(ss[i] - torch.logsumexp(ss[i:], 0) for i in range(3))
+print("ListMLE", round(listmle_loss(s_t, y_t).item(), 4), "brute", round(brute.item(), 4))
+for fn in [softmax_loss, listmle_loss]:
+    w = torch.zeros(8, requires_grad=True)
+    opt = torch.optim.SGD([w], lr=0.1)
+    for _ in range(200):
+        loss = fn(X @ w, y); opt.zero_grad(); loss.backward(); opt.step()
+    print(fn.__name__, round(loss.item(), 4), torch.corrcoef(torch.stack([X @ w.detach(), X @ w_true]))[0, 1].item())
+
+# --- 44.6 LambdaRank lambdas for the three-document example ---
+g3 = np.array([0, 2, 1.]); s3 = np.array([1.0, 0.5, 0.0]); sig = 1.0
+rank3 = np.empty(3, int); rank3[np.argsort(-s3)] = np.arange(3)
+gain3 = 2 ** g3 - 1; disc3 = 1 / np.log2(rank3 + 2)
+idcg3 = (np.sort(gain3)[::-1] / np.log2(np.arange(3) + 2)).sum()
+print("NDCG now", round((gain3 * disc3).sum() / idcg3, 3), "IDCG", round(idcg3, 3))
+lam = np.zeros(3)
+for i in range(3):
+    for j in range(3):
+        if g3[i] > g3[j]:
+            dn = abs((gain3[i] - gain3[j]) * (disc3[i] - disc3[j])) / idcg3
+            rho = 1 / (1 + math.exp(sig * (s3[i] - s3[j])))
+            lij = -sig * rho * dn
+            print(" pair", "ABC"[i], ">", "ABC"[j], "rho", round(rho, 3), "dNDCG", round(dn, 3), "lambda", round(lij, 3))
+            lam[i] += lij; lam[j] -= lij
+print("lambdas A,B,C", lam.round(4))     # +0.2905, -0.2170, -0.0734
+
+# --- 44.9 cascade click model ---
+exam = 1.0
+for r, rel in enumerate([0.3, 0.6, 0.5], start=1):
+    print("cascade rank", r, "examined", round(exam, 2), "click", round(exam * rel, 2)); exam *= 1 - rel
+
+# --- 44.9 team-draft interleaving: a ranker that is better on most queries wins most decided sessions ---
+import random
+def team_draft(rank_a, rank_b, k=10, rng=random):
+    merged, team, picks = [], {}, {"A": 0, "B": 0}
+    lists = {"A": rank_a, "B": rank_b}
+    while len(merged) < k:
+        if picks["A"] != picks["B"]:
+            name = "A" if picks["A"] < picks["B"] else "B"
+        else:
+            name = "A" if rng.random() < 0.5 else "B"
+        nxt = next((d for d in lists[name] if d not in team), None)
+        if nxt is None:
+            break
+        merged.append(nxt); team[nxt] = name; picks[name] += 1
+    return merged, team
+
+def credit(clicked, team):
+    a = sum(team.get(d) == "A" for d in clicked); b = sum(team.get(d) == "B" for d in clicked)
+    return "A" if a > b else "B" if b > a else "tie"
+
+rnd = random.Random(0); wins = Counter()
+for _ in range(2000):
+    rel_docs = set(rnd.sample(range(30), 3))
+    good = sorted(range(30), key=lambda d: (d not in rel_docs, rnd.random()))        # relevant first
+    noisy = sorted(range(30), key=lambda d: (rnd.random() < 0.6 and d not in rel_docs, rnd.random()))
+    merged, team = team_draft(noisy, good, k=10, rng=rnd)
+    clicked = [d for pos, d in enumerate(merged) if d in rel_docs and rnd.random() < 1 / (pos + 1) ** 0.5]
+    wins[credit(clicked, team)] += 1
+print("interleaving wins", dict(wins))
+
+# --- 44.10 paired bootstrap over queries ---
+def paired_bootstrap_ci(ndcg_old, ndcg_new, n_boot=10_000, seed=0):
+    rng = np.random.default_rng(seed)
+    d = np.asarray(ndcg_new) - np.asarray(ndcg_old)
+    idx = rng.integers(0, len(d), size=(n_boot, len(d)))
+    return d.mean(), np.percentile(d[idx].mean(axis=1), [2.5, 97.5])
+rng_b = np.random.default_rng(1)
+old = rng_b.uniform(0.3, 0.9, 1500); new = np.clip(old + rng_b.normal(0.015, 0.14, 1500), 0, 1)
+m, ci = paired_bootstrap_ci(old, new)
+print("paired bootstrap", round(m, 4), ci.round(4), "implied sd", round(0.007 / 1.96 * 1500 ** 0.5, 3))

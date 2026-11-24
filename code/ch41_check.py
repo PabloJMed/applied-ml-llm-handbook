@@ -141,3 +141,78 @@ text = "Two shawarma plates and a large pepsi from Al Safadi in Dubai Marina, no
 gold = spans(text, [("DISH", "shawarma plates"), ("DISH", "large pepsi"), ("RESTAURANT", "Al Safadi"), ("AREA", "Dubai Marina")])
 pred = spans(text, [("DISH", "shawarma"), ("DISH", "large pepsi"), ("RESTAURANT", "Al Safadi"), ("AREA", "Marina"), ("DISH", "onions")])
 print("exact", span_f1(gold, pred, "exact"), "partial", span_f1(gold, pred, "partial"))
+
+# ---------------------------------------------------------------------------
+# 41.1 / 41.11 cost arithmetic
+print("\n--- cost arithmetic ---")
+p_in, p_out, gpu_month = 0.15e-6, 0.60e-6, 1.0 * 730
+short = 400 * p_in + 10 * p_out
+print("400-token call", short, "monthly at 600k/day", round(600e3 * 30 * short), "batch", round(600e3 * 30 * short / 2))
+print("break-even real time", round(gpu_month / (30 * short)), "batch", round(gpu_month / (30 * short / 2)))
+for P in (4000, 5000, 6000):
+    call = P * p_in * 0.10 + 300 * p_in + 10 * p_out          # cached prefix at 10% of the input price
+    nocache = (P + 300) * p_in + 10 * p_out
+    print(f"prefix {P}: per call {call:.3e}; month real time {600e3*30*call:.0f}, batch {600e3*30*call/2:.0f}; "
+          f"batch break-even {gpu_month/(30*call/2):.0f}/day; no cache batch {600e3*30*nocache/2:.0f}; "
+          f"label 200k in batch {200e3*call/2:.1f}")
+print("95% half-width of 92% on 1,000 items", round(1.96 * np.sqrt(0.92 * 0.08 / 1000), 4),
+      "90% on 500 items", round(1.96 * np.sqrt(0.9 * 0.1 / 500), 4))
+print("Cohen kappa 0.85 observed, 0.40 chance:", round((0.85 - 0.40) / (1 - 0.40), 2))
+print("share of 8-claim summaries with an unsupported claim at 2% per claim", round(1 - 0.98 ** 8, 3))
+
+# c-TF-IDF walk-through for "late" and "food" in cluster 0
+df_ = pd.DataFrame({"doc": reviews, "c": clusters}).groupby("c")["doc"].apply(" ".join)
+cv_ = CountVectorizer(stop_words="english"); cnt = cv_.fit_transform(df_).toarray().astype(float)
+voc = list(cv_.get_feature_names_out()); A = cnt.sum() / len(df_)
+for w_ in ("late", "food"):
+    j = voc.index(w_); tf_ = cnt[0, j] / cnt[0].sum(); idf_ = np.log(1 + A / cnt[:, j].sum())
+    print(f"c-TF-IDF {w_}: words per cluster {cnt.sum(1)}, A={A}, tf={tf_:.3f}, idf={idf_:.3f}, weight={tf_*idf_:.3f}")
+
+# BLEU clipped precisions
+def ngrams(t, n): return Counter(tuple(t[i:i + n]) for i in range(len(t) - n + 1))
+cand, refb = "the cat sat on the mat".split(), "the cat is on the mat".split()
+print("BLEU clipped precisions", [f"{sum((ngrams(cand, n) & ngrams(refb, n)).values())}/{sum(ngrams(cand, n).values())}" for n in (1, 2, 3, 4)],
+      "BLEU-2", round(np.sqrt(5 / 6 * 3 / 5), 3), "clipping 'the the the the' vs 'the cat':",
+      sum((ngrams("the the the the".split(), 1) & ngrams("the cat".split(), 1)).values()), "/ 4")
+
+# subword label alignment
+def align_labels(word_labels, word_ids):
+    out, prev = [], None
+    for w in word_ids:
+        out.append(-100 if (w is None or w == prev) else word_labels[w]); prev = w
+    return out
+print("align", align_labels([3, 0, 5], [None, 0, 0, 0, 1, 2, 2, None]))
+
+# 41.2 research exercise: class weights break calibration; fixes
+from scipy.optimize import minimize_scalar
+from sklearn.datasets import make_classification
+def ece(P, y, bins=10):
+    conf, acc = P.max(1), P.argmax(1) == y; e = 0.0
+    for a, b in zip(np.linspace(0, 1, bins + 1)[:-1], np.linspace(0, 1, bins + 1)[1:]):
+        m = (conf > a) & (conf <= b)
+        if m.any(): e += m.mean() * abs(acc[m].mean() - conf[m].mean())
+    return e
+def softmax(z): z = z - z.max(1, keepdims=True); e = np.exp(z); return e / e.sum(1, keepdims=True)
+rows = []
+for seed in range(5):
+    Xs, ys = make_classification(20000, n_features=20, n_informative=8, n_classes=4,
+                                 weights=[0.7, 0.2, 0.07, 0.03], flip_y=0.05, random_state=seed)
+    Xa, Xb, ya, yb = train_test_split(Xs, ys, test_size=0.5, random_state=seed)
+    Xcal, Xte, ycal, yte = train_test_split(Xb, yb, test_size=0.5, random_state=seed)
+    un = LogisticRegression(max_iter=3000).fit(Xa, ya)
+    bal = LogisticRegression(max_iter=3000, class_weight="balanced").fit(Xa, ya)
+    zc, zt = bal.decision_function(Xcal), bal.decision_function(Xte)
+    nll = lambda T: -np.log(softmax(zc / T)[np.arange(len(ycal)), ycal]).mean()
+    T = minimize_scalar(nll, bounds=(0.05, 20), method="bounded").x
+    prior = np.bincount(ya) / len(ya)
+    pc = bal.predict_proba(Xte) * prior; pc /= pc.sum(1, keepdims=True)             # prior correction
+    vs = LogisticRegression(max_iter=3000).fit(np.log(bal.predict_proba(Xcal)), ycal)  # vector scaling
+    rows.append([ece(un.predict_proba(Xte), yte), ece(bal.predict_proba(Xte), yte), ece(softmax(zt / T), yte),
+                 ece(pc, yte), ece(vs.predict_proba(np.log(bal.predict_proba(Xte))), yte),
+                 bal.predict_proba(Xte)[:, 3].mean(), (yte == 3).mean(),
+                 f1_score(yte, un.predict(Xte), average="macro"), f1_score(yte, bal.predict(Xte), average="macro")])
+rows = np.array(rows)
+names = ["ECE unweighted", "ECE balanced", "ECE +temperature", "ECE +prior corr.", "ECE +vector scaling",
+         "mean p(rare) balanced", "rare class freq", "macro-F1 unweighted", "macro-F1 balanced"]
+for n_, m_, s_ in zip(names, rows.mean(0), rows.std(0)):
+    print(f"{n_:24s} {m_:.3f} ± {s_:.3f}")
